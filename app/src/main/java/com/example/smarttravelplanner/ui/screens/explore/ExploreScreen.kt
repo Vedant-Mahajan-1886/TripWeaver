@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -19,10 +20,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -89,6 +94,60 @@ private val exploreDestinations = listOf(
         tag = "Romantic",
         tagCategory = "nature",
         imageRes = R.drawable.dest_udaipur
+    ),
+    ExploreDestination(
+        name = "Rishikesh",
+        stateCountry = "UTTARAKHAND · INDIA",
+        idealDuration = "3–4 days ideal",
+        bestSeason = "Best: Sep – Apr",
+        tag = "Spiritual & Rafting",
+        tagCategory = "adventure",
+        imageRes = R.drawable.dest_rishikesh
+    ),
+    ExploreDestination(
+        name = "Kerala",
+        stateCountry = "KERALA · INDIA",
+        idealDuration = "4–6 days ideal",
+        bestSeason = "Best: Sep – Mar",
+        tag = "Backwaters & Nature",
+        tagCategory = "nature",
+        imageRes = R.drawable.dest_kerala
+    ),
+    ExploreDestination(
+        name = "Mysore",
+        stateCountry = "KARNATAKA · INDIA",
+        idealDuration = "2–3 days ideal",
+        bestSeason = "Best: Oct – Mar",
+        tag = "Royal Heritage",
+        tagCategory = "cultural",
+        imageRes = R.drawable.dest_mysore
+    ),
+    ExploreDestination(
+        name = "Manali",
+        stateCountry = "HIMACHAL PRADESH · INDIA",
+        idealDuration = "4–5 days ideal",
+        bestSeason = "Best: Oct – Jun",
+        tag = "Snow & Trek",
+        tagCategory = "adventure",
+        imageRes = R.drawable.dest_manali
+    ),
+    ExploreDestination(
+        name = "Kashmir",
+        stateCountry = "JAMMU & KASHMIR · INDIA",
+        idealDuration = "5–7 days ideal",
+        bestSeason = "Best: Apr – Oct",
+        tag = "Paradise",
+        tagCategory = "nature",
+        imageRes = R.drawable.dest_kashmir
+    ),
+    ExploreDestination(
+        name = "Goa",
+        stateCountry = "GOA · INDIA",
+        idealDuration = "3–5 days ideal",
+        bestSeason = "Best: Nov – Feb",
+        tag = "Coastal & Beach",
+        tagCategory = "adventure",
+        imageRes = R.drawable.dest_goa
     )
 )
 
@@ -101,9 +160,20 @@ fun ExploreScreen(
     var selectedCity by remember { mutableStateOf("New Delhi") }
 
     val filteredDestinations = remember(selectedCategory, searchQuery) {
+        val query = searchQuery.trim().lowercase()
         exploreDestinations.filter { dest ->
-            val matchesCategory = selectedCategory == "all" || dest.tagCategory == selectedCategory || dest.tag.lowercase() == selectedCategory
-            val matchesSearch = searchQuery.isBlank() || dest.name.contains(searchQuery, ignoreCase = true) || dest.stateCountry.contains(searchQuery, ignoreCase = true)
+            val matchesCategory = selectedCategory == "all" ||
+                dest.tagCategory.equals(selectedCategory, ignoreCase = true) ||
+                dest.tag.lowercase().contains(selectedCategory)
+
+            val matchesSearch = query.isBlank() ||
+                dest.name.lowercase().contains(query) ||
+                dest.stateCountry.lowercase().contains(query) ||
+                dest.tag.lowercase().contains(query) ||
+                dest.tagCategory.lowercase().contains(query) ||
+                dest.idealDuration.lowercase().contains(query) ||
+                dest.bestSeason.lowercase().contains(query)
+
             matchesCategory && matchesSearch
         }
     }
@@ -188,33 +258,43 @@ fun ExploreScreen(
                         DropdownMenu(
                             expanded = showCityMenu,
                             onDismissRequest = { showCityMenu = false },
+                            offset = DpOffset(x = 0.dp, y = 8.dp),
+                            shape = RoundedCornerShape(20.dp),
+                            containerColor = Color(0xFF161E2E),
                             modifier = Modifier
-                                .background(Color(0xFF19202C))
-                                .clip(RoundedCornerShape(16.dp))
+                                .width(340.dp)
+                                .background(Color(0xFF161E2E), RoundedCornerShape(20.dp))
                         ) {
-                            cities.forEach { city ->
+                            cities.forEachIndexed { index, city ->
                                 val isSelected = city == selectedCity
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            text = city,
-                                            fontFamily = DmSansFontFamily,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isSelected) Amber else Color.White,
-                                            fontSize = 14.sp
-                                        )
-                                    },
-                                    onClick = {
-                                        selectedCity = city
-                                        showCityMenu = false
-                                    }
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            selectedCity = city
+                                            showCityMenu = false
+                                        }
+                                        .padding(horizontal = 20.dp, vertical = 15.dp)
+                                ) {
+                                    Text(
+                                        text = city,
+                                        fontFamily = DmSansFontFamily,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                        color = if (isSelected) Amber else Color.White,
+                                        fontSize = 15.sp
+                                    )
+                                }
+                                if (index < cities.lastIndex) {
+                                    HorizontalDivider(
+                                        color = Color(0xFF222B3C),
+                                        thickness = 0.8.dp
+                                    )
+                                }
                             }
                         }
                     }
 
-
-                    // Search Destinations Box
+                    // Interactive Search Destinations Box
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -224,20 +304,56 @@ fun ExploreScreen(
                             .padding(horizontal = 14.dp),
                         contentAlignment = Alignment.CenterStart
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
                             Icon(
                                 imageVector = Icons.Outlined.Search,
                                 contentDescription = "Search",
-                                tint = OnBackgroundGray,
+                                tint = if (searchQuery.isNotEmpty()) Amber else OnBackgroundGray,
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Search destinations...",
-                                color = OnBackgroundGray,
-                                fontSize = 13.sp,
-                                fontFamily = DmSansFontFamily
+                            BasicTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                singleLine = true,
+                                textStyle = TextStyle(
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontFamily = DmSansFontFamily,
+                                    fontWeight = FontWeight.Medium
+                                ),
+                                cursorBrush = SolidColor(Amber),
+                                modifier = Modifier.weight(1f),
+                                decorationBox = { innerTextField ->
+                                    Box(contentAlignment = Alignment.CenterStart) {
+                                        if (searchQuery.isEmpty()) {
+                                            Text(
+                                                text = "Search destinations...",
+                                                color = OnBackgroundGray,
+                                                fontSize = 13.sp,
+                                                fontFamily = DmSansFontFamily
+                                            )
+                                        }
+                                        innerTextField()
+                                    }
+                                }
                             )
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(
+                                    onClick = { searchQuery = "" },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Clear",
+                                        tint = OnBackgroundGray,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -285,10 +401,66 @@ fun ExploreScreen(
                 Spacer(modifier = Modifier.height(20.dp))
             }
 
-            // Destination Cards List
-            items(filteredDestinations) { dest ->
-                ExploreDestinationCard(destination = dest)
-                Spacer(modifier = Modifier.height(16.dp))
+            // Empty Search Results State
+            if (filteredDestinations.isEmpty()) {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 48.dp, horizontal = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.SearchOff,
+                            contentDescription = null,
+                            tint = OnBackgroundGray,
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "No destinations found",
+                            fontFamily = DmSansFontFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            color = Color.White
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Try searching for a different city, state, or category.",
+                            fontFamily = DmSansFontFamily,
+                            fontSize = 13.sp,
+                            color = OnBackgroundGray,
+                            textAlign = TextAlign.Center
+                        )
+                        if (searchQuery.isNotEmpty() || selectedCategory != "all") {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(
+                                onClick = {
+                                    searchQuery = ""
+                                    selectedCategory = "all"
+                                },
+                                shape = RoundedCornerShape(20.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF1E2633),
+                                    contentColor = Amber
+                                )
+                            ) {
+                                Text(
+                                    text = "Clear Filters",
+                                    fontFamily = DmSansFontFamily,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Destination Cards List
+                items(filteredDestinations) { dest ->
+                    ExploreDestinationCard(destination = dest)
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
             }
         }
     }

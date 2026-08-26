@@ -57,9 +57,14 @@ private data class TripItem(
 )
 
 private val destinations = listOf(
-    DestinationItem("Agra",   "Taj Mahal",       4.9, "Heritage", Color(0xFFE8A020), R.drawable.dest_agra),
-    DestinationItem("Jaipur", "Pink City",        4.8, "Royalty",  Color(0xFFE84393), R.drawable.dest_jaipur),
-    DestinationItem("Udaipur","City of Lakes",    4.9, "Serene",   Color(0xFFFF6B35), R.drawable.dest_udaipur),
+    DestinationItem("Agra",      "Taj Mahal",       4.9, "Heritage", Color(0xFFE8A020), R.drawable.dest_agra),
+    DestinationItem("Jaipur",    "Pink City",        4.8, "Royalty",  Color(0xFFE84393), R.drawable.dest_jaipur),
+    DestinationItem("Kashmir",   "Dal Lake",         4.9, "Paradise", Color(0xFF00B4D8), R.drawable.dest_kashmir),
+    DestinationItem("Kerala",    "Backwaters",       4.9, "Serene",   Color(0xFF2EC4B6), R.drawable.dest_kerala),
+    DestinationItem("Rishikesh", "Ganga & Yoga",     4.8, "Adventure",Color(0xFFFF9F1C), R.drawable.dest_rishikesh),
+    DestinationItem("Manali",    "Snow Peaks",       4.9, "Adventure",Color(0xFF4EA8DE), R.drawable.dest_manali),
+    DestinationItem("Goa",       "Sunny Coast",      4.8, "Beach",    Color(0xFFFF6B6B), R.drawable.dest_goa),
+    DestinationItem("Udaipur",   "City of Lakes",    4.9, "Serene",   Color(0xFFFF6B35), R.drawable.dest_udaipur),
 )
 
 private val recentTrips = listOf(
