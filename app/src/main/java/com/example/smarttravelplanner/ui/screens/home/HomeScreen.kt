@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
@@ -71,7 +72,9 @@ private val recentTrips = listOf(
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
-    onPlanWithAiClick: () -> Unit = {}
+    onPlanWithAiClick: () -> Unit = {},
+    onExploreClick: () -> Unit = {},
+    onMyTripsClick: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
 
@@ -91,23 +94,31 @@ fun HomeScreen(
             // ── Explore India ─────────────────────────────────────────────────
             Spacer(modifier = Modifier.height(24.dp))
             SectionHeader(
-                title    = "Explore India",
-                subtitle = "Curated destinations for you",
-                actionText = "See all"
+                title         = "Explore India",
+                subtitle      = "Curated destinations for you",
+                actionText    = "See all",
+                onActionClick = onExploreClick
             )
             Spacer(modifier = Modifier.height(16.dp))
-            DestinationCarousel(destinations = destinations)
+            DestinationCarousel(
+                destinations = destinations,
+                onDestinationClick = onExploreClick
+            )
 
             // ── Recent Trips ──────────────────────────────────────────────────
             Spacer(modifier = Modifier.height(28.dp))
             SectionHeader(
-                title    = "Recent Trips",
-                subtitle = "Your travel memories",
-                actionText = "View all"
+                title         = "Recent Trips",
+                subtitle      = "Your travel memories",
+                actionText    = "View all",
+                onActionClick = onMyTripsClick
             )
             Spacer(modifier = Modifier.height(16.dp))
             recentTrips.forEach { trip ->
-                RecentTripCard(trip = trip)
+                RecentTripCard(
+                    trip = trip,
+                    onClick = onMyTripsClick
+                )
                 Spacer(modifier = Modifier.height(12.dp))
             }
             Spacer(modifier = Modifier.height(32.dp))
@@ -122,7 +133,7 @@ private fun HeroSection(onPlanWithAiClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(400.dp)
+            .height(420.dp)
     ) {
         // Background photo
         Image(
@@ -140,7 +151,7 @@ private fun HeroSection(onPlanWithAiClick: () -> Unit) {
                     Brush.verticalGradient(
                         colorStops = arrayOf(
                             0.0f to Color(0x22000000),
-                            0.55f to Color(0x55000000),
+                            0.50f to Color(0x55000000),
                             1.0f to Color(0xEE000000)
                         )
                     )
@@ -177,7 +188,7 @@ private fun HeroSection(onPlanWithAiClick: () -> Unit) {
                         SpanStyle(
                             fontFamily = PlayfairFontFamily,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 32.sp,
+                            fontSize = 36.sp,
                             color = Color.White
                         )
                     ) {
@@ -188,24 +199,14 @@ private fun HeroSection(onPlanWithAiClick: () -> Unit) {
                             fontFamily = PlayfairFontFamily,
                             fontWeight = FontWeight.Bold,
                             fontStyle = FontStyle.Italic,
-                            fontSize = 32.sp,
+                            fontSize = 36.sp,
                             color = Color.White
                         )
                     ) {
-                        append("next story")
-                    }
-                    withStyle(
-                        SpanStyle(
-                            fontFamily = PlayfairFontFamily,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 32.sp,
-                            color = Color.White
-                        )
-                    ) {
-                        append(" begin?")
+                        append("next story begin?")
                     }
                 },
-                lineHeight = 38.sp
+                lineHeight = 44.sp
             )
             Spacer(modifier = Modifier.height(20.dp))
             Button(
@@ -215,14 +216,27 @@ private fun HeroSection(onPlanWithAiClick: () -> Unit) {
                     containerColor = Amber,
                     contentColor   = Color(0xFF1A0A00)
                 ),
-                contentPadding = PaddingValues(horizontal = 28.dp, vertical = 14.dp)
+                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 14.dp)
             ) {
-                Text(
-                    text = "Plan with AI  →",
-                    fontFamily = DmSansFontFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "Plan with AI",
+                        fontFamily = DmSansFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = Color(0xFF1A0A00)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        tint = Color(0xFF1A0A00),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
         }
     }
@@ -235,7 +249,8 @@ private fun HeroSection(onPlanWithAiClick: () -> Unit) {
 private fun SectionHeader(
     title: String,
     subtitle: String,
-    actionText: String
+    actionText: String,
+    onActionClick: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -247,48 +262,72 @@ private fun SectionHeader(
         Column {
             Text(
                 text       = title,
+                fontFamily = DmSansFontFamily,
                 fontWeight = FontWeight.Bold,
                 fontSize   = 20.sp,
                 color      = Color.White
             )
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text     = subtitle,
-                fontSize = 13.sp,
-                color    = OnBackgroundGray
+                text       = subtitle,
+                fontFamily = DmSansFontFamily,
+                fontSize   = 13.sp,
+                color      = OnBackgroundGray
             )
         }
-        Text(
-            text       = "$actionText →",
-            color      = Amber,
-            fontSize   = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier   = Modifier.clickable { }
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.clickable(onClick = onActionClick)
+        ) {
+            Text(
+                text       = actionText,
+                fontFamily = DmSansFontFamily,
+                color      = Amber,
+                fontSize   = 14.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = Amber,
+                modifier = Modifier.size(14.dp)
+            )
+        }
     }
 }
 
 // ── Destination Carousel ──────────────────────────────────────────────────────
 
 @Composable
-private fun DestinationCarousel(destinations: List<DestinationItem>) {
+private fun DestinationCarousel(
+    destinations: List<DestinationItem>,
+    onDestinationClick: () -> Unit = {}
+) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         items(destinations) { dest ->
-            DestinationCard(dest)
+            DestinationCard(
+                dest = dest,
+                onClick = onDestinationClick
+            )
         }
     }
 }
 
 @Composable
-private fun DestinationCard(dest: DestinationItem) {
+private fun DestinationCard(
+    dest: DestinationItem,
+    onClick: () -> Unit = {}
+) {
     Box(
         modifier = Modifier
             .width(160.dp)
             .height(220.dp)
             .clip(RoundedCornerShape(16.dp))
-            .clickable { }
+            .clickable(onClick = onClick)
     ) {
         Image(
             painter = painterResource(dest.imageRes),
@@ -321,9 +360,10 @@ private fun DestinationCard(dest: DestinationItem) {
                 .padding(horizontal = 10.dp, vertical = 4.dp)
         ) {
             Text(
-                text     = dest.tag,
-                color    = Color.White,
-                fontSize = 11.sp,
+                text       = dest.tag,
+                fontFamily = DmSansFontFamily,
+                color      = Color.White,
+                fontSize   = 11.sp,
                 fontWeight = FontWeight.SemiBold
             )
         }
@@ -344,6 +384,7 @@ private fun DestinationCard(dest: DestinationItem) {
                 Spacer(modifier = Modifier.width(3.dp))
                 Text(
                     text = dest.rating.toString(),
+                    fontFamily = DmSansFontFamily,
                     color = Color.White,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold
@@ -369,14 +410,17 @@ private fun DestinationCard(dest: DestinationItem) {
 // ── Recent Trip Card ──────────────────────────────────────────────────────────
 
 @Composable
-private fun RecentTripCard(trip: TripItem) {
+private fun RecentTripCard(
+    trip: TripItem,
+    onClick: () -> Unit = {}
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp)
             .height(160.dp)
             .clip(RoundedCornerShape(20.dp))
-            .clickable { }
+            .clickable(onClick = onClick)
     ) {
         Image(
             painter = painterResource(trip.imageRes),

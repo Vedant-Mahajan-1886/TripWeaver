@@ -5,35 +5,38 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.googlefonts.Font
-import androidx.compose.ui.text.googlefonts.GoogleFont
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.sp
 import com.example.smarttravelplanner.R
 
-private val googleFontProvider = GoogleFont.Provider(
-    providerAuthority = "com.google.android.gms.fonts",
-    providerPackage   = "com.google.android.gms",
-    certificates      = R.array.com_google_android_gms_fonts_certs
-)
-
-private val dmSans = GoogleFont("DM Sans")
-private val playfairDisplay = GoogleFont("Playfair Display")
-
 val DmSansFontFamily = FontFamily(
-    Font(googleFont = dmSans, fontProvider = googleFontProvider, weight = FontWeight.Light),
-    Font(googleFont = dmSans, fontProvider = googleFontProvider, weight = FontWeight.Normal),
-    Font(googleFont = dmSans, fontProvider = googleFontProvider, weight = FontWeight.Medium),
-    Font(googleFont = dmSans, fontProvider = googleFontProvider, weight = FontWeight.SemiBold),
-    Font(googleFont = dmSans, fontProvider = googleFontProvider, weight = FontWeight.Bold),
-    Font(googleFont = dmSans, fontProvider = googleFontProvider, weight = FontWeight.ExtraBold),
+    Font(R.font.dm_sans, weight = FontWeight.Light),
+    Font(R.font.dm_sans, weight = FontWeight.Normal),
+    Font(R.font.dm_sans, weight = FontWeight.Medium),
+    Font(R.font.dm_sans, weight = FontWeight.SemiBold),
+    Font(R.font.dm_sans, weight = FontWeight.Bold),
+    Font(R.font.dm_sans, weight = FontWeight.ExtraBold),
+    Font(R.font.dm_sans_italic, weight = FontWeight.Light, style = FontStyle.Italic),
+    Font(R.font.dm_sans_italic, weight = FontWeight.Normal, style = FontStyle.Italic),
+    Font(R.font.dm_sans_italic, weight = FontWeight.Medium, style = FontStyle.Italic),
+    Font(R.font.dm_sans_italic, weight = FontWeight.SemiBold, style = FontStyle.Italic),
+    Font(R.font.dm_sans_italic, weight = FontWeight.Bold, style = FontStyle.Italic),
+    Font(R.font.dm_sans_italic, weight = FontWeight.ExtraBold, style = FontStyle.Italic),
 )
 
 val PlayfairFontFamily = FontFamily(
-    Font(googleFont = playfairDisplay, fontProvider = googleFontProvider, weight = FontWeight.Normal),
-    Font(googleFont = playfairDisplay, fontProvider = googleFontProvider, weight = FontWeight.Medium),
-    Font(googleFont = playfairDisplay, fontProvider = googleFontProvider, weight = FontWeight.SemiBold),
-    Font(googleFont = playfairDisplay, fontProvider = googleFontProvider, weight = FontWeight.Bold),
-    Font(googleFont = playfairDisplay, fontProvider = googleFontProvider, weight = FontWeight.ExtraBold),
+    Font(R.font.playfair_display, weight = FontWeight.Light),
+    Font(R.font.playfair_display, weight = FontWeight.Normal),
+    Font(R.font.playfair_display, weight = FontWeight.Medium),
+    Font(R.font.playfair_display, weight = FontWeight.SemiBold),
+    Font(R.font.playfair_display, weight = FontWeight.Bold),
+    Font(R.font.playfair_display, weight = FontWeight.ExtraBold),
+    Font(R.font.playfair_display_italic, weight = FontWeight.Light, style = FontStyle.Italic),
+    Font(R.font.playfair_display_italic, weight = FontWeight.Normal, style = FontStyle.Italic),
+    Font(R.font.playfair_display_italic, weight = FontWeight.Medium, style = FontStyle.Italic),
+    Font(R.font.playfair_display_italic, weight = FontWeight.SemiBold, style = FontStyle.Italic),
+    Font(R.font.playfair_display_italic, weight = FontWeight.Bold, style = FontStyle.Italic),
+    Font(R.font.playfair_display_italic, weight = FontWeight.ExtraBold, style = FontStyle.Italic),
 )
 
 val Typography = Typography(

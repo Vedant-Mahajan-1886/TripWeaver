@@ -46,7 +46,29 @@ fun AppNavigation() {
         ) {
 
             composable("home") {
-                HomeScreen(onPlanWithAiClick = { navController.navigate("plan") })
+                HomeScreen(
+                    onPlanWithAiClick = {
+                        navController.navigate("plan") {
+                            popUpTo("home") { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    onExploreClick = {
+                        navController.navigate("explore") {
+                            popUpTo("home") { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    onMyTripsClick = {
+                        navController.navigate("mytrips") {
+                            popUpTo("home") { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                )
             }
 
             composable("plan") { PlanScreen() }

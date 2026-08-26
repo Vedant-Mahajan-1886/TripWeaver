@@ -296,117 +296,128 @@ fun ExploreScreen(
 
 @Composable
 private fun ExploreDestinationCard(destination: ExploreDestination) {
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp)
-            .height(240.dp)
             .clip(RoundedCornerShape(22.dp))
+            .background(Color(0xFF131923))
             .clickable { }
     ) {
-        Image(
-            painter = painterResource(destination.imageRes),
-            contentDescription = destination.name,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.matchParentSize()
-        )
-
-        // Gradient Scrim for readable text
+        // Upper Image Section with Scrim and Title
         Box(
             modifier = Modifier
-                .matchParentSize()
-                .background(
-                    Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0.0f to Color(0x10000000),
-                            0.45f to Color(0x30000000),
-                            1.0f to Color(0xEE080C14)
+                .fillMaxWidth()
+                .height(180.dp)
+        ) {
+            Image(
+                painter = painterResource(destination.imageRes),
+                contentDescription = destination.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.matchParentSize()
+            )
+
+            // Gradient Scrim for readable text over image
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.0f to Color(0x05000000),
+                                0.40f to Color(0x33000000),
+                                1.0f to Color(0xEE0B111B)
+                            )
                         )
                     )
-                )
-        )
-
-        // Content
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(18.dp)
-        ) {
-            Text(
-                text = destination.name,
-                fontFamily = PlayfairFontFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = 30.sp,
-                color = Color.White
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = destination.stateCountry,
-                fontFamily = DmSansFontFamily,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 1.sp,
-                color = Color(0xFFCBD5E1)
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Bottom Badges Row
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            // Destination Name & Location overlaid on image
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
-                // Ideal Duration
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "🗓 ",
-                        fontSize = 12.sp
-                    )
-                    Text(
-                        text = destination.idealDuration,
-                        fontFamily = DmSansFontFamily,
-                        fontSize = 12.sp,
-                        color = Color(0xFFE2E8F0)
-                    )
-                }
-
                 Text(
-                    text = "|",
-                    color = Color(0xFF475569),
+                    text = destination.name,
+                    fontFamily = PlayfairFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 32.sp,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = destination.stateCountry,
+                    fontFamily = DmSansFontFamily,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 1.5.sp,
+                    color = Color(0xFFCBD5E1)
+                )
+            }
+        }
+
+        // Bottom Info Bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF131923))
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Ideal Duration
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "🗓 ",
                     fontSize = 12.sp
                 )
+                Text(
+                    text = destination.idealDuration,
+                    fontFamily = DmSansFontFamily,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFFE2E8F0)
+                )
+            }
 
-                // Best Season
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "☀️ ",
-                        fontSize = 12.sp
-                    )
-                    Text(
-                        text = destination.bestSeason,
-                        fontFamily = DmSansFontFamily,
-                        fontSize = 12.sp,
-                        color = Color(0xFFE2E8F0)
-                    )
-                }
+            Text(
+                text = "|",
+                color = Color(0xFF334155),
+                fontSize = 12.sp
+            )
 
-                Spacer(modifier = Modifier.weight(1f))
+            // Best Season
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "☀️ ",
+                    fontSize = 12.sp
+                )
+                Text(
+                    text = destination.bestSeason,
+                    fontFamily = DmSansFontFamily,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFFE2E8F0)
+                )
+            }
 
-                // Tag Pill
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFF47310D))
-                        .padding(horizontal = 12.dp, vertical = 5.dp)
-                ) {
-                    Text(
-                        text = destination.tag,
-                        fontFamily = DmSansFontFamily,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Amber
-                    )
-                }
+            Spacer(modifier = Modifier.weight(1f))
+
+            // Tag Pill
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF3A2810))
+                    .padding(horizontal = 12.dp, vertical = 5.dp)
+            ) {
+                Text(
+                    text = destination.tag,
+                    fontFamily = DmSansFontFamily,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Amber
+                )
             }
         }
     }
