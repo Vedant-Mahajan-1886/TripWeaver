@@ -20,6 +20,6 @@ data class PartnerCreditOption(
     val name: String,
     val subtitle: String,
     val subtext: String? = null,
-    val iconType: String, // "smart_credit", "bajaj", "amazon_pay", "lazypay"
+    val iconType: String, //"bajaj", "amazon_pay"
     val isLinked: Boolean = false
 )
