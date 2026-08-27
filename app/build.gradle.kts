@@ -92,6 +92,7 @@ dependencies {
     // Google Maps & Places
     implementation(libs.maps.compose)
     implementation(libs.play.services.maps)
+    implementation("com.google.android.gms:play-services-location:21.3.0")
     implementation(libs.places)
 
     // Coroutines
@@ -99,6 +100,7 @@ dependencies {
 
     // Image Loading
     implementation(libs.coil.compose)
+    implementation("com.github.bumptech.glide:compose:1.0.0-beta10")
 
     // Testing
     testImplementation(libs.junit)

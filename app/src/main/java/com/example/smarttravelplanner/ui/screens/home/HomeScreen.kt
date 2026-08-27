@@ -216,7 +216,17 @@ private fun HeroSection(
                             color = Color.White
                         )
                     ) {
-                        append("next story begin?")
+                        append("next story ")
+                    }
+                    withStyle(
+                        SpanStyle(
+                            fontFamily = PlayfairFontFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 36.sp,
+                            color = Color.White
+                        )
+                    ) {
+                        append("begin?")
                     }
                 },
                 lineHeight = 44.sp
@@ -236,10 +246,10 @@ private fun HeroSection(
                     horizontalArrangement = Arrangement.Center
                 ) {
                     Text(
-                        text = "Plan with AI",
+                        text = "✦  Plan with AI",
                         fontFamily = DmSansFontFamily,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
+                        fontSize = 16.sp,
                         color = Color(0xFF1A0A00)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
@@ -275,7 +285,7 @@ private fun SectionHeader(
         Column {
             Text(
                 text       = title,
-                fontFamily = DmSansFontFamily,
+                fontFamily = PlayfairFontFamily,
                 fontWeight = FontWeight.Bold,
                 fontSize   = 20.sp,
                 color      = Color.White

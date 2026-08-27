@@ -1,6 +1,5 @@
 package com.example.smarttravelplanner.ui.screens.explore
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -23,7 +22,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -31,6 +29,9 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
+import com.bumptech.glide.integration.compose.GlideImage
+import com.bumptech.glide.integration.compose.placeholder
 import com.example.smarttravelplanner.R
 import com.example.smarttravelplanner.ui.theme.*
 
@@ -449,9 +450,9 @@ fun ExploreScreen(
                                     Box(contentAlignment = Alignment.CenterStart) {
                                         if (searchQuery.isEmpty()) {
                                             Text(
-                                                text = "Search destinations...",
+                                                text = "Search destinations",
                                                 color = OnBackgroundGray,
-                                                fontSize = 13.sp,
+                                                fontSize = 14.sp,
                                                 fontFamily = DmSansFontFamily
                                             )
                                         }
@@ -600,12 +601,16 @@ private fun ExploreDestinationCard(destination: ExploreDestination) {
                 .fillMaxWidth()
                 .height(180.dp)
         ) {
-            Image(
-                painter = painterResource(destination.imageRes),
+            @OptIn(ExperimentalGlideComposeApi::class)
+            GlideImage(
+                model             = destination.imageRes,
                 contentDescription = destination.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.matchParentSize()
-            )
+                contentScale      = ContentScale.Crop,
+                modifier          = Modifier.matchParentSize()
+            ) {
+                it.diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.RESOURCE)
+                  .transition(com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions.withCrossFade(300))
+            }
 
             // Gradient Scrim for readable text over image
             Box(

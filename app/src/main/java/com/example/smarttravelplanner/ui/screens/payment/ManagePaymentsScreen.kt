@@ -35,7 +35,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.Image
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import com.example.smarttravelplanner.R
 import com.example.smarttravelplanner.ui.theme.Amber
 import com.example.smarttravelplanner.ui.theme.DmSansFontFamily
@@ -100,11 +104,39 @@ fun ManagePaymentsScreen(
 
                 // Centered Title
                 Text(
-                    text = "Manage Payment Options",
-                    fontFamily = PlayfairFontFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 19.sp,
-                    color = Color.White,
+                    text = buildAnnotatedString {
+                        withStyle(
+                            SpanStyle(
+                                fontFamily = PlayfairFontFamily,
+                                fontWeight = FontWeight.W900,
+                                fontSize = 22.sp,
+                                color = Color.White
+                            )
+                        ) {
+                            append("Manage ")
+                        }
+                        withStyle(
+                            SpanStyle(
+                                fontFamily = PlayfairFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontStyle = FontStyle.Italic,
+                                fontSize = 22.sp,
+                                color = Amber
+                            )
+                        ) {
+                            append("Payment ")
+                        }
+                        withStyle(
+                            SpanStyle(
+                                fontFamily = PlayfairFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 22.sp,
+                                color = Color.White
+                            )
+                        ) {
+                            append("Options")
+                        }
+                    },
                     textAlign = TextAlign.Center
                 )
             }

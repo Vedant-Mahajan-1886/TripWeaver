@@ -82,7 +82,13 @@ fun AppNavigation() {
                 )
             }
 
-            composable("plan") { PlanScreen() }
+            composable("plan") {
+                PlanScreen(
+                    onMenuClick = {
+                        navController.navigate("profile")
+                    }
+                )
+            }
 
             composable("mytrips") { MyTripsScreen() }
 
