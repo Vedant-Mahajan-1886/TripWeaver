@@ -25,4 +25,48 @@ class ProfileViewModel @Inject constructor(
             // TODO: Persist to DataStore
         }
     }
+
+    fun updateProfile(firstName: String, lastName: String, phoneNumber: String, email: String) {
+        val currentPrefs = (_uiState.value as? ProfileUiState.Success)?.preferences ?: UserPreferences()
+        val updated = currentPrefs.copy(
+            firstName = firstName,
+            lastName = lastName,
+            phoneNumber = phoneNumber,
+            email = email
+        )
+        updatePreferences(updated)
+    }
+
+    fun updateTheme(themeMode: String) {
+        val currentPrefs = (_uiState.value as? ProfileUiState.Success)?.preferences ?: UserPreferences()
+        val updated = currentPrefs.copy(themeMode = themeMode)
+        updatePreferences(updated)
+    }
+
+    fun updateComprehensiveProfile(
+        gender: String,
+        fullName: String,
+        phone: String,
+        email: String,
+        homeLocation: String,
+        dateOfBirth: String,
+        maritalStatus: String
+    ) {
+        val currentPrefs = (_uiState.value as? ProfileUiState.Success)?.preferences ?: UserPreferences()
+        val names = fullName.trim().split(" ", limit = 2)
+        val fName = names.getOrNull(0) ?: ""
+        val lName = names.getOrNull(1) ?: ""
+        val updated = currentPrefs.copy(
+            gender = gender,
+            fullNameInput = fullName,
+            firstName = if (fName.isNotBlank()) fName else currentPrefs.firstName,
+            lastName = if (lName.isNotBlank()) lName else currentPrefs.lastName,
+            phoneNumber = phone,
+            email = email,
+            homeLocation = homeLocation,
+            dateOfBirth = dateOfBirth,
+            maritalStatus = maritalStatus
+        )
+        updatePreferences(updated)
+    }
 }

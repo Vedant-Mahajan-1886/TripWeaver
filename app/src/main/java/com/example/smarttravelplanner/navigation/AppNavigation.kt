@@ -14,6 +14,10 @@ import com.example.smarttravelplanner.ui.screens.home.HomeScreen
 import com.example.smarttravelplanner.ui.screens.mytrips.MyTripsScreen
 import com.example.smarttravelplanner.ui.screens.plan.PlanScreen
 
+import com.example.smarttravelplanner.ui.screens.payment.ManagePaymentsScreen
+import com.example.smarttravelplanner.ui.screens.profile.MyProfileScreen
+import com.example.smarttravelplanner.ui.screens.profile.ProfileScreen
+
 @Composable
 fun AppNavigation() {
 
@@ -22,20 +26,24 @@ fun AppNavigation() {
     val backStackEntry = navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry.value?.destination?.route ?: "home"
 
+    val fullScreenRoutes = setOf("profile", "my_profile", "manage_payments")
+
     Scaffold(
         bottomBar = {
-            BottomNavigationBar(
-                currentRoute = currentRoute,
-                onNavigate = { route ->
-                    navController.navigate(route) {
-                        popUpTo("home") {
-                            saveState = true
+            if (currentRoute !in fullScreenRoutes) {
+                BottomNavigationBar(
+                    currentRoute = currentRoute,
+                    onNavigate = { route ->
+                        navController.navigate(route) {
+                            popUpTo("home") {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
                         }
-                        launchSingleTop = true
-                        restoreState = true
                     }
-                }
-            )
+                )
+            }
         }
     ) { innerPadding ->
 
@@ -67,6 +75,9 @@ fun AppNavigation() {
                             launchSingleTop = true
                             restoreState = true
                         }
+                    },
+                    onMenuClick = {
+                        navController.navigate("profile")
                     }
                 )
             }
@@ -75,7 +86,43 @@ fun AppNavigation() {
 
             composable("mytrips") { MyTripsScreen() }
 
-            composable("explore") { ExploreScreen() }
+            composable("explore") {
+                ExploreScreen(
+                    onMenuClick = {
+                        navController.navigate("profile")
+                    }
+                )
+            }
+
+            composable("profile") {
+                ProfileScreen(
+                    onCloseClick = {
+                        navController.popBackStack()
+                    },
+                    onNavigateToMyProfile = {
+                        navController.navigate("my_profile")
+                    },
+                    onNavigateToManagePayments = {
+                        navController.navigate("manage_payments")
+                    }
+                )
+            }
+
+            composable("my_profile") {
+                MyProfileScreen(
+                    onBackClick = {
+                        navController.popBackStack()
+                    }
+                )
+            }
+
+            composable("manage_payments") {
+                ManagePaymentsScreen(
+                    onBackClick = {
+                        navController.popBackStack()
+                    }
+                )
+            }
         }
     }
 }

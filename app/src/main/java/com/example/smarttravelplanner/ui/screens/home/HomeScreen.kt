@@ -79,7 +79,8 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
     onPlanWithAiClick: () -> Unit = {},
     onExploreClick: () -> Unit = {},
-    onMyTripsClick: () -> Unit = {}
+    onMyTripsClick: () -> Unit = {},
+    onMenuClick: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
 
@@ -94,7 +95,10 @@ fun HomeScreen(
                 .verticalScroll(scrollState)
         ) {
             // ── Hero Section ──────────────────────────────────────────────────
-            HeroSection(onPlanWithAiClick = onPlanWithAiClick)
+            HeroSection(
+                onPlanWithAiClick = onPlanWithAiClick,
+                onMenuClick = onMenuClick
+            )
 
             // ── Explore India ─────────────────────────────────────────────────
             Spacer(modifier = Modifier.height(24.dp))
@@ -134,7 +138,10 @@ fun HomeScreen(
 // ── Hero ─────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun HeroSection(onPlanWithAiClick: () -> Unit) {
+private fun HeroSection(
+    onPlanWithAiClick: () -> Unit,
+    onMenuClick: () -> Unit
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -170,6 +177,7 @@ private fun HeroSection(onPlanWithAiClick: () -> Unit) {
                 .size(42.dp)
                 .clip(CircleShape)
                 .background(Color(0x55000000))
+                .clickable { onMenuClick() }
                 .align(Alignment.TopStart),
             contentAlignment = Alignment.Center
         ) {

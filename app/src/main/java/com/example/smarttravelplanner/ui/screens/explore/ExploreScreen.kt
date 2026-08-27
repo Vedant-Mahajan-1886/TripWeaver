@@ -148,12 +148,130 @@ private val exploreDestinations = listOf(
         tag = "Coastal & Beach",
         tagCategory = "adventure",
         imageRes = R.drawable.dest_goa
+    ),
+    ExploreDestination(
+        name = "Leh",
+        stateCountry = "LADAKH · INDIA",
+        idealDuration = "6–8 days ideal",
+        bestSeason = "Best: Jun – Sep",
+        tag = "High Altitude",
+        tagCategory = "adventure",
+        imageRes = R.drawable.dest_leh
+    ),
+    ExploreDestination(
+        name = "Jodhpur",
+        stateCountry = "RAJASTHAN · INDIA",
+        idealDuration = "2–3 days ideal",
+        bestSeason = "Best: Oct – Mar",
+        tag = "Blue City",
+        tagCategory = "cultural",
+        imageRes = R.drawable.dest_jodhpur
+    ),
+    ExploreDestination(
+        name = "Amritsar",
+        stateCountry = "PUNJAB · INDIA",
+        idealDuration = "2–3 days ideal",
+        bestSeason = "Best: Oct – Mar",
+        tag = "Spiritual",
+        tagCategory = "religious",
+        imageRes = R.drawable.dest_amritsar
+    ),
+    ExploreDestination(
+        name = "Munnar",
+        stateCountry = "KERALA · INDIA",
+        idealDuration = "3–4 days ideal",
+        bestSeason = "Best: Sep – Mar",
+        tag = "Tea Gardens",
+        tagCategory = "nature",
+        imageRes = R.drawable.dest_munnar
+    ),
+    ExploreDestination(
+        name = "Coorg",
+        stateCountry = "KARNATAKA · INDIA",
+        idealDuration = "3–4 days ideal",
+        bestSeason = "Best: Oct – May",
+        tag = "Coffee Country",
+        tagCategory = "nature",
+        imageRes = R.drawable.dest_coorg
+    ),
+    ExploreDestination(
+        name = "Darjeeling",
+        stateCountry = "WEST BENGAL · INDIA",
+        idealDuration = "3–4 days ideal",
+        bestSeason = "Best: Mar – May",
+        tag = "Hill Station",
+        tagCategory = "nature",
+        imageRes = R.drawable.dest_darjeeling
+    ),
+    ExploreDestination(
+        name = "Gangtok",
+        stateCountry = "SIKKIM · INDIA",
+        idealDuration = "4–5 days ideal",
+        bestSeason = "Best: Mar – May",
+        tag = "Mountain Town",
+        tagCategory = "nature",
+        imageRes = R.drawable.dest_gangtok
+    ),
+    ExploreDestination(
+        name = "Andaman",
+        stateCountry = "ANDAMAN & NICOBAR · INDIA",
+        idealDuration = "5–7 days ideal",
+        bestSeason = "Best: Oct – May",
+        tag = "Island Paradise",
+        tagCategory = "adventure",
+        imageRes = R.drawable.dest_andaman
+    ),
+    ExploreDestination(
+        name = "Pondicherry",
+        stateCountry = "PUDUCHERRY · INDIA",
+        idealDuration = "2–3 days ideal",
+        bestSeason = "Best: Oct – Mar",
+        tag = "French Colony",
+        tagCategory = "cultural",
+        imageRes = R.drawable.dest_pondicherry
+    ),
+    ExploreDestination(
+        name = "Mussoorie",
+        stateCountry = "UTTARAKHAND · INDIA",
+        idealDuration = "3–4 days ideal",
+        bestSeason = "Best: Mar – Jun",
+        tag = "Queen of Hills",
+        tagCategory = "nature",
+        imageRes = R.drawable.dest_mussoorie
+    ),
+    ExploreDestination(
+        name = "Spiti Valley",
+        stateCountry = "HIMACHAL PRADESH · INDIA",
+        idealDuration = "7–10 days ideal",
+        bestSeason = "Best: Jun – Sep",
+        tag = "Cold Desert",
+        tagCategory = "adventure",
+        imageRes = R.drawable.dest_spiti
+    ),
+    ExploreDestination(
+        name = "Gokarna",
+        stateCountry = "KARNATAKA · INDIA",
+        idealDuration = "2–3 days ideal",
+        bestSeason = "Best: Oct – Mar",
+        tag = "Beach & Temple",
+        tagCategory = "religious",
+        imageRes = R.drawable.dest_gokarna
+    ),
+    ExploreDestination(
+        name = "Shillong",
+        stateCountry = "MEGHALAYA · INDIA",
+        idealDuration = "3–4 days ideal",
+        bestSeason = "Best: Sep – May",
+        tag = "Scotland of East",
+        tagCategory = "nature",
+        imageRes = R.drawable.dest_shillong
     )
 )
 
 @Composable
 fun ExploreScreen(
-    viewModel: ExploreViewModel = hiltViewModel()
+    viewModel: ExploreViewModel = hiltViewModel(),
+    onMenuClick: () -> Unit = {}
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("all") }
@@ -196,7 +314,7 @@ fun ExploreScreen(
                         .size(42.dp)
                         .clip(CircleShape)
                         .background(Color(0xFF1E2633))
-                        .clickable { },
+                        .clickable { onMenuClick() },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
