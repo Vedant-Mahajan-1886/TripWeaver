@@ -105,7 +105,7 @@ private val exploreDestinations = listOf(
         imageRes = R.drawable.dest_rishikesh
     ),
     ExploreDestination(
-        name = "Kerala",
+        name = "Alleppey",
         stateCountry = "KERALA · INDIA",
         idealDuration = "4–6 days ideal",
         bestSeason = "Best: Sep – Mar",
@@ -132,7 +132,7 @@ private val exploreDestinations = listOf(
         imageRes = R.drawable.dest_manali
     ),
     ExploreDestination(
-        name = "Kashmir",
+        name = "Srinagar",
         stateCountry = "JAMMU & KASHMIR · INDIA",
         idealDuration = "5–7 days ideal",
         bestSeason = "Best: Apr – Oct",
