@@ -17,9 +17,10 @@ import com.example.smarttravelplanner.ui.screens.plan.PlanScreen
 import com.example.smarttravelplanner.ui.screens.payment.ManagePaymentsScreen
 import com.example.smarttravelplanner.ui.screens.profile.MyProfileScreen
 import com.example.smarttravelplanner.ui.screens.profile.ProfileScreen
+import com.example.smarttravelplanner.ui.screens.profile.ProfileViewModel
 
 @Composable
-fun AppNavigation() {
+fun AppNavigation(profileViewModel: ProfileViewModel) {
 
     val navController = rememberNavController()
 
@@ -102,6 +103,7 @@ fun AppNavigation() {
 
             composable("profile") {
                 ProfileScreen(
+                    viewModel = profileViewModel,
                     onCloseClick = {
                         navController.popBackStack()
                     },

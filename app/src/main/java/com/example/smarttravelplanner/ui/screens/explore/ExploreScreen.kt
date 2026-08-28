@@ -34,6 +34,7 @@ import com.bumptech.glide.integration.compose.GlideImage
 import com.bumptech.glide.integration.compose.placeholder
 import com.example.smarttravelplanner.R
 import com.example.smarttravelplanner.ui.theme.*
+import androidx.compose.material3.MaterialTheme
 
 private data class CategoryChip(
     val id: String,
@@ -300,7 +301,7 @@ fun ExploreScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(BackgroundDark)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -314,14 +315,14 @@ fun ExploreScreen(
                         .padding(horizontal = 20.dp)
                         .size(42.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF1E2633))
+                        .background(MaterialTheme.colorScheme.surface)
                         .clickable { onMenuClick() },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Menu,
                         contentDescription = "Menu",
-                        tint = Color.White,
+                        tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(22.dp)
                     )
                 }
@@ -344,7 +345,7 @@ fun ExploreScreen(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(16.dp))
-                                .background(Color(0xFF131A24))
+                                .background(MaterialTheme.colorScheme.surface)
                                 .clickable { showCityMenu = true }
                                 .padding(horizontal = 14.dp, vertical = 10.dp)
                         ) {
@@ -360,7 +361,7 @@ fun ExploreScreen(
                                         text = selectedCity,
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         fontFamily = DmSansFontFamily
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
@@ -419,7 +420,7 @@ fun ExploreScreen(
                             .weight(1f)
                             .height(52.dp)
                             .clip(RoundedCornerShape(18.dp))
-                            .background(Color(0xFF131A24))
+                            .background(MaterialTheme.colorScheme.surface)
                             .padding(horizontal = 14.dp),
                         contentAlignment = Alignment.CenterStart
                     ) {
@@ -439,7 +440,7 @@ fun ExploreScreen(
                                 onValueChange = { searchQuery = it },
                                 singleLine = true,
                                 textStyle = TextStyle(
-                                    color = Color.White,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     fontSize = 14.sp,
                                     fontFamily = DmSansFontFamily,
                                     fontWeight = FontWeight.Medium
@@ -489,7 +490,7 @@ fun ExploreScreen(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(16.dp))
-                                .background(if (isSelected) Amber else Color(0xFF131A24))
+                                .background(if (isSelected) Amber else MaterialTheme.colorScheme.surface)
                                 .clickable { selectedCategory = cat.id }
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
                             contentAlignment = Alignment.Center
@@ -541,7 +542,7 @@ fun ExploreScreen(
                             fontFamily = DmSansFontFamily,
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp,
-                            color = Color.White
+                            color = MaterialTheme.colorScheme.onBackground
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
@@ -638,7 +639,7 @@ private fun ExploreDestinationCard(destination: ExploreDestination) {
                     fontFamily = PlayfairFontFamily,
                     fontWeight = FontWeight.Bold,
                     fontSize = 32.sp,
-                    color = Color.White
+                    color = Color.White  // Always white - overlaid on image
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(

@@ -40,6 +40,7 @@ import com.example.smarttravelplanner.domain.model.UserPreferences
 import com.example.smarttravelplanner.ui.theme.Amber
 import com.example.smarttravelplanner.ui.theme.DmSansFontFamily
 import com.example.smarttravelplanner.ui.theme.PlayfairFontFamily
+import androidx.compose.material3.MaterialTheme
 
 @Composable
 fun MyProfileScreen(
@@ -69,15 +70,7 @@ fun MyProfileScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        Color(0xFF090D14),
-                        Color(0xFF0D121B),
-                        Color(0xFF080B10)
-                    )
-                )
-            )
+            .background(MaterialTheme.colorScheme.background)
     ) {
         Column(
             modifier = Modifier
@@ -92,12 +85,12 @@ fun MyProfileScreen(
                 contentAlignment = Alignment.Center
             ) {
                 // Back button on start
-                Box(
+                    Box(
                     modifier = Modifier
                         .size(42.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF131923))
-                        .border(1.dp, Color(0xFF222C3B), CircleShape)
+                        .background(MaterialTheme.colorScheme.surface)
+                        .border(1.dp, MaterialTheme.colorScheme.surfaceVariant, CircleShape)
                         .clickable(onClick = onBackClick)
                         .align(Alignment.CenterStart),
                     contentAlignment = Alignment.Center
@@ -105,7 +98,7 @@ fun MyProfileScreen(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
-                        tint = Color.White,
+                        tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -116,7 +109,7 @@ fun MyProfileScreen(
                     fontFamily = PlayfairFontFamily,
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onBackground,
                     textAlign = TextAlign.Center
                 )
             }
@@ -129,9 +122,8 @@ fun MyProfileScreen(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // ── AVATAR WITH PROGRESS ARC ──────────────────────────────────
-                AvatarWithProgress(
-                    completionPercent = prefs.profileCompletionPercent,
+                // ── AVATAR ──────────────────────────────────
+                ProfileAvatar(
                     onEditAvatar = {
                         Toast.makeText(context, "Choose photo from gallery", Toast.LENGTH_SHORT).show()
                     }
@@ -143,8 +135,8 @@ fun MyProfileScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF111722)),
-                    border = androidx.compose.foundation.BorderStroke(0.8.dp, Color(0xFF1D2635))
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = androidx.compose.foundation.BorderStroke(0.8.dp, MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(
                         modifier = Modifier
@@ -157,7 +149,7 @@ fun MyProfileScreen(
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = DmSansFontFamily,
-                            color = Color(0xFF7E8E9F),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             letterSpacing = 1.1.sp
                         )
 
@@ -203,15 +195,15 @@ fun MyProfileScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFF0B1017))
-                                .border(1.dp, Color(0xFF1E2837), RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.background)
+                                .border(1.dp, MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
                                 .padding(horizontal = 14.dp, vertical = 10.dp)
                         ) {
                             Text(
                                 text = "Phone Number",
                                 fontSize = 11.sp,
                                 fontFamily = DmSansFontFamily,
-                                color = Color(0xFF7E8E9F)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Row(
@@ -227,18 +219,18 @@ fun MyProfileScreen(
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold,
                                         fontFamily = DmSansFontFamily,
-                                        color = Color.White
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Icon(
                                         imageVector = Icons.Outlined.KeyboardArrowDown,
                                         contentDescription = "Country",
-                                        tint = Color(0xFF7E8E9F),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
 
                                 VerticalDivider(
-                                    color = Color(0xFF222C3D),
+                                    color = MaterialTheme.colorScheme.surfaceVariant,
                                     modifier = Modifier
                                         .height(18.dp)
                                         .padding(horizontal = 10.dp)
@@ -249,7 +241,7 @@ fun MyProfileScreen(
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium,
                                     fontFamily = DmSansFontFamily,
-                                    color = Color.White,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     modifier = Modifier.weight(1f)
                                 )
 
@@ -286,8 +278,8 @@ fun MyProfileScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0xFF0B1017))
-                                    .border(1.dp, Color(0xFF222D3E), RoundedCornerShape(12.dp))
+                                    .background(MaterialTheme.colorScheme.background)
+                                    .border(1.dp, MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
                                     .clickable {
                                         isGoogleVerified = true
                                         Toast.makeText(context, "Verified with Google account!", Toast.LENGTH_SHORT).show()
@@ -312,7 +304,7 @@ fun MyProfileScreen(
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         fontFamily = DmSansFontFamily,
-                                        color = Color.White
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
                             }
@@ -326,8 +318,8 @@ fun MyProfileScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF111722)),
-                    border = androidx.compose.foundation.BorderStroke(0.8.dp, Color(0xFF1D2635))
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = androidx.compose.foundation.BorderStroke(0.8.dp, MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(
                         modifier = Modifier
@@ -340,7 +332,7 @@ fun MyProfileScreen(
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = DmSansFontFamily,
-                            color = Color(0xFF7E8E9F),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             letterSpacing = 1.1.sp
                         )
 
@@ -423,7 +415,7 @@ fun MyProfileScreen(
             // ── STICKY BOTTOM BUTTON ──────────────────────────────────────────
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = Color(0xFF090D14)
+                color = MaterialTheme.colorScheme.surface
             ) {
                 Box(
                     modifier = Modifier
@@ -470,65 +462,42 @@ fun MyProfileScreen(
 // ── SUBCOMPONENTS ────────────────────────────────────────────────────────────
 
 @Composable
-private fun AvatarWithProgress(
-    completionPercent: Int,
+private fun ProfileAvatar(
     onEditAvatar: () -> Unit
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            modifier = Modifier.size(106.dp),
+            modifier = Modifier.size(96.dp),
             contentAlignment = Alignment.Center
         ) {
-            // Background & Completion Arc
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val strokeW = 3.dp.toPx()
-                // Base background ring
-                drawCircle(
-                    color = Color(0xFF1E2838),
-                    radius = (size.minDimension - strokeW) / 2f,
-                    style = Stroke(width = strokeW)
-                )
-
-                // Green Progress Arc
-                val sweep = (completionPercent.coerceIn(0, 100) / 100f) * 360f
-                drawArc(
-                    color = Color(0xFF2ECC71),
-                    startAngle = -90f,
-                    sweepAngle = sweep,
-                    useCenter = false,
-                    topLeft = Offset(strokeW / 2, strokeW / 2),
-                    size = Size(size.width - strokeW, size.height - strokeW),
-                    style = Stroke(width = strokeW, cap = StrokeCap.Round)
-                )
-            }
-
             // Silhouette Avatar Container
             Box(
                 modifier = Modifier
                     .size(86.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFCBD8E6)),
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .border(1.5.dp, Amber.copy(alpha = 0.5f), CircleShape),
                 contentAlignment = Alignment.BottomCenter
             ) {
                 Icon(
                     imageVector = Icons.Default.Person,
                     contentDescription = "Profile Silhouette",
-                    tint = Color(0xFF8DA2BA),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
-                        .size(76.dp)
-                        .offset(y = 8.dp)
+                        .size(72.dp)
+                        .offset(y = 6.dp)
                 )
             }
 
             // Edit Pencil Floating Badge (Top-Right)
             Box(
                 modifier = Modifier
-                    .size(26.dp)
+                    .size(28.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF2B374A))
-                    .border(1.5.dp, Color(0xFF111722), CircleShape)
+                    .background(Amber)
+                    .border(1.5.dp, MaterialTheme.colorScheme.background, CircleShape)
                     .clickable(onClick = onEditAvatar)
                     .align(Alignment.TopEnd),
                 contentAlignment = Alignment.Center
@@ -536,30 +505,13 @@ private fun AvatarWithProgress(
                 Icon(
                     imageVector = Icons.Default.Edit,
                     contentDescription = "Edit photo",
-                    tint = Color.White,
-                    modifier = Modifier.size(13.dp)
+                    tint = Color(0xFF0F172A),
+                    modifier = Modifier.size(14.dp)
                 )
             }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
-
-        // % Complete Pill Badge
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFF0B291A))
-                .border(0.8.dp, Color(0xFF185938), RoundedCornerShape(12.dp))
-                .padding(horizontal = 10.dp, vertical = 3.dp)
-        ) {
-            Text(
-                text = "$completionPercent% Complete",
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = DmSansFontFamily,
-                color = Color(0xFF2ECC71)
-            )
-        }
     }
 }
 
@@ -574,10 +526,10 @@ private fun GenderPill(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(if (isSelected) Color(0xFF182333) else Color(0xFF0C1118))
+            .background(if (isSelected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.background)
             .border(
                 width = if (isSelected) 1.2.dp else 0.8.dp,
-                color = if (isSelected) Color(0xFF4A607E) else Color(0xFF1E2837),
+                color = if (isSelected) Amber else MaterialTheme.colorScheme.surfaceVariant,
                 shape = RoundedCornerShape(12.dp)
             )
             .clickable(onClick = onClick)
@@ -591,14 +543,14 @@ private fun GenderPill(
             Text(
                 text = symbol,
                 fontSize = 15.sp,
-                color = if (isSelected) Amber else Color(0xFF8A99AC)
+                color = if (isSelected) Amber else MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
                 text = label,
                 fontSize = 13.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                 fontFamily = DmSansFontFamily,
-                color = if (isSelected) Color.White else Color(0xFF8A99AC)
+                color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -615,10 +567,10 @@ private fun MaritalPill(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(if (isSelected) Color(0xFF182333) else Color(0xFF0C1118))
+            .background(if (isSelected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.background)
             .border(
                 width = if (isSelected) 1.2.dp else 0.8.dp,
-                color = if (isSelected) Color(0xFF4A607E) else Color(0xFF1E2837),
+                color = if (isSelected) Amber else MaterialTheme.colorScheme.surfaceVariant,
                 shape = RoundedCornerShape(12.dp)
             )
             .clickable(onClick = onClick)
@@ -632,7 +584,7 @@ private fun MaritalPill(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = if (isSelected) Amber else Color(0xFF8A99AC),
+                tint = if (isSelected) Amber else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(16.dp)
             )
             Text(
@@ -640,7 +592,7 @@ private fun MaritalPill(
                 fontSize = 13.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                 fontFamily = DmSansFontFamily,
-                color = if (isSelected) Color.White else Color(0xFF8A99AC)
+                color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -659,15 +611,15 @@ private fun ProfileInputField(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF0B1017))
-            .border(1.dp, Color(0xFF1E2837), RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.background)
+            .border(1.dp, MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
             .padding(horizontal = 14.dp, vertical = 8.dp)
     ) {
         Text(
             text = label,
             fontSize = 11.sp,
             fontFamily = DmSansFontFamily,
-            color = Color(0xFF7E8E9F)
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         Row(
@@ -683,7 +635,7 @@ private fun ProfileInputField(
                 value = value,
                 onValueChange = onValueChange,
                 textStyle = androidx.compose.ui.text.TextStyle(
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 14.sp,
                     fontFamily = DmSansFontFamily,
                     fontWeight = FontWeight.Medium
@@ -697,7 +649,7 @@ private fun ProfileInputField(
                     if (value.isEmpty() && placeholder.isNotEmpty()) {
                         Text(
                             text = placeholder,
-                            color = Color(0xFF4C5B6D),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                             fontSize = 14.sp,
                             fontFamily = DmSansFontFamily
                         )

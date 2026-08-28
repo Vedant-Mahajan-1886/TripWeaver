@@ -25,7 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarttravelplanner.ui.theme.Amber
 import com.example.smarttravelplanner.ui.theme.DmSansFontFamily
-import com.example.smarttravelplanner.ui.theme.SurfaceDark
+import androidx.compose.material3.MaterialTheme
 
 private data class NavItem(
     val route:        String,
@@ -47,7 +47,7 @@ fun BottomNavigationBar(
     onNavigate: (String) -> Unit
 ) {
     Surface(
-        color = Color(0xFF0F141C),
+        color = MaterialTheme.colorScheme.surface,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -58,7 +58,7 @@ fun BottomNavigationBar(
             // Subtle top divider
             HorizontalDivider(
                 thickness = 0.5.dp,
-                color = Color(0xFF1E2633)
+                color = MaterialTheme.colorScheme.surfaceVariant
             )
 
             Row(
@@ -102,13 +102,13 @@ private fun NavBarItem(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Icon container: exact circular amber pill when active
+        // Icon container: circular amber pill when active
         Box(
             modifier = Modifier
                 .size(38.dp)
                 .clip(CircleShape)
                 .then(
-                    if (selected) Modifier.background(Color(0xFF382914))
+                    if (selected) Modifier.background(Amber.copy(alpha = 0.15f))
                     else Modifier
                 ),
             contentAlignment = Alignment.Center
@@ -116,7 +116,7 @@ private fun NavBarItem(
             Icon(
                 imageVector  = if (selected) item.filledIcon else item.outlineIcon,
                 contentDescription = item.label,
-                tint         = if (selected) Amber else Color(0xFF8E9BAE),
+                tint         = if (selected) Amber else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier     = Modifier.size(22.dp)
             )
         }
@@ -128,7 +128,7 @@ private fun NavBarItem(
             text       = item.label,
             fontSize   = 11.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color      = if (selected) Amber else Color(0xFF8E9BAE),
+            color      = if (selected) Amber else MaterialTheme.colorScheme.onSurfaceVariant,
             fontFamily = DmSansFontFamily,
             textAlign  = TextAlign.Center,
             maxLines   = 1

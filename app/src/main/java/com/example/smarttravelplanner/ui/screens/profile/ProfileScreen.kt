@@ -45,6 +45,7 @@ import com.example.smarttravelplanner.domain.model.UserPreferences
 import com.example.smarttravelplanner.ui.theme.Amber
 import com.example.smarttravelplanner.ui.theme.DmSansFontFamily
 import com.example.smarttravelplanner.ui.theme.PlayfairFontFamily
+import androidx.compose.material3.MaterialTheme
 
 @Composable
 fun ProfileScreen(
@@ -73,15 +74,7 @@ fun ProfileScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        Color(0xFF090D14),
-                        Color(0xFF0E131C),
-                        Color(0xFF070B10)
-                    )
-                )
-            )
+            .background(MaterialTheme.colorScheme.background)
     ) {
         Column(
             modifier = Modifier
@@ -108,7 +101,7 @@ fun ProfileScreen(
                     modifier = Modifier.weight(1f),
                     title = "Smart Travel\nCredit Card",
                     icon = Icons.Outlined.CreditCard,
-                    iconBg = Color(0xFF1E2838),
+                    iconBg = Amber.copy(alpha = 0.15f),
                     iconTint = Amber,
                     tag = "Free",
                     onClick = {
@@ -120,7 +113,7 @@ fun ProfileScreen(
                     modifier = Modifier.weight(1f),
                     title = "Manage\nPayments",
                     icon = Icons.Outlined.AccountBalanceWallet,
-                    iconBg = Color(0xFF152A38),
+                    iconBg = Color(0xFF4FA8F6).copy(alpha = 0.15f),
                     iconTint = Color(0xFF4FA8F6),
                     onClick = onNavigateToManagePayments
                 )
@@ -136,7 +129,7 @@ fun ProfileScreen(
                     modifier = Modifier.weight(1f),
                     title = "Customer\nService",
                     icon = Icons.Outlined.SupportAgent,
-                    iconBg = Color(0xFF2E1C2B),
+                    iconBg = Color(0xFFF472B6).copy(alpha = 0.15f),
                     iconTint = Color(0xFFF472B6),
                     onClick = { showSupportDialog = true }
                 )
@@ -145,7 +138,7 @@ fun ProfileScreen(
                     modifier = Modifier.weight(1f),
                     title = "Device\nTheme",
                     icon = Icons.Outlined.Palette,
-                    iconBg = Color(0xFF1B2B28),
+                    iconBg = Color(0xFF34D399).copy(alpha = 0.15f),
                     iconTint = Color(0xFF34D399),
                     onClick = { showThemeDialog = true }
                 )
@@ -157,8 +150,8 @@ fun ProfileScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF121722)),
-                border = androidx.compose.foundation.BorderStroke(0.7.dp, Color(0xFF1E2636))
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = androidx.compose.foundation.BorderStroke(0.7.dp, MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Column(
                     modifier = Modifier
@@ -170,7 +163,7 @@ fun ProfileScreen(
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = DmSansFontFamily,
-                        color = Color(0xFF7E8D9F),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         letterSpacing = 1.2.sp,
                         modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 10.dp)
                     )
@@ -182,7 +175,7 @@ fun ProfileScreen(
                     )
 
                     HorizontalDivider(
-                        color = Color(0xFF1A2230),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
                         thickness = 0.6.dp,
                         modifier = Modifier.padding(vertical = 4.dp)
                     )
@@ -194,7 +187,7 @@ fun ProfileScreen(
                     )
 
                     HorizontalDivider(
-                        color = Color(0xFF1A2230),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
                         thickness = 0.6.dp,
                         modifier = Modifier.padding(vertical = 4.dp)
                     )
@@ -216,7 +209,7 @@ fun ProfileScreen(
                     )
 
                     HorizontalDivider(
-                        color = Color(0xFF1A2230),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
                         thickness = 0.6.dp,
                         modifier = Modifier.padding(vertical = 4.dp)
                     )
@@ -240,7 +233,7 @@ fun ProfileScreen(
                     text = "Application Version 1.0.0",
                     fontSize = 11.sp,
                     fontFamily = DmSansFontFamily,
-                    color = Color(0xFF5E6D82),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
                 )
 
@@ -431,23 +424,6 @@ private fun PassportProfileCard(
                         }
 
                         Spacer(modifier = Modifier.height(8.dp))
-
-                        // Completion percentage pill badge
-                        val percent = prefs.profileCompletionPercent
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFFD4F8E8))
-                                .padding(horizontal = 8.dp, vertical = 3.dp)
-                        ) {
-                            Text(
-                                text = "$percent% Complete",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = DmSansFontFamily,
-                                color = Color(0xFF0F7542)
-                            )
-                        }
                     }
 
                     // Right Column: Monospaced Passport Fields
@@ -554,8 +530,8 @@ private fun QuickActionCard(
             .clip(RoundedCornerShape(18.dp))
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF131923)),
-        border = androidx.compose.foundation.BorderStroke(0.8.dp, Color(0xFF1E2837))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = androidx.compose.foundation.BorderStroke(0.8.dp, MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Box(
             modifier = Modifier
@@ -608,7 +584,7 @@ private fun QuickActionCard(
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = DmSansFontFamily,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     lineHeight = 16.sp
                 )
             }
@@ -640,7 +616,7 @@ private fun ProfileOptionItem(
             Icon(
                 imageVector = icon,
                 contentDescription = title,
-                tint = Color(0xFFCBD5E1),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(22.dp)
             )
             Text(
@@ -648,14 +624,14 @@ private fun ProfileOptionItem(
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
                 fontFamily = DmSansFontFamily,
-                color = Color(0xFFF1F5F9)
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
 
         Icon(
             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = "Open",
-            tint = Color(0xFF64748B),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(20.dp)
         )
     }
@@ -665,9 +641,10 @@ private fun ProfileOptionItem(
 
 @Composable
 private fun PassportStampsWatermark(modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier) {
-        val stampColor = Color(0xFF33455E)
+    val stampColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
+    val brownStampColor = Amber.copy(alpha = 0.35f)
 
+    Canvas(modifier = modifier) {
         // Circular Visa Stamp 1 (Left)
         drawCircle(
             color = stampColor,
@@ -687,13 +664,13 @@ private fun PassportStampsWatermark(modifier: Modifier = Modifier) {
 
         // Center Flight Stamp
         drawCircle(
-            color = Color(0xFF6B4822),
+            color = brownStampColor,
             radius = 52.dp.toPx(),
             center = Offset(size.width * 0.55f, size.height * 0.75f),
             style = Stroke(width = 2.dp.toPx())
         )
         drawCircle(
-            color = Color(0xFF6B4822),
+            color = brownStampColor,
             radius = 44.dp.toPx(),
             center = Offset(size.width * 0.55f, size.height * 0.75f),
             style = Stroke(
@@ -745,7 +722,7 @@ private fun PassportCardWatermark(modifier: Modifier = Modifier) {
 private fun CustomerSupportDialog(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF161E2B),
+        containerColor = MaterialTheme.colorScheme.surface,
         title = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -759,7 +736,7 @@ private fun CustomerSupportDialog(onDismiss: () -> Unit) {
                 Text(
                     text = "Customer Service",
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 18.sp
                 )
             }
@@ -771,21 +748,21 @@ private fun CustomerSupportDialog(onDismiss: () -> Unit) {
             ) {
                 Text(
                     text = "24/7 Smart Travel Assistance is always here for your flights, trips & queries.",
-                    color = Color(0xFFCBD5E1),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 13.sp
                 )
 
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1F2937)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
-                        Text("Toll Free Helpline", color = Color(0xFF94A3B8), fontSize = 11.sp)
-                        Text("+91 1800 200 4567", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("Toll Free Helpline", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+                        Text("+91 1800 200 4567", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("Email Support", color = Color(0xFF94A3B8), fontSize = 11.sp)
-                        Text("support@smarttravelplanner.com", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("Email Support", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+                        Text("support@smarttravelplanner.com", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 }
             }
@@ -836,15 +813,15 @@ private fun ThemeSelectionBottomSheet(
                 modifier = Modifier
                     .size(46.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF141A24))
-                    .border(1.dp, Color(0xFF2C384B), CircleShape)
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(1.dp, MaterialTheme.colorScheme.surfaceVariant, CircleShape)
                     .clickable(onClick = onDismiss),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = "Close",
-                    tint = Color.White,
+                    tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(22.dp)
                 )
             }
@@ -855,7 +832,7 @@ private fun ThemeSelectionBottomSheet(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
-                color = Color(0xFF090D15)
+                color = MaterialTheme.colorScheme.surface
             ) {
                 Column(
                     modifier = Modifier
@@ -870,7 +847,7 @@ private fun ThemeSelectionBottomSheet(
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = PlayfairFontFamily,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.Center
                     )
 
@@ -880,8 +857,8 @@ private fun ThemeSelectionBottomSheet(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF131924)),
-                        border = androidx.compose.foundation.BorderStroke(0.8.dp, Color(0xFF1D2636))
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
+                        border = androidx.compose.foundation.BorderStroke(0.8.dp, MaterialTheme.colorScheme.surfaceVariant)
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             options.forEachIndexed { index, option ->
@@ -899,17 +876,17 @@ private fun ThemeSelectionBottomSheet(
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.Medium,
                                         fontFamily = DmSansFontFamily,
-                                        color = Color.White
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
 
-                                    // Custom Radio Indicator matching reference design
+                                    // Custom Radio Indicator
                                     Box(
                                         modifier = Modifier
                                             .size(20.dp)
                                             .clip(CircleShape)
                                             .border(
                                                 width = if (isSelected) 2.dp else 1.5.dp,
-                                                color = if (isSelected) Color.White else Color(0xFF4B5768),
+                                                color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                                                 shape = CircleShape
                                             ),
                                         contentAlignment = Alignment.Center
@@ -919,7 +896,7 @@ private fun ThemeSelectionBottomSheet(
                                                 modifier = Modifier
                                                     .size(10.dp)
                                                     .clip(CircleShape)
-                                                    .background(Color.White)
+                                                    .background(MaterialTheme.colorScheme.onSurface)
                                             )
                                         }
                                     }
@@ -927,7 +904,7 @@ private fun ThemeSelectionBottomSheet(
 
                                 if (index < options.size - 1) {
                                     HorizontalDivider(
-                                        color = Color(0xFF1C2534),
+                                        color = MaterialTheme.colorScheme.surfaceVariant,
                                         thickness = 0.8.dp
                                     )
                                 }
@@ -971,12 +948,12 @@ private fun RateAppDialog(onDismiss: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF161E2B),
+        containerColor = MaterialTheme.colorScheme.surface,
         title = {
             Text(
                 text = "Enjoying Smart Travel Planner?",
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 18.sp
             )
         },
@@ -987,7 +964,7 @@ private fun RateAppDialog(onDismiss: () -> Unit) {
             ) {
                 Text(
                     text = "Tap stars to rate your trip planning experience:",
-                    color = Color(0xFFCBD5E1),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center
                 )
@@ -1009,7 +986,7 @@ private fun RateAppDialog(onDismiss: () -> Unit) {
         confirmButton = {
             Button(
                 onClick = {
-                    Toast.makeText(context, "Thank you for the $rating-star rating! ❤️", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Thank you for the $rating-star rating!️", Toast.LENGTH_SHORT).show()
                     onDismiss()
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = Amber)
@@ -1033,12 +1010,12 @@ private fun NotificationDialog(onDismiss: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF161E2B),
+        containerColor = MaterialTheme.colorScheme.surface,
         title = {
             Text(
                 text = "Notification Preferences",
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 18.sp
             )
         },
@@ -1074,7 +1051,7 @@ private fun NotificationToggleRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(title, color = Color.White, fontSize = 13.sp)
+        Text(title, color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp)
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
@@ -1094,12 +1071,12 @@ private fun SettingsDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF161E2B),
+        containerColor = MaterialTheme.colorScheme.surface,
         title = {
             Text(
                 text = "Settings",
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 18.sp
             )
         },
@@ -1108,18 +1085,18 @@ private fun SettingsDialog(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("App Preferences", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                Text("App Preferences", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
 
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1F2937)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
-                        Text("Default Currency", color = Color(0xFF94A3B8), fontSize = 11.sp)
-                        Text(prefs.currency, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("Default Currency", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+                        Text(prefs.currency, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         Spacer(modifier = Modifier.height(6.dp))
-                        Text("AI Itinerary Engine", color = Color(0xFF94A3B8), fontSize = 11.sp)
+                        Text("AI Itinerary Engine", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                         Text(prefs.ollamaModel, color = Amber, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 }

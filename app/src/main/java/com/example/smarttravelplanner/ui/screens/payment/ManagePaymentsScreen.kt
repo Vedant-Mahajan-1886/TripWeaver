@@ -59,15 +59,7 @@ fun ManagePaymentsScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        Color(0xFF090D14),
-                        Color(0xFF0D121B),
-                        Color(0xFF080B10)
-                    )
-                )
-            )
+            .background(MaterialTheme.colorScheme.background)
     ) {
         Column(
             modifier = Modifier
@@ -88,8 +80,8 @@ fun ManagePaymentsScreen(
                     modifier = Modifier
                         .size(42.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF131923))
-                        .border(1.dp, Color(0xFF222C3B), CircleShape)
+                        .background(MaterialTheme.colorScheme.surface)
+                        .border(1.dp, MaterialTheme.colorScheme.surfaceVariant, CircleShape)
                         .clickable(onClick = onBackClick)
                         .align(Alignment.CenterStart),
                     contentAlignment = Alignment.Center
@@ -97,7 +89,7 @@ fun ManagePaymentsScreen(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
-                        tint = Color.White,
+                        tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -110,7 +102,7 @@ fun ManagePaymentsScreen(
                                 fontFamily = PlayfairFontFamily,
                                 fontWeight = FontWeight.W900,
                                 fontSize = 22.sp,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onBackground
                             )
                         ) {
                             append("Manage ")
@@ -131,7 +123,7 @@ fun ManagePaymentsScreen(
                                 fontFamily = PlayfairFontFamily,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 22.sp,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onBackground
                             )
                         ) {
                             append("Options")
@@ -148,8 +140,8 @@ fun ManagePaymentsScreen(
                     .clip(RoundedCornerShape(16.dp))
                     .clickable { showAddCardDialog = true },
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF111722)),
-                border = androidx.compose.foundation.BorderStroke(0.8.dp, Color(0xFF1D2635))
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = androidx.compose.foundation.BorderStroke(0.8.dp, MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Column(
                     modifier = Modifier
@@ -160,7 +152,7 @@ fun ManagePaymentsScreen(
                         text = "Add Card",
                         fontSize = 12.sp,
                         fontFamily = DmSansFontFamily,
-                        color = Color(0xFF7E8E9F),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 10.dp)
                     )
 
@@ -172,13 +164,13 @@ fun ManagePaymentsScreen(
                             modifier = Modifier
                                 .size(46.dp)
                                 .clip(RoundedCornerShape(13.dp))
-                                .background(Color(0xFF182230)),
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Add,
                                 contentDescription = "Add Card",
-                                tint = Color.White,
+                                tint = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.size(24.dp)
                             )
                         }
@@ -189,14 +181,14 @@ fun ManagePaymentsScreen(
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = DmSansFontFamily,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = "Visa, Mastercard, RuPay & more",
                                 fontSize = 12.sp,
                                 fontFamily = DmSansFontFamily,
-                                color = Color(0xFF7E8E9F)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -212,8 +204,8 @@ fun ManagePaymentsScreen(
                     .clip(RoundedCornerShape(16.dp))
                     .clickable { showLinkUpiDialog = true },
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF111722)),
-                border = androidx.compose.foundation.BorderStroke(0.8.dp, Color(0xFF1D2635))
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = androidx.compose.foundation.BorderStroke(0.8.dp, MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Column(
                     modifier = Modifier
@@ -224,7 +216,7 @@ fun ManagePaymentsScreen(
                         text = "1-Click UPI",
                         fontSize = 12.sp,
                         fontFamily = DmSansFontFamily,
-                        color = Color(0xFF7E8E9F),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 10.dp)
                     )
 
@@ -236,13 +228,13 @@ fun ManagePaymentsScreen(
                             modifier = Modifier
                                 .size(46.dp)
                                 .clip(RoundedCornerShape(13.dp))
-                                .background(Color(0xFF182230)),
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Add,
                                 contentDescription = "1-Click UPI",
-                                tint = Color.White,
+                                tint = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.size(24.dp)
                             )
                         }
@@ -253,14 +245,14 @@ fun ManagePaymentsScreen(
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = DmSansFontFamily,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = "Link bank account",
                                 fontSize = 12.sp,
                                 fontFamily = DmSansFontFamily,
-                                color = Color(0xFF7E8E9F)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -273,8 +265,8 @@ fun ManagePaymentsScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF111722)),
-                border = androidx.compose.foundation.BorderStroke(0.8.dp, Color(0xFF1D2635))
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = androidx.compose.foundation.BorderStroke(0.8.dp, MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Column(
                     modifier = Modifier
@@ -286,7 +278,7 @@ fun ManagePaymentsScreen(
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = DmSansFontFamily,
-                        color = Color(0xFF7E8E9F),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         letterSpacing = 1.1.sp,
                         modifier = Modifier.padding(bottom = 14.dp, top = 2.dp)
                     )
@@ -303,7 +295,7 @@ fun ManagePaymentsScreen(
                     )
 
                     HorizontalDivider(
-                        color = Color(0xFF1C2534),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
                         thickness = 0.7.dp,
                         modifier = Modifier.padding(vertical = 10.dp)
                     )
@@ -387,7 +379,7 @@ private fun PartnerOptionRow(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = DmSansFontFamily,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
                 if (!subtitle.isNullOrBlank()) {
@@ -396,7 +388,7 @@ private fun PartnerOptionRow(
                         text = subtitle,
                         fontSize = 11.sp,
                         fontFamily = DmSansFontFamily,
-                        color = Color(0xFF8A99AC)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
@@ -406,7 +398,7 @@ private fun PartnerOptionRow(
                         text = subtext,
                         fontSize = 10.sp,
                         fontFamily = DmSansFontFamily,
-                        color = Color(0xFF5B6B7C)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
                 }
             }
@@ -505,13 +497,13 @@ private fun AddCardDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF141A24),
+        containerColor = MaterialTheme.colorScheme.surface,
         title = {
             Text(
                 text = "Add New Card",
                 fontWeight = FontWeight.Bold,
                 fontFamily = DmSansFontFamily,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 18.sp
             )
         },
@@ -523,12 +515,12 @@ private fun AddCardDialog(
                 OutlinedTextField(
                     value = cardNumber,
                     onValueChange = { if (it.length <= 16) cardNumber = it },
-                    label = { Text("Card Number (16 Digits)", color = Color(0xFF8A99AC)) },
+                    label = { Text("Card Number (16 Digits)", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                         focusedBorderColor = Amber,
-                        unfocusedBorderColor = Color(0xFF2C384A)
+                        unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant
                     ),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
@@ -537,12 +529,12 @@ private fun AddCardDialog(
                 OutlinedTextField(
                     value = cardHolder,
                     onValueChange = { cardHolder = it },
-                    label = { Text("Cardholder Name", color = Color(0xFF8A99AC)) },
+                    label = { Text("Cardholder Name", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                         focusedBorderColor = Amber,
-                        unfocusedBorderColor = Color(0xFF2C384A)
+                        unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant
                     ),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
@@ -552,12 +544,12 @@ private fun AddCardDialog(
                     OutlinedTextField(
                         value = expiry,
                         onValueChange = { if (it.length <= 5) expiry = it },
-                        label = { Text("MM/YY", color = Color(0xFF8A99AC)) },
+                        label = { Text("MM/YY", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                             focusedBorderColor = Amber,
-                            unfocusedBorderColor = Color(0xFF2C384A)
+                            unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant
                         ),
                         singleLine = true,
                         modifier = Modifier.weight(1f)
@@ -566,12 +558,12 @@ private fun AddCardDialog(
                     OutlinedTextField(
                         value = cvv,
                         onValueChange = { if (it.length <= 4) cvv = it },
-                        label = { Text("CVV", color = Color(0xFF8A99AC)) },
+                        label = { Text("CVV", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                             focusedBorderColor = Amber,
-                            unfocusedBorderColor = Color(0xFF2C384A)
+                            unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant
                         ),
                         singleLine = true,
                         modifier = Modifier.weight(1f)
@@ -589,7 +581,7 @@ private fun AddCardDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel", color = Color(0xFF8A99AC))
+                Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     )
@@ -604,13 +596,13 @@ private fun LinkUpiDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF141A24),
+        containerColor = MaterialTheme.colorScheme.surface,
         title = {
             Text(
                 text = "Link 1-Click UPI",
                 fontWeight = FontWeight.Bold,
                 fontFamily = DmSansFontFamily,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 18.sp
             )
         },
@@ -622,18 +614,18 @@ private fun LinkUpiDialog(
                 Text(
                     text = "Enter your Virtual Payment Address (VPA) / UPI ID:",
                     fontSize = 12.sp,
-                    color = Color(0xFF8A99AC)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 OutlinedTextField(
                     value = upiId,
                     onValueChange = { upiId = it },
-                    placeholder = { Text("e.g. mobile@okaxis / user@upi", color = Color(0xFF556578)) },
+                    placeholder = { Text("e.g. mobile@okaxis / user@upi", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                         focusedBorderColor = Amber,
-                        unfocusedBorderColor = Color(0xFF2C384A)
+                        unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant
                     ),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
@@ -650,7 +642,7 @@ private fun LinkUpiDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel", color = Color(0xFF8A99AC))
+                Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     )
@@ -666,13 +658,13 @@ private fun LinkPartnerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF141A24),
+        containerColor = MaterialTheme.colorScheme.surface,
         title = {
             Text(
                 text = "Link $partnerName",
                 fontWeight = FontWeight.Bold,
                 fontFamily = DmSansFontFamily,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 18.sp
             )
         },
@@ -684,18 +676,18 @@ private fun LinkPartnerDialog(
                 Text(
                     text = "Enter your registered mobile number or account ID linked with $partnerName:",
                     fontSize = 12.sp,
-                    color = Color(0xFF8A99AC)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 OutlinedTextField(
                     value = phoneOrAccount,
                     onValueChange = { phoneOrAccount = it },
-                    placeholder = { Text("Registered Mobile / ID", color = Color(0xFF556578)) },
+                    placeholder = { Text("Registered Mobile / ID", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                         focusedBorderColor = Amber,
-                        unfocusedBorderColor = Color(0xFF2C384A)
+                        unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant
                     ),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
@@ -712,7 +704,7 @@ private fun LinkPartnerDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel", color = Color(0xFF8A99AC))
+                Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     )

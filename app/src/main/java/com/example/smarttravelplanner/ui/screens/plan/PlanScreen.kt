@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.smarttravelplanner.ui.theme.*
+import androidx.compose.material3.MaterialTheme
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
@@ -163,7 +164,7 @@ fun PlanScreen(
     val scope       = rememberCoroutineScope()
 
     // ── Origin city (editable) ────────────────────────────────────────────────
-    var originQuery        by remember { mutableStateOf("New Delhi") }
+    var originQuery        by remember { mutableStateOf("") }
     var isLocating         by remember { mutableStateOf(false) }
 
     // ── Destination ───────────────────────────────────────────────────────────
@@ -171,17 +172,21 @@ fun PlanScreen(
 
     // ── Date range ────────────────────────────────────────────────────────────
     val today              = remember { LocalDate.now() }
-    var departureDate      by remember { mutableStateOf(today.plusDays(7)) }
-    var returnDate         by remember { mutableStateOf(today.plusDays(12)) }
+    var departureDate      by remember { mutableStateOf<LocalDate?>(null) }
+    var returnDate         by remember { mutableStateOf<LocalDate?>(null) }
     var showDatePicker     by remember { mutableStateOf(false) }
 
     val tripDays = remember(departureDate, returnDate) {
-        (returnDate.toEpochDay() - departureDate.toEpochDay()).toInt()
+        if (departureDate != null && returnDate != null) {
+            (returnDate!!.toEpochDay() - departureDate!!.toEpochDay()).toInt()
+        } else {
+            null
+        }
     }
 
     // ── Other preferences ─────────────────────────────────────────────────────
     var selectedBudget     by remember { mutableStateOf("mid_range") }
-    val selectedInterests  = remember { mutableStateListOf("heritage", "food") }
+    val selectedInterests  = remember { mutableStateListOf<String>() }
     var selectedStyle      by remember { mutableStateOf("balanced") }
     var additionalNotes    by remember { mutableStateOf("") }
 
@@ -209,9 +214,9 @@ fun PlanScreen(
     }
     val datePickerState = rememberDateRangePickerState(
         initialSelectedStartDateMillis = departureDate
-            .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+            ?.atStartOfDay(ZoneId.systemDefault())?.toInstant()?.toEpochMilli(),
         initialSelectedEndDateMillis   = returnDate
-            .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+            ?.atStartOfDay(ZoneId.systemDefault())?.toInstant()?.toEpochMilli(),
         selectableDates = object : SelectableDates {
             override fun isSelectableDate(utcTimeMillis: Long): Boolean =
                 utcTimeMillis >= todayUtcMidnight
@@ -236,7 +241,7 @@ fun PlanScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(BackgroundDark)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -349,7 +354,7 @@ fun PlanScreen(
                     onClick = {
                         viewModel.generateItinerary(
                             destination = destination,
-                            days        = tripDays,
+                            days        = tripDays ?: 5,
                             budget      = when (selectedBudget) {
                                 "budget"    -> 4000.0
                                 "mid_range" -> 10000.0
@@ -434,8 +439,8 @@ private fun TripDateRangeSheet(
     ModalBottomSheet(
         onDismissRequest   = onDismiss,
         sheetState         = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor     = Color(0xFF141414),
-        contentColor       = Color.White,
+        containerColor     = MaterialTheme.colorScheme.surface,
+        contentColor       = MaterialTheme.colorScheme.onSurface,
         dragHandle         = null,
         shape              = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
     ) {
@@ -452,7 +457,7 @@ private fun TripDateRangeSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
@@ -461,7 +466,7 @@ private fun TripDateRangeSheet(
                             fontFamily = PlayfairFontFamily,
                             fontWeight = FontWeight.Bold,
                             fontSize   = 20.sp,
-                            color      = Color.White
+                            color      = MaterialTheme.colorScheme.onSurface
                         )) { append("Select ") }
                         withStyle(SpanStyle(
                             fontFamily = PlayfairFontFamily,
@@ -474,7 +479,7 @@ private fun TripDateRangeSheet(
                             fontFamily = PlayfairFontFamily,
                             fontWeight = FontWeight.Bold,
                             fontSize   = 20.sp,
-                            color      = Color.White
+                            color      = MaterialTheme.colorScheme.onSurface
                         )) { append(" Date") }
                     }
                 )
@@ -485,21 +490,7 @@ private fun TripDateRangeSheet(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // ── Date range picker — themed via MaterialTheme override ──────────
-            MaterialTheme(
-                colorScheme = MaterialTheme.colorScheme.copy(
-                    primary              = Amber,
-                    onPrimary            = Color(0xFF1A0F00),
-                    primaryContainer     = Color(0xFF2D1E00),
-                    onPrimaryContainer   = Amber,
-                    surface              = Color(0xFF141414),
-                    onSurface            = Color.White,
-                    onSurfaceVariant     = OnBackgroundGray,
-                    outline              = Color(0xFF2A2A2A),
-                    secondaryContainer   = Color(0xFF2D1E00),
-                    onSecondaryContainer = Color.White
-                )
-            ) {
+            // ── Date range picker ──────────
             DateRangePicker(
                 state    = state,
                 modifier = Modifier
@@ -508,9 +499,29 @@ private fun TripDateRangeSheet(
                     .heightIn(max = 480.dp),
                 showModeToggle = false,
                 title   = null,
-                headline= null
+                headline= null,
+                colors  = DatePickerDefaults.colors(
+                    containerColor                    = MaterialTheme.colorScheme.surface,
+                    titleContentColor                 = MaterialTheme.colorScheme.onSurface,
+                    headlineContentColor              = MaterialTheme.colorScheme.onSurface,
+                    weekdayContentColor               = MaterialTheme.colorScheme.onSurfaceVariant,
+                    subheadContentColor               = MaterialTheme.colorScheme.onSurface,
+                    yearContentColor                  = MaterialTheme.colorScheme.onSurface,
+                    currentYearContentColor           = Amber,
+                    selectedYearContentColor          = Color(0xFF1A0F00),
+                    selectedYearContainerColor        = Amber,
+                    dayContentColor                   = MaterialTheme.colorScheme.onSurface,
+                    disabledDayContentColor           = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+                    selectedDayContentColor           = Color(0xFF1A0F00),
+                    selectedDayContainerColor         = Amber,
+                    disabledSelectedDayContentColor   = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+                    disabledSelectedDayContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    todayContentColor                 = Amber,
+                    todayDateBorderColor              = Amber,
+                    dayInSelectionRangeContentColor   = MaterialTheme.colorScheme.onSurface,
+                    dayInSelectionRangeContainerColor = Amber.copy(alpha = 0.2f)
+                )
             )
-            } // end MaterialTheme
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -579,7 +590,7 @@ private fun DateSummaryBar(state: DateRangePickerState) {
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFF2A2A2A))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
                     .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
                 Text(
@@ -612,11 +623,11 @@ private fun DatePill(
     isActive: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val borderColor = if (isActive) Amber else Color(0xFF2A2A2A)
+    val borderColor = if (isActive) Amber else MaterialTheme.colorScheme.surfaceVariant
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF1E1E1E))
+            .background(MaterialTheme.colorScheme.background)
             .border(1.5.dp, borderColor, RoundedCornerShape(12.dp))
             .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
@@ -625,7 +636,7 @@ private fun DatePill(
             fontSize      = 9.sp,
             fontFamily    = DmSansFontFamily,
             fontWeight    = FontWeight.SemiBold,
-            color         = if (isActive) Amber else OnBackgroundGray,
+            color         = if (isActive) Amber else MaterialTheme.colorScheme.onSurfaceVariant,
             letterSpacing = 1.2.sp
         )
         Spacer(modifier = Modifier.height(4.dp))
@@ -635,7 +646,7 @@ private fun DatePill(
                 fontSize   = 18.sp,
                 fontFamily = DmSansFontFamily,
                 fontWeight = FontWeight.Bold,
-                color      = Color.White
+                color      = MaterialTheme.colorScheme.onSurface
             )
             if (dateExtra.isNotEmpty()) {
                 Spacer(modifier = Modifier.width(6.dp))
@@ -644,7 +655,7 @@ private fun DatePill(
                     fontSize   = 12.sp,
                     fontFamily = DmSansFontFamily,
                     fontWeight = FontWeight.Medium,
-                    color      = OnBackgroundGray,
+                    color      = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier   = Modifier.padding(bottom = 1.dp)
                 )
             }
@@ -663,14 +674,14 @@ private fun PlanMenuButton(onClick: () -> Unit) {
             .padding(horizontal = 20.dp)
             .size(42.dp)
             .clip(CircleShape)
-            .background(Color(0xFF1E2633))
+            .background(MaterialTheme.colorScheme.surface)
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Icon(
             imageVector        = Icons.Default.Menu,
             contentDescription = "Menu",
-            tint               = Color.White,
+            tint               = MaterialTheme.colorScheme.onSurface,
             modifier           = Modifier.size(22.dp)
         )
     }
@@ -688,8 +699,8 @@ private fun PlanHeroHeader() {
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF2D1E00))
-                .border(1.dp, Color(0xFF4A3000), RoundedCornerShape(20.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .border(1.dp, Amber.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
                 .padding(horizontal = 12.dp, vertical = 6.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -720,14 +731,14 @@ private fun PlanHeroHeader() {
                     fontFamily = PlayfairFontFamily,
                     fontWeight = FontWeight.ExtraBold,
                     fontSize   = 32.sp,
-                    color      = Color.White
+                    color      = MaterialTheme.colorScheme.onBackground
                 )) { append("Plan Your ") }
                 withStyle(SpanStyle(
                     fontFamily = PlayfairFontFamily,
                     fontWeight = FontWeight.Bold,
                     fontStyle  = FontStyle.Italic,
                     fontSize   = 32.sp,
-                    color      = Color.White
+                    color      = MaterialTheme.colorScheme.onBackground
                 )) { append("Trip") }
             }
         )
@@ -739,7 +750,7 @@ private fun PlanHeroHeader() {
             fontFamily = DmSansFontFamily,
             fontWeight = FontWeight.Normal,
             fontSize   = 14.sp,
-            color      = OnBackgroundGray
+            color      = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -772,7 +783,7 @@ private fun StartingFromSection(
                     fontFamily    = DmSansFontFamily,
                     fontWeight    = FontWeight.SemiBold,
                     fontSize      = 10.sp,
-                    color         = OnBackgroundGray,
+                    color         = MaterialTheme.colorScheme.onSurfaceVariant,
                     letterSpacing = 1.2.sp
                 )
                 Spacer(modifier = Modifier.height(6.dp))
@@ -784,7 +795,7 @@ private fun StartingFromSection(
                         fontFamily = DmSansFontFamily,
                         fontWeight = FontWeight.ExtraBold,
                         fontSize   = 18.sp,
-                        color      = Color.White
+                        color      = MaterialTheme.colorScheme.onSurface
                     ),
                     cursorBrush   = SolidColor(Amber),
                     keyboardOptions = KeyboardOptions(
@@ -805,7 +816,7 @@ private fun StartingFromSection(
                                     fontFamily = DmSansFontFamily,
                                     fontWeight = FontWeight.Medium,
                                     fontSize   = 18.sp,
-                                    color      = OnBackgroundMuted
+                                    color      = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                 )
                             }
                             inner()
@@ -821,8 +832,8 @@ private fun StartingFromSection(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF2D1E00))
-                    .border(1.dp, Color(0xFF4A3000), CircleShape)
+                    .background(Amber.copy(alpha = 0.15f))
+                    .border(1.dp, Amber.copy(alpha = 0.35f), CircleShape)
                     .clickable(enabled = !isLocating, onClick = onLocationClick),
                 contentAlignment = Alignment.Center
             ) {
@@ -864,7 +875,7 @@ private fun WhereToSection(
                 fontFamily    = DmSansFontFamily,
                 fontWeight    = FontWeight.SemiBold,
                 fontSize      = 10.sp,
-                color         = OnBackgroundGray,
+                color         = MaterialTheme.colorScheme.onSurfaceVariant,
                 letterSpacing = 1.2.sp
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -873,7 +884,7 @@ private fun WhereToSection(
                 Icon(
                     imageVector        = Icons.Outlined.Search,
                     contentDescription = null,
-                    tint               = if (destination.isNotEmpty()) Amber else OnBackgroundGray,
+                    tint               = if (destination.isNotEmpty()) Amber else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier           = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(10.dp))
@@ -885,7 +896,7 @@ private fun WhereToSection(
                         fontFamily = DmSansFontFamily,
                         fontWeight = FontWeight.Medium,
                         fontSize   = 16.sp,
-                        color      = Color.White
+                        color      = MaterialTheme.colorScheme.onSurface
                     ),
                     cursorBrush     = SolidColor(Amber),
                     keyboardOptions = KeyboardOptions(
@@ -902,7 +913,7 @@ private fun WhereToSection(
                                     fontFamily = DmSansFontFamily,
                                     fontWeight = FontWeight.Normal,
                                     fontSize   = 15.sp,
-                                    color      = OnBackgroundMuted
+                                    color      = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                 )
                             }
                             inner()
@@ -917,7 +928,7 @@ private fun WhereToSection(
                         Icon(
                             Icons.Default.Close,
                             contentDescription = "Clear",
-                            tint     = OnBackgroundGray,
+                            tint     = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -925,7 +936,7 @@ private fun WhereToSection(
             }
 
             Spacer(modifier = Modifier.height(14.dp))
-            HorizontalDivider(color = Color(0xFF2A2A2A), thickness = 0.6.dp)
+            HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant, thickness = 0.6.dp)
             Spacer(modifier = Modifier.height(12.dp))
 
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -945,11 +956,11 @@ private fun WhereToSection(
 @Composable
 private fun DestinationChip(label: String, isActive: Boolean, onClick: () -> Unit) {
     val bgColor by animateColorAsState(
-        targetValue   = if (isActive) Color(0xFF2D1E00) else Color(0xFF1E1E1E),
+        targetValue   = if (isActive) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant,
         animationSpec = tween(200), label = "chipBg"
     )
     val borderColor by animateColorAsState(
-        targetValue   = if (isActive) Amber else Color(0xFF333333),
+        targetValue   = if (isActive) Amber else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
         animationSpec = tween(200), label = "chipBorder"
     )
     Box(
@@ -965,7 +976,7 @@ private fun DestinationChip(label: String, isActive: Boolean, onClick: () -> Uni
             fontFamily = DmSansFontFamily,
             fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
             fontSize   = 13.sp,
-            color      = if (isActive) Amber else Color(0xFFCCCCCC)
+            color      = if (isActive) Amber else MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -976,13 +987,11 @@ private fun DestinationChip(label: String, isActive: Boolean, onClick: () -> Uni
 
 @Composable
 private fun TripDurationSection(
-    departureDate: LocalDate,
-    returnDate: LocalDate,
-    tripDays: Int,
+    departureDate: LocalDate?,
+    returnDate: LocalDate?,
+    tripDays: Int?,
     onCalendarClick: () -> Unit
 ) {
-    val nights = maxOf(tripDays - 1, 0)
-
     PlanCard(modifier = Modifier.padding(horizontal = 16.dp)) {
         Row(
             modifier          = Modifier
@@ -996,34 +1005,53 @@ private fun TripDurationSection(
                     fontFamily    = DmSansFontFamily,
                     fontWeight    = FontWeight.SemiBold,
                     fontSize      = 10.sp,
-                    color         = OnBackgroundGray,
+                    color         = MaterialTheme.colorScheme.onSurfaceVariant,
                     letterSpacing = 1.2.sp
                 )
                 Spacer(modifier = Modifier.height(6.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                if (tripDays != null && departureDate != null && returnDate != null) {
+                    val nights = maxOf(tripDays - 1, 0)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text       = "$tripDays days",
+                            fontFamily = DmSansFontFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize   = 20.sp,
+                            color      = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text       = " / $nights nights",
+                            fontFamily = DmSansFontFamily,
+                            fontWeight = FontWeight.Medium,
+                            fontSize   = 15.sp,
+                            color      = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text       = "$tripDays days",
-                        fontFamily = DmSansFontFamily,
-                        fontWeight = FontWeight.Bold,
-                        fontSize   = 20.sp,
-                        color      = Color.White
-                    )
-                    Text(
-                        text       = " / $nights nights",
+                        text       = "${departureDate.format(SHORT_DATE_FMT)} → ${returnDate.format(SHORT_DATE_FMT)} ${returnDate.year}",
                         fontFamily = DmSansFontFamily,
                         fontWeight = FontWeight.Medium,
-                        fontSize   = 15.sp,
-                        color      = OnBackgroundGray
+                        fontSize   = 12.sp,
+                        color      = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Text(
+                        text       = "Select Dates",
+                        fontFamily = PlayfairFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize   = 18.sp,
+                        color      = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text       = "Tap calendar to choose duration",
+                        fontFamily = DmSansFontFamily,
+                        fontWeight = FontWeight.Medium,
+                        fontSize   = 12.sp,
+                        color      = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text       = "${departureDate.format(SHORT_DATE_FMT)} → ${returnDate.format(SHORT_DATE_FMT)} ${returnDate.year}",
-                    fontFamily = DmSansFontFamily,
-                    fontWeight = FontWeight.Medium,
-                    fontSize   = 12.sp,
-                    color      = OnBackgroundMuted
-                )
             }
 
             // Calendar icon button
@@ -1031,8 +1059,8 @@ private fun TripDurationSection(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF2D1E00))
-                    .border(1.dp, Color(0xFF4A3000), RoundedCornerShape(12.dp))
+                    .background(Amber.copy(alpha = 0.15f))
+                    .border(1.dp, Amber.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
                     .clickable(onClick = onCalendarClick),
                 contentAlignment = Alignment.Center
             ) {
@@ -1064,7 +1092,7 @@ private fun BudgetSection(
                 fontFamily    = DmSansFontFamily,
                 fontWeight    = FontWeight.SemiBold,
                 fontSize      = 10.sp,
-                color         = OnBackgroundGray,
+                color         = MaterialTheme.colorScheme.onSurfaceVariant,
                 letterSpacing = 1.2.sp
             )
             Spacer(modifier = Modifier.height(14.dp))
@@ -1093,7 +1121,7 @@ private fun BudgetTierCard(
     onClick: () -> Unit
 ) {
     val bgColor by animateColorAsState(
-        targetValue   = if (isSelected) Color(0xFF2D1E00) else Color(0xFF1E1E1E),
+        targetValue   = if (isSelected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant,
         animationSpec = tween(250), label = "budgetBg"
     )
     val borderColor by animateColorAsState(
@@ -1123,7 +1151,7 @@ private fun BudgetTierCard(
             fontFamily = DmSansFontFamily,
             fontWeight = FontWeight.Bold,
             fontSize   = 13.sp,
-            color      = if (isSelected) Amber else Color.White
+            color      = if (isSelected) Amber else MaterialTheme.colorScheme.onSurface
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
@@ -1131,7 +1159,7 @@ private fun BudgetTierCard(
             fontFamily = DmSansFontFamily,
             fontWeight = FontWeight.Medium,
             fontSize   = 11.sp,
-            color      = OnBackgroundGray
+            color      = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -1157,7 +1185,7 @@ private fun InterestsSection(
                     fontFamily    = DmSansFontFamily,
                     fontWeight    = FontWeight.SemiBold,
                     fontSize      = 10.sp,
-                    color         = OnBackgroundGray,
+                    color         = MaterialTheme.colorScheme.onSurfaceVariant,
                     letterSpacing = 1.2.sp,
                     modifier      = Modifier.weight(1f)
                 )
@@ -1202,11 +1230,11 @@ private fun InterestChip(
     onClick: () -> Unit
 ) {
     val bgColor by animateColorAsState(
-        targetValue   = if (isSelected) Color(0xFF2D1E00) else Color(0xFF1E1E1E),
+        targetValue   = if (isSelected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant,
         animationSpec = tween(200), label = "interestBg"
     )
     val borderColor by animateColorAsState(
-        targetValue   = if (isSelected) Amber else Color(0xFF333333),
+        targetValue   = if (isSelected) Amber else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
         animationSpec = tween(200), label = "interestBorder"
     )
 
@@ -1222,7 +1250,7 @@ private fun InterestChip(
             Icon(
                 imageVector        = tag.icon,
                 contentDescription = tag.label,
-                tint               = if (isSelected) Amber else OnBackgroundGray,
+                tint               = if (isSelected) Amber else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier           = Modifier.size(15.dp)
             )
             Spacer(modifier = Modifier.width(6.dp))
@@ -1231,7 +1259,7 @@ private fun InterestChip(
                 fontFamily = DmSansFontFamily,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                 fontSize   = 13.sp,
-                color      = if (isSelected) Amber else Color(0xFFCCCCCC)
+                color      = if (isSelected) Amber else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -1254,7 +1282,7 @@ private fun TravelStyleSection(
                 fontFamily    = DmSansFontFamily,
                 fontWeight    = FontWeight.SemiBold,
                 fontSize      = 10.sp,
-                color         = OnBackgroundGray,
+                color         = MaterialTheme.colorScheme.onSurfaceVariant,
                 letterSpacing = 1.2.sp
             )
             Spacer(modifier = Modifier.height(14.dp))
@@ -1283,7 +1311,7 @@ private fun StyleCard(
     onClick: () -> Unit
 ) {
     val bgColor by animateColorAsState(
-        targetValue   = if (isSelected) Color(0xFF2D1E00) else Color(0xFF1E1E1E),
+        targetValue   = if (isSelected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant,
         animationSpec = tween(250), label = "styleBg"
     )
     val borderColor by animateColorAsState(
@@ -1313,7 +1341,7 @@ private fun StyleCard(
             fontFamily = DmSansFontFamily,
             fontWeight = FontWeight.Bold,
             fontSize   = 13.sp,
-            color      = if (isSelected) Amber else Color.White
+            color      = if (isSelected) Amber else MaterialTheme.colorScheme.onSurface
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
@@ -1321,7 +1349,7 @@ private fun StyleCard(
             fontFamily = DmSansFontFamily,
             fontWeight = FontWeight.Medium,
             fontSize   = 11.sp,
-            color      = OnBackgroundGray,
+            color      = MaterialTheme.colorScheme.onSurfaceVariant,
             lineHeight = 14.sp
         )
     }
@@ -1344,7 +1372,7 @@ private fun AdditionalInstructionsSection(
                     fontFamily    = DmSansFontFamily,
                     fontWeight    = FontWeight.SemiBold,
                     fontSize      = 10.sp,
-                    color         = OnBackgroundGray,
+                    color         = MaterialTheme.colorScheme.onSurfaceVariant,
                     letterSpacing = 1.2.sp,
                     modifier      = Modifier.weight(1f)
                 )
@@ -1353,7 +1381,7 @@ private fun AdditionalInstructionsSection(
                     fontFamily = DmSansFontFamily,
                     fontWeight = FontWeight.Medium,
                     fontSize   = 11.sp,
-                    color      = OnBackgroundMuted
+                    color      = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Spacer(modifier = Modifier.height(12.dp))
@@ -1364,7 +1392,7 @@ private fun AdditionalInstructionsSection(
                     fontFamily = DmSansFontFamily,
                     fontWeight = FontWeight.Normal,
                     fontSize   = 14.sp,
-                    color      = Color.White,
+                    color      = MaterialTheme.colorScheme.onSurface,
                     lineHeight = 22.sp
                 ),
                 cursorBrush = SolidColor(Amber),
@@ -1379,7 +1407,7 @@ private fun AdditionalInstructionsSection(
                                 fontFamily = DmSansFontFamily,
                                 fontWeight = FontWeight.Normal,
                                 fontSize   = 13.sp,
-                                color      = OnBackgroundMuted,
+                                color      = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                 lineHeight = 20.sp
                             )
                         }
@@ -1433,8 +1461,8 @@ private fun GenerateTripButton(enabled: Boolean, onClick: () -> Unit) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Reusable dark-rounded card used across every Plan screen section.
- * Border, radius, and background are consistent throughout for visual unity.
+ * Reusable themed card used across every Plan screen section.
+ * Border, radius, and background adapt to the current MaterialTheme.
  */
 @Composable
 private fun PlanCard(
@@ -1445,8 +1473,8 @@ private fun PlanCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xFF141414))
-            .border(0.5.dp, Color(0xFF2A2A2A), RoundedCornerShape(20.dp)),
+            .background(MaterialTheme.colorScheme.surface)
+            .border(0.5.dp, MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(20.dp)),
         content = content
     )
 }

@@ -15,6 +15,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -87,7 +88,7 @@ fun HomeScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(BackgroundDark)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         Column(
             modifier = Modifier
@@ -288,14 +289,14 @@ private fun SectionHeader(
                 fontFamily = PlayfairFontFamily,
                 fontWeight = FontWeight.Bold,
                 fontSize   = 20.sp,
-                color      = Color.White
+                color      = MaterialTheme.colorScheme.onBackground
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text       = subtitle,
                 fontFamily = DmSansFontFamily,
                 fontSize   = 13.sp,
-                color      = OnBackgroundGray
+                color      = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         Row(

@@ -7,19 +7,30 @@ val Amber         = Color(0xFFE8A020)   // "Plan with AI" button, "See all" link
 val AmberLight    = Color(0xFFF5B942)
 val AmberDark     = Color(0xFFBF7A10)
 
-// ── Backgrounds ───────────────────────────────────────────────────────────────
+// ── Dark Backgrounds ──────────────────────────────────────────────────────────
 val BackgroundDark    = Color(0xFF0D0D0D)  // near-black page bg
 val SurfaceDark       = Color(0xFF1A1A1A)  // cards, bottom nav
 val SurfaceElevated   = Color(0xFF242424)  // elevated cards
 
-// ── Text ──────────────────────────────────────────────────────────────────────
+// ── Dark Text ─────────────────────────────────────────────────────────────────
 val OnBackgroundWhite = Color(0xFFFFFFFF)
 val OnBackgroundGray  = Color(0xFFAAAAAA)
 val OnBackgroundMuted = Color(0xFF666666)
 
+// ── Light Backgrounds ─────────────────────────────────────────────────────────
+val BackgroundLight        = Color(0xFFF5F5F5)  // off-white page bg
+val SurfaceLight           = Color(0xFFFFFFFF)  // cards, bottom nav
+val SurfaceElevatedLight   = Color(0xFFEFEFEF)  // slightly elevated cards
+
+// ── Light Text ────────────────────────────────────────────────────────────────
+val OnBackgroundDark       = Color(0xFF111111)  // primary text in light mode
+val OnBackgroundMedium     = Color(0xFF555555)  // secondary text
+val OnBackgroundSubtle     = Color(0xFF999999)  // muted / placeholder text
+
 // ── Status Badges ─────────────────────────────────────────────────────────────
-val CompletedGreen    = Color(0xFF2ECC71)
-val CompletedGreenBg  = Color(0xFF1A3D2B)
+val CompletedGreen        = Color(0xFF2ECC71)
+val CompletedGreenBg      = Color(0xFF1A3D2B)   // dark-mode green badge bg
+val CompletedGreenBgLight = Color(0xFFD4F8E8)   // light-mode green badge bg
 
 // ── Overlays ─────────────────────────────────────────────────────────────────
 val HeroGradientStart = Color(0x00000000)  // transparent
