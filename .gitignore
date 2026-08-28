@@ -47,3 +47,9 @@ google-services.json
 
 # Android Profiling
 *.hprof
+
+/graphify-out
+.claude
+.agents
+CLAUDE.md
+.graphify
