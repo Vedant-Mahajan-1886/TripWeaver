@@ -2,28 +2,32 @@ package com.example.smarttravelplanner.ui.screens.home
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material3.*
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -33,7 +37,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.smarttravelplanner.R
 import com.example.smarttravelplanner.ui.theme.*
 
@@ -83,191 +86,333 @@ fun HomeScreen(
     onMyTripsClick: () -> Unit = {},
     onMenuClick: () -> Unit = {}
 ) {
-    val scrollState = rememberScrollState()
+    val listState = rememberLazyListState()
+    val density = LocalDensity.current
 
-    Box(
+    // Scroll offset provider evaluated in graphicsLayer draw phase for 120fps zero-recomposition performance
+    val scrollOffsetProvider: () -> Float = remember {
+        {
+            if (listState.firstVisibleItemIndex > 0) {
+                1000f
+            } else {
+                listState.firstVisibleItemScrollOffset.toFloat()
+            }
+        }
+    }
+
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        Column(
+        // Initial 50/50 split between hero background and overlapping card
+        val heroHeight = (maxHeight * 0.50f).coerceIn(340.dp, 440.dp)
+        val heroHeightPx = with(density) { heroHeight.toPx() }
+        val cardOverlap = 28.dp
+
+        // ── 1. Hero Background (Fixed at top, submerging as user scrolls) ─────
+        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(scrollState)
+                .fillMaxWidth()
+                .height(heroHeight)
+                .graphicsLayer {
+                    val offset = scrollOffsetProvider()
+                    // Submerging parallax: image moves up slowly and dims into background
+                    translationY = -offset * 0.38f
+                    alpha = (1f - (offset / heroHeightPx) * 0.55f).coerceIn(0.25f, 1f)
+                }
         ) {
-            // ── Hero Section ──────────────────────────────────────────────────
-            HeroSection(
-                onPlanWithAiClick = onPlanWithAiClick,
-                onMenuClick = onMenuClick
+            // Full-bleed Mountain Landscape Background Photo
+            Image(
+                painter = painterResource(R.drawable.hero_mountain_bg),
+                contentDescription = "Hero Background",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.matchParentSize()
             )
 
-            // ── Explore India ─────────────────────────────────────────────────
-            Spacer(modifier = Modifier.height(24.dp))
-            SectionHeader(
-                title         = "Explore India",
-                subtitle      = "Curated destinations for you",
-                actionText    = "See all",
-                onActionClick = onExploreClick
+            // Multi-stop gradient scrim for contrast and legibility
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.0f to Color(0x66000000),
+                                0.35f to Color(0x22000000),
+                                0.70f to Color(0x77000000),
+                                1.0f to Color(0xEE0D0D0D)
+                            )
+                        )
+                    )
             )
-            Spacer(modifier = Modifier.height(16.dp))
-            DestinationCarousel(
-                destinations = destinations,
-                onDestinationClick = onExploreClick
-            )
+        }
 
-            // ── Recent Trips ──────────────────────────────────────────────────
-            Spacer(modifier = Modifier.height(28.dp))
-            SectionHeader(
-                title         = "Recent Trips",
-                subtitle      = "Your travel memories",
-                actionText    = "View all",
-                onActionClick = onMyTripsClick
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            recentTrips.forEach { trip ->
-                RecentTripCard(
-                    trip = trip,
-                    onClick = onMyTripsClick
-                )
-                Spacer(modifier = Modifier.height(12.dp))
+        // ── 2. Scrollable Overlapping Card Surface ────────────────────────────
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 24.dp)
+        ) {
+            // Item 0: Spacer matching hero height minus overlap
+            item {
+                Spacer(modifier = Modifier.height(heroHeight - cardOverlap))
             }
-            Spacer(modifier = Modifier.height(32.dp))
-        }
-    }
-}
 
-// ── Hero ─────────────────────────────────────────────────────────────────────
-
-@Composable
-private fun HeroSection(
-    onPlanWithAiClick: () -> Unit,
-    onMenuClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(420.dp)
-    ) {
-        // Background photo
-        Image(
-            painter = painterResource(R.drawable.hero_mountain_bg),
-            contentDescription = "Hero background",
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.matchParentSize()
-        )
-
-        // Gradient scrim — bottom-up so text is readable
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .background(
-                    Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0.0f to Color(0x22000000),
-                            0.50f to Color(0x55000000),
-                            1.0f to Color(0xEE000000)
+            // Item 1: The Rounded Card Content
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(
+                            elevation = 16.dp,
+                            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                            spotColor = Color.Black.copy(alpha = 0.65f)
                         )
-                    )
-                )
-        )
-
-        // Hamburger menu top-left
-        Box(
-            modifier = Modifier
-                .padding(top = 16.dp, start = 20.dp)
-                .size(42.dp)
-                .clip(CircleShape)
-                .background(Color(0x55000000))
-                .clickable { onMenuClick() }
-                .align(Alignment.TopStart),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.Menu,
-                contentDescription = "Menu",
-                tint = Color.White,
-                modifier = Modifier.size(22.dp)
-            )
-        }
-
-        // Bottom text + CTA
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(horizontal = 24.dp, vertical = 28.dp)
-        ) {
-            Text(
-                text = buildAnnotatedString {
-                    withStyle(
-                        SpanStyle(
-                            fontFamily = PlayfairFontFamily,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 36.sp,
-                            color = Color.White
+                        .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+                        .background(MaterialTheme.colorScheme.background)
+                        .border(
+                            width = 0.8.dp,
+                            brush = Brush.verticalGradient(
+                                listOf(Color(0x33FFFFFF), Color(0x05FFFFFF))
+                            ),
+                            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
                         )
-                    ) {
-                        append("Where will your\n")
-                    }
-                    withStyle(
-                        SpanStyle(
-                            fontFamily = PlayfairFontFamily,
-                            fontWeight = FontWeight.Bold,
-                            fontStyle = FontStyle.Italic,
-                            fontSize = 36.sp,
-                            color = Color.White
-                        )
-                    ) {
-                        append("next story ")
-                    }
-                    withStyle(
-                        SpanStyle(
-                            fontFamily = PlayfairFontFamily,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 36.sp,
-                            color = Color.White
-                        )
-                    ) {
-                        append("begin?")
-                    }
-                },
-                lineHeight = 44.sp
-            )
-            Spacer(modifier = Modifier.height(20.dp))
-            Button(
-                onClick = onPlanWithAiClick,
-                shape = RoundedCornerShape(50.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Amber,
-                    contentColor   = Color(0xFF1A0A00)
-                ),
-                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 14.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
                 ) {
-                    Text(
-                        text = "✦  Plan with AI",
-                        fontFamily = DmSansFontFamily,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        color = Color(0xFF1A0A00)
+                    // Decorative top handle pill
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp, bottom = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(36.dp)
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(Color(0x2BFFFFFF))
+                        )
+                    }
+
+                    // ── Explore India Section ────────────────────────────────
+                    Spacer(modifier = Modifier.height(14.dp))
+                    SectionHeader(
+                        title = "Explore India",
+                        subtitle = "Curated destinations for you",
+                        actionText = "See all",
+                        onActionClick = onExploreClick
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
+                    DestinationCarousel(
+                        destinations = destinations,
+                        onDestinationClick = onExploreClick
+                    )
+
+                    // ── Recent Trips Section ─────────────────────────────────
+                    Spacer(modifier = Modifier.height(28.dp))
+                    SectionHeader(
+                        title = "Recent Trips",
+                        subtitle = "Your travel memories",
+                        actionText = "View all",
+                        onActionClick = onMyTripsClick
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    recentTrips.forEach { trip ->
+                        RecentTripCard(
+                            trip = trip,
+                            onClick = onMyTripsClick
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                    }
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
+            }
+        }
+
+        // ── 3. Hero Interactive Content (Title & Main CTA Button) ─────────────
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(heroHeight - cardOverlap)
+                .graphicsLayer {
+                    val offset = scrollOffsetProvider()
+                    // Smoothly fade out and float upward as the card scrolls up
+                    val fadeProgress = (1f - (offset / 160f)).coerceIn(0f, 1f)
+                    alpha = fadeProgress
+                    translationY = -offset * 0.45f
+                }
+        ) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 22.dp, end = 22.dp, bottom = 18.dp)
+            ) {
+                Text(
+                    text = buildAnnotatedString {
+                        withStyle(
+                            SpanStyle(
+                                fontFamily = PlayfairFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 32.sp,
+                                color = Color.White
+                            )
+                        ) {
+                            append("Where will your\n")
+                        }
+                        withStyle(
+                            SpanStyle(
+                                fontFamily = PlayfairFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontStyle = FontStyle.Italic,
+                                fontSize = 32.sp,
+                                color = AmberLight
+                            )
+                        ) {
+                            append("next story ")
+                        }
+                        withStyle(
+                            SpanStyle(
+                                fontFamily = PlayfairFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 32.sp,
+                                color = Color.White
+                            )
+                        ) {
+                            append("begin?")
+                        }
+                    },
+                    lineHeight = 40.sp
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = onPlanWithAiClick,
+                    shape = RoundedCornerShape(50.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Amber,
+                        contentColor = Color(0xFF1A0A00)
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(
+                        defaultElevation = 6.dp,
+                        pressedElevation = 2.dp
+                    ),
+                    contentPadding = PaddingValues(horizontal = 22.dp, vertical = 13.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "✦  Plan with AI",
+                            fontFamily = DmSansFontFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = Color(0xFF1A0A00)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            tint = Color(0xFF1A0A00),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // ── 4. Natural Pinned TopBar with Hamburger & Scrolled Action Button ──
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(64.dp)
+        ) {
+            // Natural soft gradient backdrop (fades in as card reaches top)
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .graphicsLayer {
+                        val offset = scrollOffsetProvider()
+                        val topBarAlpha = ((offset - 160f) / 140f).coerceIn(0f, 1f)
+                        alpha = topBarAlpha
+                    }
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.95f),
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.85f),
+                                Color.Transparent
+                            )
+                        )
+                    )
+            )
+
+            // TopBar Controls
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Hamburger Menu Button (Top-Left, always pinned and clickable)
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(Color(0x55000000))
+                        .border(0.8.dp, Color(0x22FFFFFF), CircleShape)
+                        .clickable { onMenuClick() },
+                    contentAlignment = Alignment.Center
+                ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = null,
-                        tint = Color(0xFF1A0A00),
-                        modifier = Modifier.size(16.dp)
+                        imageVector = Icons.Default.Menu,
+                        contentDescription = "Menu",
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp)
                     )
+                }
+
+                // Compact "✦ Plan with AI" Sticky Button (fades in on scroll)
+                Box(
+                    modifier = Modifier
+                        .graphicsLayer {
+                            val offset = scrollOffsetProvider()
+                            val progress = ((offset - 140f) / 100f).coerceIn(0f, 1f)
+                            alpha = progress
+                            scaleX = 0.85f + (progress * 0.15f)
+                            scaleY = 0.85f + (progress * 0.15f)
+                            translationY = (1f - progress) * 6f
+                        }
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Amber)
+                        .clickable(
+                            onClick = onPlanWithAiClick
+                        )
+                        .padding(horizontal = 14.dp, vertical = 7.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "✦  Plan with AI",
+                            fontFamily = DmSansFontFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = Color(0xFF1A0A00)
+                        )
+                    }
                 }
             }
         }
     }
 }
 
-
-// ── Section header ────────────────────────────────────────────────────────────
+// ── Section Header ────────────────────────────────────────────────────────────
 
 @Composable
 private fun SectionHeader(
@@ -281,33 +426,36 @@ private fun SectionHeader(
             .fillMaxWidth()
             .padding(horizontal = 20.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment     = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Column {
             Text(
-                text       = title,
+                text = title,
                 fontFamily = PlayfairFontFamily,
                 fontWeight = FontWeight.Bold,
-                fontSize   = 20.sp,
-                color      = MaterialTheme.colorScheme.onBackground
+                fontSize = 22.sp,
+                color = MaterialTheme.colorScheme.onBackground
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text       = subtitle,
+                text = subtitle,
                 fontFamily = DmSansFontFamily,
-                fontSize   = 13.sp,
-                color      = MaterialTheme.colorScheme.onSurfaceVariant
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.clickable(onClick = onActionClick)
+            modifier = Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .clickable(onClick = onActionClick)
+                .padding(horizontal = 8.dp, vertical = 4.dp)
         ) {
             Text(
-                text       = actionText,
+                text = actionText,
                 fontFamily = DmSansFontFamily,
-                color      = Amber,
-                fontSize   = 14.sp,
+                color = Amber,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold
             )
             Spacer(modifier = Modifier.width(4.dp))
@@ -330,7 +478,7 @@ private fun DestinationCarousel(
 ) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         items(destinations) { dest ->
             DestinationCard(
@@ -348,9 +496,9 @@ private fun DestinationCard(
 ) {
     Box(
         modifier = Modifier
-            .width(160.dp)
-            .height(220.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .width(165.dp)
+            .height(230.dp)
+            .clip(RoundedCornerShape(18.dp))
             .clickable(onClick = onClick)
     ) {
         Image(
@@ -360,43 +508,43 @@ private fun DestinationCard(
             modifier = Modifier.matchParentSize()
         )
 
-        // Dark scrim for readability
+        // Dark Gradient Scrim for Readability
         Box(
             modifier = Modifier
                 .matchParentSize()
                 .background(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
-                            0.0f  to Color(0x33000000),
-                            0.55f to Color(0x22000000),
-                            1.0f  to Color(0xCC000000)
+                            0.0f to Color(0x22000000),
+                            0.50f to Color(0x11000000),
+                            1.0f to Color(0xDD000000)
                         )
                     )
                 )
         )
 
-        // Tag chip top-right
+        // Category Tag Chip (Top-Right)
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(10.dp)
-                .background(dest.tagColor.copy(alpha = 0.88f), RoundedCornerShape(20.dp))
+                .background(dest.tagColor.copy(alpha = 0.90f), RoundedCornerShape(20.dp))
                 .padding(horizontal = 10.dp, vertical = 4.dp)
         ) {
             Text(
-                text       = dest.tag,
+                text = dest.tag,
                 fontFamily = DmSansFontFamily,
-                color      = Color.White,
-                fontSize   = 11.sp,
-                fontWeight = FontWeight.SemiBold
+                color = Color.White,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
             )
         }
 
-        // Bottom — rating + name + subtitle
+        // Bottom Details: Rating + Destination Name + Subtitle
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(12.dp)
+                .padding(14.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
@@ -405,26 +553,27 @@ private fun DestinationCard(
                     tint = Amber,
                     modifier = Modifier.size(14.dp)
                 )
-                Spacer(modifier = Modifier.width(3.dp))
+                Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = dest.rating.toString(),
                     fontFamily = DmSansFontFamily,
                     color = Color.White,
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.Bold
                 )
             }
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = dest.name,
                 fontFamily = PlayfairFontFamily,
                 fontWeight = FontWeight.Bold,
-                fontSize = 18.sp,
+                fontSize = 19.sp,
                 color = Color.White
             )
             Text(
                 text = dest.subtitle,
                 fontFamily = DmSansFontFamily,
-                color = OnBackgroundGray,
+                color = Color(0xFFCBD5E1),
                 fontSize = 12.sp
             )
         }
@@ -442,7 +591,7 @@ private fun RecentTripCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp)
-            .height(160.dp)
+            .height(165.dp)
             .clip(RoundedCornerShape(20.dp))
             .clickable(onClick = onClick)
     ) {
@@ -453,18 +602,26 @@ private fun RecentTripCard(
             modifier = Modifier.matchParentSize()
         )
 
-        // Dark overlay
+        // Dark overlay gradient
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .background(Color(0x88000000))
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.0f to Color(0x66000000),
+                            0.5f to Color(0x88000000),
+                            1.0f to Color(0xEE0B111B)
+                        )
+                    )
+                )
         )
 
         // Content
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
+                .padding(18.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             // Status chip
@@ -477,8 +634,8 @@ private fun RecentTripCard(
                     text = trip.status,
                     fontFamily = DmSansFontFamily,
                     color = CompletedGreen,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
                 )
             }
 
@@ -498,17 +655,17 @@ private fun RecentTripCard(
                     fontSize = 13.sp
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                // Date range
+                // Date range & duration
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        painter = painterResource(android.R.drawable.ic_menu_today),
+                        imageVector = Icons.Outlined.CalendarMonth,
                         contentDescription = null,
                         tint = OnBackgroundGray,
                         modifier = Modifier.size(14.dp)
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(5.dp))
                     Text(
-                        text = trip.dateRange,
+                        text = "${trip.dateRange} · ${trip.nights} nights",
                         fontFamily = DmSansFontFamily,
                         color = OnBackgroundGray,
                         fontSize = 12.sp
@@ -518,4 +675,3 @@ private fun RecentTripCard(
         }
     }
 }
-
