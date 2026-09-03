@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.Person
@@ -52,7 +53,8 @@ fun ProfileScreen(
     viewModel: ProfileViewModel = hiltViewModel(),
     onCloseClick: () -> Unit = {},
     onNavigateToMyProfile: () -> Unit = {},
-    onNavigateToManagePayments: () -> Unit = {}
+    onNavigateToManagePayments: () -> Unit = {},
+    onLogoutClick: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -68,6 +70,7 @@ fun ProfileScreen(
     var showRateDialog by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
     var showNotificationsDialog by remember { mutableStateOf(false) }
+    var showLogoutDialog by remember { mutableStateOf(false) }
 
     val scrollState = rememberScrollState()
 
@@ -219,6 +222,18 @@ fun ProfileScreen(
                         title = "Settings",
                         onClick = { showSettingsDialog = true }
                     )
+
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        thickness = 0.6.dp,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+
+                    ProfileOptionItem(
+                        icon = Icons.AutoMirrored.Outlined.Logout,
+                        title = "Log Out",
+                        onClick = { showLogoutDialog = true }
+                    )
                 }
             }
 
@@ -280,6 +295,40 @@ fun ProfileScreen(
 
         if (showNotificationsDialog) {
             NotificationDialog(onDismiss = { showNotificationsDialog = false })
+        }
+
+        if (showLogoutDialog) {
+            AlertDialog(
+                onDismissRequest = { showLogoutDialog = false },
+                title = {
+                    Text(
+                        text = "Log Out",
+                        fontFamily = PlayfairFontFamily,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Text(
+                        text = "Are you sure you want to log out of your account?",
+                        fontFamily = DmSansFontFamily
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showLogoutDialog = false
+                            onLogoutClick()
+                        }
+                    ) {
+                        Text("Log Out", color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showLogoutDialog = false }) {
+                        Text("Cancel", color = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+            )
         }
     }
 }

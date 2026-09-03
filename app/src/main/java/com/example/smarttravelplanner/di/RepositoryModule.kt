@@ -10,6 +10,8 @@ import com.example.smarttravelplanner.data.repository.UserPreferencesRepository
 import com.example.smarttravelplanner.data.repository.UserPreferencesRepositoryImpl
 import com.example.smarttravelplanner.data.repository.WeatherRepository
 import com.example.smarttravelplanner.data.repository.WeatherRepositoryImpl
+import com.example.smarttravelplanner.data.repository.AuthRepository
+import com.example.smarttravelplanner.data.repository.AuthRepositoryImpl
 import com.example.smarttravelplanner.data.repository.CurrencyRepository
 import com.example.smarttravelplanner.data.repository.CurrencyRepositoryImpl
 import com.example.smarttravelplanner.data.repository.PhotoRepository
@@ -25,6 +27,9 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class RepositoryModule {
+
+    @Binds @Singleton
+    abstract fun bindAuthRepository(impl: AuthRepositoryImpl): AuthRepository
 
     @Binds @Singleton
     abstract fun bindTripRepository(impl: TripRepositoryImpl): TripRepository

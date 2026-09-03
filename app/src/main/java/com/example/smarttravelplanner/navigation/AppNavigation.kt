@@ -10,7 +10,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.smarttravelplanner.ui.components.BottomNavigationBar
+import com.example.smarttravelplanner.ui.screens.auth.AuthViewModel
 import com.example.smarttravelplanner.ui.screens.auth.LoginScreen
 import com.example.smarttravelplanner.ui.screens.explore.ExploreScreen
 import com.example.smarttravelplanner.ui.screens.home.HomeScreen
@@ -21,14 +24,23 @@ import com.example.smarttravelplanner.ui.screens.profile.MyProfileScreen
 import com.example.smarttravelplanner.ui.screens.profile.ProfileScreen
 import com.example.smarttravelplanner.ui.screens.profile.ProfileViewModel
 import com.example.smarttravelplanner.ui.screens.tripdetail.TripDetailScreen
+import androidx.compose.runtime.getValue
 
 @Composable
-fun AppNavigation(profileViewModel: ProfileViewModel) {
+fun AppNavigation(
+    profileViewModel: ProfileViewModel,
+    authViewModel: AuthViewModel = hiltViewModel()
+) {
 
     val navController = rememberNavController()
+    val isLoggedIn by authViewModel.isLoggedIn.collectAsStateWithLifecycle(initialValue = null)
+
+    if (isLoggedIn == null) return
+
+    val startDestination = if (isLoggedIn == true) "home" else "login"
 
     val backStackEntry = navController.currentBackStackEntryAsState()
-    val currentRoute = backStackEntry.value?.destination?.route ?: "login"
+    val currentRoute = backStackEntry.value?.destination?.route ?: startDestination
 
     // Routes where the bottom nav should be hidden
     val hiddenNavRoutes = setOf(
@@ -55,13 +67,14 @@ fun AppNavigation(profileViewModel: ProfileViewModel) {
 
         NavHost(
             navController    = navController,
-            startDestination = "login",   // Login stub — bypasses immediately in AuthViewModel
+            startDestination = startDestination,
             modifier         = Modifier.padding(innerPadding)
         ) {
 
             // ── Auth ──────────────────────────────────────────────────────────
             composable("login") {
                 LoginScreen(
+                    viewModel = authViewModel,
                     onLoginSuccess = {
                         navController.navigate("home") {
                             popUpTo("login") { inclusive = true }
@@ -142,7 +155,13 @@ fun AppNavigation(profileViewModel: ProfileViewModel) {
                     viewModel              = profileViewModel,
                     onCloseClick           = { navController.popBackStack() },
                     onNavigateToMyProfile  = { navController.navigate("my_profile") },
-                    onNavigateToManagePayments = { navController.navigate("manage_payments") }
+                    onNavigateToManagePayments = { navController.navigate("manage_payments") },
+                    onLogoutClick          = {
+                        authViewModel.logout()
+                        navController.navigate("login") {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
                 )
             }
 

@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -20,13 +23,40 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
+        // Load secure secrets from local.properties (ignored by git)
+        val properties = Properties()
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            FileInputStream(localPropertiesFile).use { stream ->
+                properties.load(stream)
+            }
+        }
+
         // Ollama base URL — use 10.0.2.2 for emulator, laptop's LAN IP for physical device
         buildConfigField("String", "OLLAMA_BASE_URL", "\"http://192.168.1.6:11434/\"")
 
-        // Maps API key from local.properties (add MAPS_API_KEY=your_key there)
-        val mapsApiKey = project.findProperty("MAPS_API_KEY") as? String ?: ""
+        // Maps API key from local.properties
+        val mapsApiKey = properties.getProperty("MAPS_API_KEY")
+            ?: (project.findProperty("MAPS_API_KEY") as? String)
+            ?: ""
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
         buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKey\"")
+
+        // Gmail SMTP credentials from local.properties
+        val smtpSenderEmail = properties.getProperty("SMTP_SENDER_EMAIL")
+            ?: (project.findProperty("SMTP_SENDER_EMAIL") as? String)
+            ?: ""
+        val smtpAppPassword = properties.getProperty("SMTP_APP_PASSWORD")
+            ?: (project.findProperty("SMTP_APP_PASSWORD") as? String)
+            ?: ""
+        buildConfigField("String", "SMTP_SENDER_EMAIL", "\"$smtpSenderEmail\"")
+        buildConfigField("String", "SMTP_APP_PASSWORD", "\"$smtpAppPassword\"")
+
+        // Google OAuth Web Client ID from local.properties
+        val googleWebClientId = properties.getProperty("GOOGLE_WEB_CLIENT_ID")
+            ?: (project.findProperty("GOOGLE_WEB_CLIENT_ID") as? String)
+            ?: ""
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
     }
 
     buildTypes {
@@ -101,6 +131,11 @@ dependencies {
     // Image Loading
     implementation(libs.coil.compose)
     implementation("com.github.bumptech.glide:compose:1.0.0-beta10")
+
+    // Google Credential Manager (Sign In with Google)
+    implementation("androidx.credentials:credentials:1.3.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 
     // Testing
     testImplementation(libs.junit)

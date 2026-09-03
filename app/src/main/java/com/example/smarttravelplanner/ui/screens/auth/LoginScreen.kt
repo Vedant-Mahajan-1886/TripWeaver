@@ -1,13 +1,9 @@
 package com.example.smarttravelplanner.ui.screens.auth
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.*
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -31,17 +27,25 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.NoCredentialException
+import com.example.smarttravelplanner.data.remote.service.GoogleAuthHelper
+import kotlinx.coroutines.launch
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -51,6 +55,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -64,6 +69,13 @@ private enum class AuthTab {
     CREATE_ACCOUNT
 }
 
+private enum class AuthViewMode {
+    STANDARD_FORM,
+    REGISTRATION_OTP,
+    FORGOT_PASSWORD_EMAIL,
+    FORGOT_PASSWORD_RESET
+}
+
 // High-resolution internet image of Taj Mahal at dawn
 private const val TAJ_MAHAL_ONLINE_IMAGE =
     "https://images.unsplash.com/photo-1564507592333-c60657eea523?auto=format&fit=crop&w=1400&q=80"
@@ -75,6 +87,7 @@ fun LoginScreen(
     onLoginSuccess: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val resendCountdown by viewModel.resendCountdown.collectAsState()
     val focusManager = LocalFocusManager.current
 
     // Synchronize with active theme mode (Dark / Light / System)
@@ -85,6 +98,39 @@ fun LoginScreen(
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
+    var regOtpCode by remember { mutableStateOf("") }
+
+    // Forgot Password states
+    var resetEmail by remember { mutableStateOf("") }
+    var resetOtpCode by remember { mutableStateOf("") }
+    var resetNewPassword by remember { mutableStateOf("") }
+    var resetConfirmPassword by remember { mutableStateOf("") }
+
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var showGoogleSetupDialog by remember { mutableStateOf(false) }
+
+    // Derive active view mode from uiState
+    val viewMode = when (uiState) {
+        is AuthUiState.OtpSent -> AuthViewMode.REGISTRATION_OTP
+        is AuthUiState.ForgotPasswordEmail -> AuthViewMode.FORGOT_PASSWORD_EMAIL
+        is AuthUiState.ForgotPasswordOtp -> AuthViewMode.FORGOT_PASSWORD_RESET
+        else -> AuthViewMode.STANDARD_FORM
+    }
+
+    // Pre-populate email in forgot password if user already typed in login
+    LaunchedEffect(uiState) {
+        if (uiState is AuthUiState.ForgotPasswordEmail) {
+            val initEmail = (uiState as AuthUiState.ForgotPasswordEmail).initialEmail
+            if (initEmail.isNotBlank()) resetEmail = initEmail
+            resetOtpCode = ""
+            resetNewPassword = ""
+            resetConfirmPassword = ""
+        } else if (uiState is AuthUiState.ForgotPasswordOtp) {
+            val otpEmail = (uiState as AuthUiState.ForgotPasswordOtp).email
+            if (otpEmail.isNotBlank()) resetEmail = otpEmail
+        }
+    }
 
     // Scroll & IME tracking so keyboard never hides the fields
     val scrollState = rememberScrollState()
@@ -103,10 +149,9 @@ fun LoginScreen(
         }
     }
 
-    // Submit button enabled check: disabled when email or password is blank
     val isSubmitEnabled = when (selectedTab) {
-        AuthTab.SIGN_IN -> email.isNotBlank() && password.isNotBlank() && uiState !is AuthUiState.LoggingIn
-        AuthTab.CREATE_ACCOUNT -> fullName.isNotBlank() && email.isNotBlank() && password.isNotBlank() && uiState !is AuthUiState.LoggingIn
+        AuthTab.SIGN_IN -> email.isNotBlank() && password.isNotBlank() && uiState !is AuthUiState.Loading
+        AuthTab.CREATE_ACCOUNT -> fullName.isNotBlank() && email.isNotBlank() && password.isNotBlank() && uiState !is AuthUiState.Loading
     }
 
     // Theme adaptive color tokens matching app theme (Color.kt)
@@ -137,6 +182,8 @@ fun LoginScreen(
     val dividerColor = if (isDark) Color(0xFF2A2A2A) else Color(0xFFE5E7EB)
     val dividerTextColor = if (isDark) OnBackgroundMuted else OnBackgroundSubtle
     val forgotPasswordColor = Amber
+
+    val errorMessage = (uiState as? AuthUiState.Error)?.message
 
     Box(
         modifier = Modifier
@@ -246,283 +293,1093 @@ fun LoginScreen(
                         .fillMaxWidth()
                         .padding(20.dp)
                 ) {
-                    // ── Smooth Segmented Switcher (Sign In vs Create Account) ─
-                    BoxWithConstraints(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .clip(RoundedCornerShape(24.dp))
-                            .background(segmentedTrackColor)
-                            .padding(4.dp)
-                    ) {
-                        val tabWidth = maxWidth / 2
-                        val targetOffset = if (selectedTab == AuthTab.SIGN_IN) 0.dp else tabWidth
-                        val animatedOffset by animateDpAsState(
-                            targetValue = targetOffset,
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioLowBouncy,
-                                stiffness = Spring.StiffnessMediumLow
-                            ),
-                            label = "tab_indicator_offset"
-                        )
-
-                        // Smooth sliding indicator pill
-                        Box(
-                            modifier = Modifier
-                                .width(tabWidth)
-                                .fillMaxHeight()
-                                .offset(x = animatedOffset)
-                                .then(
-                                    if (!isDark) Modifier.shadow(2.dp, RoundedCornerShape(20.dp))
-                                    else Modifier
-                                )
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(segmentedPillColor)
-                        )
-
-                        // Tab click targets & labels
-                        Row(modifier = Modifier.fillMaxSize()) {
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .clickable { selectedTab = AuthTab.SIGN_IN },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "Sign In",
-                                    fontFamily = DmSansFontFamily,
-                                    fontWeight = if (selectedTab == AuthTab.SIGN_IN) FontWeight.Bold else FontWeight.SemiBold,
-                                    fontSize = 14.sp,
-                                    color = if (selectedTab == AuthTab.SIGN_IN) textPrimary else textMuted
-                                )
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .clickable { selectedTab = AuthTab.CREATE_ACCOUNT },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "Create Account",
-                                    fontFamily = DmSansFontFamily,
-                                    fontWeight = if (selectedTab == AuthTab.CREATE_ACCOUNT) FontWeight.Bold else FontWeight.SemiBold,
-                                    fontSize = 14.sp,
-                                    color = if (selectedTab == AuthTab.CREATE_ACCOUNT) textPrimary else textMuted
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    // ── Full Name Field (Smooth expand/collapse for Create Account) ─
-                    AnimatedVisibility(
-                        visible = selectedTab == AuthTab.CREATE_ACCOUNT,
-                        enter = expandVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeIn(),
-                        exit = shrinkVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeOut()
-                    ) {
-                        Column {
-                            AuthFormField(
-                                label = "FULL NAME",
-                                value = fullName,
-                                onValueChange = { fullName = it },
-                                placeholder = "Your name",
-                                leadingIcon = Icons.Outlined.Person,
-                                labelColor = labelColor,
-                                fieldBackground = fieldBackground,
-                                fieldBorder = fieldBorder,
-                                fieldPlaceholder = fieldPlaceholder,
-                                fieldIcon = fieldIcon,
-                                textPrimary = textPrimary,
-                                imeAction = ImeAction.Next,
-                                onImeAction = { focusManager.moveFocus(FocusDirection.Down) }
-                            )
-                            Spacer(modifier = Modifier.height(14.dp))
-                        }
-                    }
-
-                    // ── Email Field ───────────────────────────────────────────
-                    AuthFormField(
-                        label = "EMAIL",
-                        value = email,
-                        onValueChange = { email = it },
-                        placeholder = "you@example.com",
-                        leadingIcon = Icons.Outlined.Email,
-                        labelColor = labelColor,
-                        fieldBackground = fieldBackground,
-                        fieldBorder = fieldBorder,
-                        fieldPlaceholder = fieldPlaceholder,
-                        fieldIcon = fieldIcon,
-                        textPrimary = textPrimary,
-                        keyboardType = KeyboardType.Email,
-                        imeAction = ImeAction.Next,
-                        onImeAction = { focusManager.moveFocus(FocusDirection.Down) }
-                    )
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // ── Password Field ────────────────────────────────────────
-                    AuthFormField(
-                        label = "PASSWORD",
-                        value = password,
-                        onValueChange = { password = it },
-                        placeholder = "••••••••",
-                        leadingIcon = Icons.Outlined.Lock,
-                        labelColor = labelColor,
-                        fieldBackground = fieldBackground,
-                        fieldBorder = fieldBorder,
-                        fieldPlaceholder = fieldPlaceholder,
-                        fieldIcon = fieldIcon,
-                        textPrimary = textPrimary,
-                        isPassword = true,
-                        passwordVisible = passwordVisible,
-                        onTogglePasswordVisibility = { passwordVisible = !passwordVisible },
-                        keyboardType = KeyboardType.Password,
-                        imeAction = ImeAction.Done,
-                        onImeAction = {
-                            if (isSubmitEnabled) {
-                                focusManager.clearFocus()
-                                if (selectedTab == AuthTab.SIGN_IN) {
-                                    viewModel.login(email, password)
-                                } else {
-                                    viewModel.createAccount(fullName, email, password)
-                                }
-                            }
-                        }
-                    )
-
-                    // ── Forgot Password Link (Only in Sign In) ─────────────────
-                    AnimatedVisibility(
-                        visible = selectedTab == AuthTab.SIGN_IN,
-                        enter = expandVertically() + fadeIn(),
-                        exit = shrinkVertically() + fadeOut()
-                    ) {
-                        Box(
+                    // ── Error Banner ──────────────────────────────────────────
+                    if (errorMessage != null) {
+                        Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 10.dp, bottom = 4.dp),
-                            contentAlignment = Alignment.CenterEnd
+                                .padding(bottom = 16.dp),
+                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.9f),
+                            shape = RoundedCornerShape(12.dp)
                         ) {
                             Text(
-                                text = "Forgot password?",
+                                text = errorMessage,
                                 fontFamily = DmSansFontFamily,
                                 fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = forgotPasswordColor,
-                                modifier = Modifier
-                                    .clickable { /* future password reset */ }
-                                    .padding(vertical = 4.dp)
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(18.dp))
+                    // ── Animated Switcher: Forms, OTPs, and Forgot Password ───
+                    AnimatedContent(
+                        targetState = viewMode,
+                        transitionSpec = {
+                            fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) togetherWith
+                                fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
+                        },
+                        label = "AuthViewTransition"
+                    ) { mode ->
+                        when (mode) {
+                            AuthViewMode.REGISTRATION_OTP -> {
+                                val sentEmail = (uiState as? AuthUiState.OtpSent)?.email ?: email
+                                OtpVerificationView(
+                                    email = sentEmail,
+                                    otp = regOtpCode,
+                                    onOtpChange = {
+                                        regOtpCode = it
+                                        viewModel.clearError()
+                                    },
+                                    resendCountdown = resendCountdown,
+                                    isLoading = uiState is AuthUiState.Loading,
+                                    isDark = isDark,
+                                    textPrimary = textPrimary,
+                                    textMuted = textMuted,
+                                    submitBtnBg = submitBtnBg,
+                                    submitBtnDisabledBg = submitBtnDisabledBg,
+                                    submitBtnTextColor = submitBtnTextColor,
+                                    forgotPasswordColor = forgotPasswordColor,
+                                    onVerify = {
+                                        focusManager.clearFocus()
+                                        viewModel.verifyOtpAndCreateAccount(
+                                            fullName = fullName,
+                                            email = sentEmail,
+                                            password = password,
+                                            otp = regOtpCode
+                                        )
+                                    },
+                                    onResend = { viewModel.resendOtp(sentEmail) },
+                                    onCancel = {
+                                        regOtpCode = ""
+                                        viewModel.cancelOtp()
+                                    }
+                                )
+                            }
 
-                    // ── Submit Button (Disabled when fields empty) ────────────
+                            AuthViewMode.FORGOT_PASSWORD_EMAIL -> {
+                                ForgotPasswordEmailView(
+                                    email = resetEmail,
+                                    onEmailChange = {
+                                        resetEmail = it
+                                        viewModel.clearError()
+                                    },
+                                    isLoading = uiState is AuthUiState.Loading,
+                                    textPrimary = textPrimary,
+                                    textMuted = textMuted,
+                                    labelColor = labelColor,
+                                    fieldBackground = fieldBackground,
+                                    fieldBorder = fieldBorder,
+                                    fieldPlaceholder = fieldPlaceholder,
+                                    fieldIcon = fieldIcon,
+                                    submitBtnBg = submitBtnBg,
+                                    submitBtnDisabledBg = submitBtnDisabledBg,
+                                    submitBtnTextColor = submitBtnTextColor,
+                                    onSendResetCode = {
+                                        focusManager.clearFocus()
+                                        viewModel.sendPasswordResetOtp(resetEmail)
+                                    },
+                                    onBack = { viewModel.cancelForgotPassword() }
+                                )
+                            }
+
+                            AuthViewMode.FORGOT_PASSWORD_RESET -> {
+                                ForgotPasswordResetView(
+                                    email = resetEmail,
+                                    otp = resetOtpCode,
+                                    onOtpChange = {
+                                        resetOtpCode = it
+                                        viewModel.clearError()
+                                    },
+                                    newPassword = resetNewPassword,
+                                    onNewPasswordChange = {
+                                        resetNewPassword = it
+                                        viewModel.clearError()
+                                    },
+                                    confirmPassword = resetConfirmPassword,
+                                    onConfirmPasswordChange = {
+                                        resetConfirmPassword = it
+                                        viewModel.clearError()
+                                    },
+                                    resendCountdown = resendCountdown,
+                                    isLoading = uiState is AuthUiState.Loading,
+                                    isDark = isDark,
+                                    textPrimary = textPrimary,
+                                    textMuted = textMuted,
+                                    labelColor = labelColor,
+                                    fieldBackground = fieldBackground,
+                                    fieldBorder = fieldBorder,
+                                    fieldPlaceholder = fieldPlaceholder,
+                                    fieldIcon = fieldIcon,
+                                    submitBtnBg = submitBtnBg,
+                                    submitBtnDisabledBg = submitBtnDisabledBg,
+                                    submitBtnTextColor = submitBtnTextColor,
+                                    forgotPasswordColor = forgotPasswordColor,
+                                    onResetPassword = {
+                                        focusManager.clearFocus()
+                                        viewModel.resetPassword(
+                                            email = resetEmail,
+                                            otp = resetOtpCode,
+                                            newPassword = resetNewPassword,
+                                            confirmPassword = resetConfirmPassword
+                                        )
+                                    },
+                                    onResend = { viewModel.resendPasswordResetOtp(resetEmail) },
+                                    onBack = { viewModel.cancelForgotPassword() }
+                                )
+                            }
+
+                            AuthViewMode.STANDARD_FORM -> {
+                                StandardAuthForm(
+                                    selectedTab = selectedTab,
+                                    onTabSelected = { tab ->
+                                        selectedTab = tab
+                                        viewModel.clearError()
+                                    },
+                                    fullName = fullName,
+                                    onFullNameChange = {
+                                        fullName = it
+                                        viewModel.clearError()
+                                    },
+                                    email = email,
+                                    onEmailChange = {
+                                        email = it
+                                        viewModel.clearError()
+                                    },
+                                    password = password,
+                                    onPasswordChange = {
+                                        password = it
+                                        viewModel.clearError()
+                                    },
+                                    passwordVisible = passwordVisible,
+                                    onTogglePasswordVisibility = { passwordVisible = !passwordVisible },
+                                    isSubmitEnabled = isSubmitEnabled,
+                                    isLoading = uiState is AuthUiState.Loading,
+                                    isDark = isDark,
+                                    segmentedTrackColor = segmentedTrackColor,
+                                    segmentedPillColor = segmentedPillColor,
+                                    textPrimary = textPrimary,
+                                    textMuted = textMuted,
+                                    labelColor = labelColor,
+                                    fieldBackground = fieldBackground,
+                                    fieldBorder = fieldBorder,
+                                    fieldPlaceholder = fieldPlaceholder,
+                                    fieldIcon = fieldIcon,
+                                    submitBtnBg = submitBtnBg,
+                                    submitBtnDisabledBg = submitBtnDisabledBg,
+                                    submitBtnTextColor = submitBtnTextColor,
+                                    googleBtnBg = googleBtnBg,
+                                    googleBtnBorder = googleBtnBorder,
+                                    googleBtnTextColor = googleBtnTextColor,
+                                    dividerColor = dividerColor,
+                                    dividerTextColor = dividerTextColor,
+                                    forgotPasswordColor = forgotPasswordColor,
+                                    focusManager = focusManager,
+                                    onSubmit = {
+                                        focusManager.clearFocus()
+                                        if (selectedTab == AuthTab.SIGN_IN) {
+                                            viewModel.login(email, password)
+                                        } else {
+                                            viewModel.requestRegistrationOtp(fullName, email, password)
+                                        }
+                                    },
+                                    onForgotPasswordClick = {
+                                        viewModel.startForgotPassword(email)
+                                    },
+                                    onGoogleSignIn = {
+                                        if (GoogleAuthHelper.isConfigured) {
+                                            coroutineScope.launch {
+                                                GoogleAuthHelper.signInWithGoogle(context)
+                                                    .onSuccess { googleUser ->
+                                                        viewModel.loginWithGoogle(
+                                                            email = googleUser.email,
+                                                            fullName = googleUser.displayName
+                                                        )
+                                                    }
+                                                    .onFailure { error ->
+                                                        if (error !is GetCredentialCancellationException) {
+                                                            if (error is NoCredentialException || error.message?.contains("No credential") == true) {
+                                                                showGoogleSetupDialog = true
+                                                            } else {
+                                                                viewModel.setError(error.message ?: "Google Sign-In failed.")
+                                                            }
+                                                        }
+                                                    }
+                                            }
+                                        } else {
+                                            showGoogleSetupDialog = true
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Google Web Client ID Setup / Test Sign-In Dialog ──────────────────
+        if (showGoogleSetupDialog) {
+            AlertDialog(
+                onDismissRequest = { showGoogleSetupDialog = false },
+                title = {
+                    Text(
+                        text = "Google Sign-In",
+                        fontFamily = PlayfairFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        color = textPrimary
+                    )
+                },
+                text = {
+                    Text(
+                        text = "Google Play Services requires an \"Android\" OAuth Client ID in your Google Cloud Console matching this app:\n\n• Package: com.example.smarttravelplanner\n• SHA-1: 01:70:B5:D7:FC:BA:1E:16:41:C0:53:55:DB:87:53:5D:90:E3:5D:E3\n\nWould you like to sign in using the Google Test Account for now?",
+                        fontFamily = DmSansFontFamily,
+                        fontSize = 13.sp,
+                        color = textMuted,
+                        lineHeight = 18.sp
+                    )
+                },
+                confirmButton = {
                     Button(
                         onClick = {
-                            if (isSubmitEnabled) {
-                                focusManager.clearFocus()
-                                if (selectedTab == AuthTab.SIGN_IN) {
-                                    viewModel.login(email, password)
-                                } else {
-                                    viewModel.createAccount(fullName, email, password)
-                                }
-                            }
-                        },
-                        enabled = isSubmitEnabled,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = submitBtnBg,
-                            contentColor = submitBtnTextColor,
-                            disabledContainerColor = submitBtnDisabledBg,
-                            disabledContentColor = submitBtnTextColor
-                        ),
-                        border = if (isSubmitEnabled && isDark) BorderStroke(0.8.dp, Color(0xFF333D52)) else null
-                    ) {
-                        if (uiState is AuthUiState.LoggingIn) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                color = submitBtnTextColor,
-                                strokeWidth = 2.dp
+                            showGoogleSetupDialog = false
+                            viewModel.loginWithGoogle(
+                                email = "google.traveler@gmail.com",
+                                fullName = "Google Traveler"
                             )
-                        } else {
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Amber,
+                            contentColor = Color.Black
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = "Continue as Test User",
+                            fontFamily = DmSansFontFamily,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showGoogleSetupDialog = false }) {
+                        Text(
+                            text = "Cancel",
+                            fontFamily = DmSansFontFamily,
+                            color = textMuted
+                        )
+                    }
+                },
+                containerColor = cardBackground,
+                shape = RoundedCornerShape(20.dp)
+            )
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Forgot Password - Step 1: Enter Email
+// ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun ForgotPasswordEmailView(
+    email: String,
+    onEmailChange: (String) -> Unit,
+    isLoading: Boolean,
+    textPrimary: Color,
+    textMuted: Color,
+    labelColor: Color,
+    fieldBackground: Color,
+    fieldBorder: Color,
+    fieldPlaceholder: Color,
+    fieldIcon: Color,
+    submitBtnBg: Color,
+    submitBtnDisabledBg: Color,
+    submitBtnTextColor: Color,
+    onSendResetCode: () -> Unit,
+    onBack: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Reset Password",
+            fontFamily = PlayfairFontFamily,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            color = textPrimary
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "Enter your registered email and we'll send you a 6-digit code to reset your password.",
+            fontFamily = DmSansFontFamily,
+            fontSize = 13.sp,
+            color = textMuted,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(20.dp))
+
+        AuthFormField(
+            label = "REGISTERED EMAIL",
+            value = email,
+            onValueChange = onEmailChange,
+            placeholder = "you@example.com",
+            leadingIcon = Icons.Outlined.Email,
+            labelColor = labelColor,
+            fieldBackground = fieldBackground,
+            fieldBorder = fieldBorder,
+            fieldPlaceholder = fieldPlaceholder,
+            fieldIcon = fieldIcon,
+            textPrimary = textPrimary,
+            keyboardType = KeyboardType.Email,
+            imeAction = ImeAction.Done,
+            onImeAction = { if (email.isNotBlank()) onSendResetCode() }
+        )
+
+        Spacer(modifier = Modifier.height(22.dp))
+
+        Button(
+            onClick = onSendResetCode,
+            enabled = email.isNotBlank() && !isLoading,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = submitBtnBg,
+                contentColor = submitBtnTextColor,
+                disabledContainerColor = submitBtnDisabledBg,
+                disabledContentColor = submitBtnTextColor
+            )
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = submitBtnTextColor,
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Text(
+                    text = "Send Reset Code →",
+                    fontFamily = DmSansFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = submitBtnTextColor
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = "← Back to Sign In",
+            fontFamily = DmSansFontFamily,
+            fontSize = 13.sp,
+            color = textMuted,
+            modifier = Modifier.clickable(onClick = onBack)
+        )
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Forgot Password - Step 2: Enter OTP & New Password
+// ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun ForgotPasswordResetView(
+    email: String,
+    otp: String,
+    onOtpChange: (String) -> Unit,
+    newPassword: String,
+    onNewPasswordChange: (String) -> Unit,
+    confirmPassword: String,
+    onConfirmPasswordChange: (String) -> Unit,
+    resendCountdown: Int,
+    isLoading: Boolean,
+    isDark: Boolean,
+    textPrimary: Color,
+    textMuted: Color,
+    labelColor: Color,
+    fieldBackground: Color,
+    fieldBorder: Color,
+    fieldPlaceholder: Color,
+    fieldIcon: Color,
+    submitBtnBg: Color,
+    submitBtnDisabledBg: Color,
+    submitBtnTextColor: Color,
+    forgotPasswordColor: Color,
+    onResetPassword: () -> Unit,
+    onResend: () -> Unit,
+    onBack: () -> Unit
+) {
+    var newPasswordVisible by remember { mutableStateOf(false) }
+    var confirmPasswordVisible by remember { mutableStateOf(false) }
+
+    val isResetEnabled = otp.length == 6 &&
+            newPassword.length >= 6 &&
+            confirmPassword.isNotBlank() &&
+            !isLoading
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Create New Password",
+            fontFamily = PlayfairFontFamily,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            color = textPrimary
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "Enter the 6-digit code sent to\n$email",
+            fontFamily = DmSansFontFamily,
+            fontSize = 13.sp,
+            color = textMuted,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+
+        // 6-digit OTP
+        OtpInputField(
+            otp = otp,
+            onOtpChange = onOtpChange,
+            isDark = isDark
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Resend Timer Row
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            if (resendCountdown > 0) {
+                Text(
+                    text = "Resend code in ${resendCountdown}s",
+                    fontFamily = DmSansFontFamily,
+                    fontSize = 12.sp,
+                    color = textMuted
+                )
+            } else {
+                Text(
+                    text = "Resend Code",
+                    fontFamily = DmSansFontFamily,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = forgotPasswordColor,
+                    modifier = Modifier.clickable(onClick = onResend)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // New Password field
+        AuthFormField(
+            label = "NEW PASSWORD",
+            value = newPassword,
+            onValueChange = onNewPasswordChange,
+            placeholder = "At least 6 characters",
+            leadingIcon = Icons.Outlined.Lock,
+            labelColor = labelColor,
+            fieldBackground = fieldBackground,
+            fieldBorder = fieldBorder,
+            fieldPlaceholder = fieldPlaceholder,
+            fieldIcon = fieldIcon,
+            textPrimary = textPrimary,
+            isPassword = true,
+            passwordVisible = newPasswordVisible,
+            onTogglePasswordVisibility = { newPasswordVisible = !newPasswordVisible },
+            keyboardType = KeyboardType.Password,
+            imeAction = ImeAction.Next
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Confirm Password field
+        AuthFormField(
+            label = "CONFIRM NEW PASSWORD",
+            value = confirmPassword,
+            onValueChange = onConfirmPasswordChange,
+            placeholder = "Repeat new password",
+            leadingIcon = Icons.Outlined.Lock,
+            labelColor = labelColor,
+            fieldBackground = fieldBackground,
+            fieldBorder = fieldBorder,
+            fieldPlaceholder = fieldPlaceholder,
+            fieldIcon = fieldIcon,
+            textPrimary = textPrimary,
+            isPassword = true,
+            passwordVisible = confirmPasswordVisible,
+            onTogglePasswordVisibility = { confirmPasswordVisible = !confirmPasswordVisible },
+            keyboardType = KeyboardType.Password,
+            imeAction = ImeAction.Done,
+            onImeAction = { if (isResetEnabled) onResetPassword() }
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Button(
+            onClick = onResetPassword,
+            enabled = isResetEnabled,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = submitBtnBg,
+                contentColor = submitBtnTextColor,
+                disabledContainerColor = submitBtnDisabledBg,
+                disabledContentColor = submitBtnTextColor
+            ),
+            border = if (isResetEnabled && isDark) BorderStroke(0.8.dp, Color(0xFF333D52)) else null
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = submitBtnTextColor,
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Text(
+                    text = "Reset Password & Sign In →",
+                    fontFamily = DmSansFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = submitBtnTextColor
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        Text(
+            text = "← Back to Sign In",
+            fontFamily = DmSansFontFamily,
+            fontSize = 13.sp,
+            color = textMuted,
+            modifier = Modifier.clickable(onClick = onBack)
+        )
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Registration OTP Verification View
+// ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun OtpVerificationView(
+    email: String,
+    otp: String,
+    onOtpChange: (String) -> Unit,
+    resendCountdown: Int,
+    isLoading: Boolean,
+    isDark: Boolean,
+    textPrimary: Color,
+    textMuted: Color,
+    submitBtnBg: Color,
+    submitBtnDisabledBg: Color,
+    submitBtnTextColor: Color,
+    forgotPasswordColor: Color,
+    onVerify: () -> Unit,
+    onResend: () -> Unit,
+    onCancel: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Verify Your Email",
+            fontFamily = PlayfairFontFamily,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            color = textPrimary
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "Enter the 6-digit code sent to\n$email",
+            fontFamily = DmSansFontFamily,
+            fontSize = 13.sp,
+            color = textMuted,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(22.dp))
+
+        // 6-digit OTP Input Boxes
+        OtpInputField(
+            otp = otp,
+            onOtpChange = onOtpChange,
+            isDark = isDark,
+            onDone = onVerify
+        )
+
+        Spacer(modifier = Modifier.height(22.dp))
+
+        // Verify & Create Account button
+        Button(
+            onClick = onVerify,
+            enabled = otp.length == 6 && !isLoading,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = submitBtnBg,
+                contentColor = submitBtnTextColor,
+                disabledContainerColor = submitBtnDisabledBg,
+                disabledContentColor = submitBtnTextColor
+            ),
+            border = if (otp.length == 6 && isDark) BorderStroke(0.8.dp, Color(0xFF333D52)) else null
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = submitBtnTextColor,
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Text(
+                    text = "Verify & Complete →",
+                    fontFamily = DmSansFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = submitBtnTextColor
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(18.dp))
+
+        // Resend Timer Row
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            if (resendCountdown > 0) {
+                Text(
+                    text = "Resend code in ${resendCountdown}s",
+                    fontFamily = DmSansFontFamily,
+                    fontSize = 13.sp,
+                    color = textMuted
+                )
+            } else {
+                Text(
+                    text = "Resend Code",
+                    fontFamily = DmSansFontFamily,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = forgotPasswordColor,
+                    modifier = Modifier.clickable(onClick = onResend)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Cancel / Back to form
+        Text(
+            text = "← Change email / Back",
+            fontFamily = DmSansFontFamily,
+            fontSize = 13.sp,
+            color = textMuted,
+            modifier = Modifier.clickable(onClick = onCancel)
+        )
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  6-Digit OTP Input Component
+// ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun OtpInputField(
+    otp: String,
+    onOtpChange: (String) -> Unit,
+    isDark: Boolean,
+    modifier: Modifier = Modifier,
+    onDone: () -> Unit = {}
+) {
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
+    BasicTextField(
+        value = otp,
+        onValueChange = { input ->
+            val digits = input.filter { it.isDigit() }.take(6)
+            onOtpChange(digits)
+        },
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Number,
+            imeAction = ImeAction.Done
+        ),
+        keyboardActions = KeyboardActions(
+            onDone = {
+                if (otp.length == 6) onDone()
+            }
+        ),
+        modifier = modifier
+            .fillMaxWidth()
+            .focusRequester(focusRequester),
+        decorationBox = { innerTextField ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { focusRequester.requestFocus() },
+                contentAlignment = Alignment.Center
+            ) {
+                // Keep innerTextField active so soft keyboard inputs and selection are received
+                Box(
+                    modifier = Modifier
+                        .size(1.dp)
+                        .alpha(0.001f)
+                ) {
+                    innerTextField()
+                }
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    repeat(6) { index ->
+                        val char = otp.getOrNull(index)?.toString() ?: ""
+                        val isFocused = otp.length == index || (otp.length == 6 && index == 5)
+                        val boxBorder = when {
+                            isFocused -> Amber
+                            char.isNotEmpty() -> if (isDark) Color(0xFF4A5568) else Color(0xFF94A3B8)
+                            else -> if (isDark) Color(0xFF333333) else Color(0xFFD1D5DB)
+                        }
+                        val boxBg = if (isDark) SurfaceElevated else Color(0xFFF9FAFB)
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(54.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(boxBg)
+                                .border(if (isFocused) 1.5.dp else 1.dp, boxBorder, RoundedCornerShape(12.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
                             Text(
-                                text = if (selectedTab == AuthTab.SIGN_IN) "Sign In →" else "Create Account →",
+                                text = char,
                                 fontFamily = DmSansFontFamily,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp,
-                                color = submitBtnTextColor
-                            )
-                        }
-                    }
-
-                    // ── Divider ───────────────────────────────────────────────
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 18.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        HorizontalDivider(
-                            modifier = Modifier.weight(1f),
-                            color = dividerColor
-                        )
-                        Text(
-                            text = "  or continue with  ",
-                            fontFamily = DmSansFontFamily,
-                            fontWeight = FontWeight.Bold,
-                            color = dividerTextColor,
-                            fontSize = 14.sp
-                        )
-                        HorizontalDivider(
-                            modifier = Modifier.weight(1f),
-                            color = dividerColor
-                        )
-                    }
-
-                    // ── Google Sign In Button with Official Multi-Color Logo ───
-                    Button(
-                        onClick = { viewModel.loginWithGoogle() },
-                        enabled = uiState !is AuthUiState.LoggingIn,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = googleBtnBg,
-                            contentColor = googleBtnTextColor
-                        ),
-                        border = BorderStroke(1.dp, googleBtnBorder),
-                        elevation = if (!isDark) ButtonDefaults.buttonElevation(defaultElevation = 2.dp) else null
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Image(
-                                painter = painterResource(R.drawable.ic_google_symbol),
-                                contentDescription = "Google",
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = "Continue with Google",
-                                fontFamily = DmSansFontFamily,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 14.sp,
-                                color = googleBtnTextColor
+                                fontSize = 20.sp,
+                                color = if (isDark) Color.White else Color(0xFF0F172A)
                             )
                         }
                     }
                 }
+            }
+        }
+    )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Standard Sign In / Create Account Form
+// ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun StandardAuthForm(
+    selectedTab: AuthTab,
+    onTabSelected: (AuthTab) -> Unit,
+    fullName: String,
+    onFullNameChange: (String) -> Unit,
+    email: String,
+    onEmailChange: (String) -> Unit,
+    password: String,
+    onPasswordChange: (String) -> Unit,
+    passwordVisible: Boolean,
+    onTogglePasswordVisibility: () -> Unit,
+    isSubmitEnabled: Boolean,
+    isLoading: Boolean,
+    isDark: Boolean,
+    segmentedTrackColor: Color,
+    segmentedPillColor: Color,
+    textPrimary: Color,
+    textMuted: Color,
+    labelColor: Color,
+    fieldBackground: Color,
+    fieldBorder: Color,
+    fieldPlaceholder: Color,
+    fieldIcon: Color,
+    submitBtnBg: Color,
+    submitBtnDisabledBg: Color,
+    submitBtnTextColor: Color,
+    googleBtnBg: Color,
+    googleBtnBorder: Color,
+    googleBtnTextColor: Color,
+    dividerColor: Color,
+    dividerTextColor: Color,
+    forgotPasswordColor: Color,
+    focusManager: androidx.compose.ui.focus.FocusManager,
+    onSubmit: () -> Unit,
+    onForgotPasswordClick: () -> Unit,
+    onGoogleSignIn: () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // ── Smooth Segmented Switcher (Sign In vs Create Account) ─────────────
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(segmentedTrackColor)
+                .padding(4.dp)
+        ) {
+            val tabWidth = maxWidth / 2
+            val targetOffset = if (selectedTab == AuthTab.SIGN_IN) 0.dp else tabWidth
+            val animatedOffset by animateDpAsState(
+                targetValue = targetOffset,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioLowBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                ),
+                label = "tab_indicator_offset"
+            )
+
+            // Smooth sliding indicator pill
+            Box(
+                modifier = Modifier
+                    .width(tabWidth)
+                    .fillMaxHeight()
+                    .offset(x = animatedOffset)
+                    .then(
+                        if (!isDark) Modifier.shadow(2.dp, RoundedCornerShape(20.dp))
+                        else Modifier
+                    )
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(segmentedPillColor)
+            )
+
+            // Tab click targets & labels
+            Row(modifier = Modifier.fillMaxSize()) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(20.dp))
+                        .clickable { onTabSelected(AuthTab.SIGN_IN) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Sign In",
+                        fontFamily = DmSansFontFamily,
+                        fontWeight = if (selectedTab == AuthTab.SIGN_IN) FontWeight.Bold else FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                        color = if (selectedTab == AuthTab.SIGN_IN) textPrimary else textMuted
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(20.dp))
+                        .clickable { onTabSelected(AuthTab.CREATE_ACCOUNT) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Create Account",
+                        fontFamily = DmSansFontFamily,
+                        fontWeight = if (selectedTab == AuthTab.CREATE_ACCOUNT) FontWeight.Bold else FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                        color = if (selectedTab == AuthTab.CREATE_ACCOUNT) textPrimary else textMuted
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // ── Full Name Field (Smooth expand/collapse for Create Account) ───────
+        AnimatedVisibility(
+            visible = selectedTab == AuthTab.CREATE_ACCOUNT,
+            enter = expandVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeIn(),
+            exit = shrinkVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeOut()
+        ) {
+            Column {
+                AuthFormField(
+                    label = "FULL NAME",
+                    value = fullName,
+                    onValueChange = onFullNameChange,
+                    placeholder = "Your name",
+                    leadingIcon = Icons.Outlined.Person,
+                    labelColor = labelColor,
+                    fieldBackground = fieldBackground,
+                    fieldBorder = fieldBorder,
+                    fieldPlaceholder = fieldPlaceholder,
+                    fieldIcon = fieldIcon,
+                    textPrimary = textPrimary,
+                    imeAction = ImeAction.Next,
+                    onImeAction = { focusManager.moveFocus(FocusDirection.Down) }
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+        }
+
+        // ── Email Field ───────────────────────────────────────────────────────
+        AuthFormField(
+            label = "EMAIL",
+            value = email,
+            onValueChange = onEmailChange,
+            placeholder = "you@example.com",
+            leadingIcon = Icons.Outlined.Email,
+            labelColor = labelColor,
+            fieldBackground = fieldBackground,
+            fieldBorder = fieldBorder,
+            fieldPlaceholder = fieldPlaceholder,
+            fieldIcon = fieldIcon,
+            textPrimary = textPrimary,
+            keyboardType = KeyboardType.Email,
+            imeAction = ImeAction.Next,
+            onImeAction = { focusManager.moveFocus(FocusDirection.Down) }
+        )
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // ── Password Field ────────────────────────────────────────────────────
+        AuthFormField(
+            label = "PASSWORD",
+            value = password,
+            onValueChange = onPasswordChange,
+            placeholder = "••••••••",
+            leadingIcon = Icons.Outlined.Lock,
+            labelColor = labelColor,
+            fieldBackground = fieldBackground,
+            fieldBorder = fieldBorder,
+            fieldPlaceholder = fieldPlaceholder,
+            fieldIcon = fieldIcon,
+            textPrimary = textPrimary,
+            isPassword = true,
+            passwordVisible = passwordVisible,
+            onTogglePasswordVisibility = onTogglePasswordVisibility,
+            keyboardType = KeyboardType.Password,
+            imeAction = ImeAction.Done,
+            onImeAction = {
+                if (isSubmitEnabled) onSubmit()
+            }
+        )
+
+        // ── Forgot Password Link (Only in Sign In) ─────────────────────────────
+        AnimatedVisibility(
+            visible = selectedTab == AuthTab.SIGN_IN,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp, bottom = 4.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Text(
+                    text = "Forgot password?",
+                    fontFamily = DmSansFontFamily,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = forgotPasswordColor,
+                    modifier = Modifier
+                        .clickable(onClick = onForgotPasswordClick)
+                        .padding(vertical = 4.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(18.dp))
+
+        // ── Submit Button (Disabled when fields empty) ────────────────────────
+        Button(
+            onClick = onSubmit,
+            enabled = isSubmitEnabled,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = submitBtnBg,
+                contentColor = submitBtnTextColor,
+                disabledContainerColor = submitBtnDisabledBg,
+                disabledContentColor = submitBtnTextColor
+            ),
+            border = if (isSubmitEnabled && isDark) BorderStroke(0.8.dp, Color(0xFF333D52)) else null
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = submitBtnTextColor,
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Text(
+                    text = if (selectedTab == AuthTab.SIGN_IN) "Sign In →" else "Create Account →",
+                    fontFamily = DmSansFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = submitBtnTextColor
+                )
+            }
+        }
+
+        // ── Divider ───────────────────────────────────────────────────────────
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 18.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            HorizontalDivider(
+                modifier = Modifier.weight(1f),
+                color = dividerColor
+            )
+            Text(
+                text = "  or continue with  ",
+                fontFamily = DmSansFontFamily,
+                fontWeight = FontWeight.Bold,
+                color = dividerTextColor,
+                fontSize = 14.sp
+            )
+            HorizontalDivider(
+                modifier = Modifier.weight(1f),
+                color = dividerColor
+            )
+        }
+
+        // ── Google Sign In Button with Official Multi-Color Logo ───────────────
+        Button(
+            onClick = onGoogleSignIn,
+            enabled = !isLoading,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = googleBtnBg,
+                contentColor = googleBtnTextColor
+            ),
+            border = BorderStroke(1.dp, googleBtnBorder),
+            elevation = if (!isDark) ButtonDefaults.buttonElevation(defaultElevation = 2.dp) else null
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_google_logo),
+                    contentDescription = "Google",
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "Continue with Google",
+                    fontFamily = DmSansFontFamily,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp,
+                    color = googleBtnTextColor
+                )
             }
         }
     }
