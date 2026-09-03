@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,6 +40,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.smarttravelplanner.R
 import com.example.smarttravelplanner.ui.theme.*
+
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 // ── Data models for mock display ─────────────────────────────────────────────
 
@@ -84,8 +87,10 @@ fun HomeScreen(
     onPlanWithAiClick: () -> Unit = {},
     onExploreClick: () -> Unit = {},
     onMyTripsClick: () -> Unit = {},
+    onTripClick: (Long) -> Unit = {},
     onMenuClick: () -> Unit = {}
 ) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val density = LocalDensity.current
 
@@ -217,12 +222,23 @@ fun HomeScreen(
                         onActionClick = onMyTripsClick
                     )
                     Spacer(modifier = Modifier.height(16.dp))
-                    recentTrips.forEach { trip ->
-                        RecentTripCard(
-                            trip = trip,
-                            onClick = onMyTripsClick
-                        )
-                        Spacer(modifier = Modifier.height(14.dp))
+                    val savedTrips = (uiState as? HomeUiState.Success)?.trips ?: emptyList()
+                    if (savedTrips.isNotEmpty()) {
+                        savedTrips.take(3).forEach { trip ->
+                            RealRecentTripCard(
+                                trip = trip,
+                                onClick = { onTripClick(trip.id) }
+                            )
+                            Spacer(modifier = Modifier.height(14.dp))
+                        }
+                    } else {
+                        recentTrips.forEach { trip ->
+                            RecentTripCard(
+                                trip = trip,
+                                onClick = onMyTripsClick
+                            )
+                            Spacer(modifier = Modifier.height(14.dp))
+                        }
                     }
                     Spacer(modifier = Modifier.height(24.dp))
                 }
@@ -671,6 +687,102 @@ private fun RecentTripCard(
                         fontSize = 12.sp
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RealRecentTripCard(
+    trip: com.example.smarttravelplanner.domain.model.Trip,
+    onClick: () -> Unit = {}
+) {
+    val durationDays = remember(trip.startDate, trip.endDate) {
+        val days = trip.endDate.toEpochDay() - trip.startDate.toEpochDay()
+        if (days <= 0) 1 else days.toInt()
+    }
+    val fmt = remember { java.time.format.DateTimeFormatter.ofPattern("MMM d", java.util.Locale.getDefault()) }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 4.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .background(CompletedGreenBg, RoundedCornerShape(20.dp))
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "Planned",
+                        fontFamily = DmSansFontFamily,
+                        color = CompletedGreen,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                if (trip.budget > 0) {
+                    Text(
+                        text = "₹${trip.budget.toInt()}",
+                        fontFamily = DmSansFontFamily,
+                        color = Amber,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = trip.destination,
+                fontFamily = PlayfairFontFamily,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Bold,
+                fontSize = 22.sp
+            )
+
+            if (trip.title.isNotBlank()) {
+                Text(
+                    text = trip.title,
+                    fontFamily = DmSansFontFamily,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 13.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Outlined.CalendarMonth,
+                    contentDescription = null,
+                    tint = OnBackgroundGray,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(5.dp))
+                Text(
+                    text = "${trip.startDate.format(fmt)} – ${trip.endDate.format(fmt)} · $durationDays days",
+                    fontFamily = DmSansFontFamily,
+                    color = OnBackgroundGray,
+                    fontSize = 12.sp
+                )
             }
         }
     }

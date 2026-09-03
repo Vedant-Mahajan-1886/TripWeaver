@@ -6,10 +6,12 @@ data class Activity(
     val title: String,
     val description: String = "",
     val location: String = "",
-    val latLng: Pair<Double, Double>? = null,
+    val lat: Double? = null,          // From Google Places / AI JSON output
+    val lng: Double? = null,          // From Google Places / AI JSON output
     val startTime: String = "",
     val endTime: String = "",
     val category: ActivityCategory = ActivityCategory.ATTRACTION,
     val estimatedCost: Double = 0.0,
-    val placeId: String = ""         // Google Places ID for map integration
+    val placeId: String = "",         // Google Places ID for map integration
+    val weatherNote: String? = null   // e.g. "Light rain expected — carry umbrella"
 )

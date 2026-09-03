@@ -4,6 +4,7 @@ import com.example.smarttravelplanner.domain.model.Trip
 
 sealed class MyTripsUiState {
     object Loading : MyTripsUiState()
+    object Empty : MyTripsUiState()
     data class Success(val trips: List<Trip>) : MyTripsUiState()
     data class Error(val message: String) : MyTripsUiState()
 }

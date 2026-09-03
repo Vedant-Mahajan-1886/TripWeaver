@@ -1,0 +1,624 @@
+package com.example.smarttravelplanner.ui.screens.auth
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Email
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
+import com.example.smarttravelplanner.R
+import com.example.smarttravelplanner.ui.theme.*
+
+private enum class AuthTab {
+    SIGN_IN,
+    CREATE_ACCOUNT
+}
+
+// High-resolution internet image of Taj Mahal at dawn
+private const val TAJ_MAHAL_ONLINE_IMAGE =
+    "https://images.unsplash.com/photo-1564507592333-c60657eea523?auto=format&fit=crop&w=1400&q=80"
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun LoginScreen(
+    viewModel: AuthViewModel = hiltViewModel(),
+    onLoginSuccess: () -> Unit
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    val focusManager = LocalFocusManager.current
+
+    // Synchronize with active theme mode (Dark / Light / System)
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+
+    var selectedTab by remember { mutableStateOf(AuthTab.SIGN_IN) }
+    var fullName by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
+
+    // Scroll & IME tracking so keyboard never hides the fields
+    val scrollState = rememberScrollState()
+    val isImeVisible = WindowInsets.isImeVisible
+
+    LaunchedEffect(isImeVisible) {
+        if (isImeVisible) {
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
+    }
+
+    LaunchedEffect(uiState) {
+        if (uiState is AuthUiState.Success) {
+            viewModel.resetState()
+            onLoginSuccess()
+        }
+    }
+
+    // Submit button enabled check: disabled when email or password is blank
+    val isSubmitEnabled = when (selectedTab) {
+        AuthTab.SIGN_IN -> email.isNotBlank() && password.isNotBlank() && uiState !is AuthUiState.LoggingIn
+        AuthTab.CREATE_ACCOUNT -> fullName.isNotBlank() && email.isNotBlank() && password.isNotBlank() && uiState !is AuthUiState.LoggingIn
+    }
+
+    // Theme adaptive color tokens matching app theme (Color.kt)
+    val screenBackground = if (isDark) BackgroundDark else BackgroundLight
+    val cardBackground = if (isDark) SurfaceDark.copy(alpha = 0.95f) else SurfaceLight.copy(alpha = 0.97f)
+    val cardBorder = if (isDark) Color(0xFF2C2C2C) else Color(0xFFE2E8F0)
+
+    val segmentedTrackColor = if (isDark) SurfaceElevated else Color(0xFFE5E7EB)
+    val segmentedPillColor = if (isDark) Color(0xFF121212) else Color.White
+
+    val textPrimary = if (isDark) OnBackgroundWhite else OnBackgroundDark
+    val textMuted = if (isDark) OnBackgroundGray else OnBackgroundMedium
+    val labelColor = if (isDark) Color(0xFF8E8E8E) else OnBackgroundMedium
+
+    val fieldBackground = if (isDark) SurfaceElevated else Color(0xFFF9FAFB)
+    val fieldBorder = if (isDark) Color(0xFF333333) else Color(0xFFD1D5DB)
+    val fieldPlaceholder = if (isDark) OnBackgroundMuted else OnBackgroundSubtle
+    val fieldIcon = if (isDark) OnBackgroundGray else OnBackgroundMedium
+
+    val submitBtnBg = if (isDark) Color(0xFF2C2C2C) else OnBackgroundDark
+    val submitBtnDisabledBg = if (isDark) Color(0xFF1C1C1C).copy(alpha = 0.6f) else Color(0xFFE5E7EB)
+    val submitBtnTextColor = if (isSubmitEnabled) Color.White else (if (isDark) OnBackgroundMuted else OnBackgroundSubtle)
+
+    val googleBtnBg = if (isDark) Color(0xFF222222) else Color.White
+    val googleBtnBorder = if (isDark) Color(0xFF333333) else Color(0xFFD1D5DB)
+    val googleBtnTextColor = if (isDark) Color.White else OnBackgroundDark
+
+    val dividerColor = if (isDark) Color(0xFF2A2A2A) else Color(0xFFE5E7EB)
+    val dividerTextColor = if (isDark) OnBackgroundMuted else OnBackgroundSubtle
+    val forgotPasswordColor = Amber
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(screenBackground)
+    ) {
+        // ── 1. Full-bleed Internet Image with local fallback ─────────────────
+        AsyncImage(
+            model = TAJ_MAHAL_ONLINE_IMAGE,
+            placeholder = painterResource(R.drawable.dest_agra),
+            error = painterResource(R.drawable.dest_agra),
+            contentDescription = "Taj Mahal Background",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.70f)
+                .align(Alignment.TopCenter)
+        )
+
+        // ── 2. Top Scrim & Bottom Theme Scrim ─────────────────────────────────
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.0f to Color(0xDD000000),
+                            0.18f to Color(0x66000000),
+                            0.40f to Color(0x11000000),
+                            0.58f to screenBackground.copy(alpha = 0.85f),
+                            0.74f to screenBackground,
+                            1.0f to screenBackground
+                        )
+                    )
+                )
+        )
+
+        // ── 3. Main Scrollable Container (Keyboard-aware with imePadding) ─────
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .imePadding()
+                .verticalScroll(scrollState),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            // ── Top Title at very top ─────────────────────────────────────────
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 16.dp)
+            ) {
+                Text(
+                    text = buildAnnotatedString {
+                        withStyle(
+                            SpanStyle(
+                                fontFamily = PlayfairFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 40.sp,
+                                color = Color.White
+                            )
+                        ) {
+                            append("Every journey\n")
+                        }
+                        withStyle(
+                            SpanStyle(
+                                fontFamily = PlayfairFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontStyle = FontStyle.Italic,
+                                fontSize = 40.sp,
+                                color = Color.White
+                            )
+                        ) {
+                            append("starts ")
+                        }
+                        withStyle(
+                            SpanStyle(
+                                fontFamily = PlayfairFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 40.sp,
+                                color = Color.White
+                            )
+                        ) {
+                            append("here.")
+                        }
+                    },
+                    lineHeight = 46.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(30.dp))
+
+            // ── Bottom Sheet / Card Container ─────────────────────────────────
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 24.dp),
+                shape = RoundedCornerShape(28.dp),
+                color = cardBackground,
+                border = BorderStroke(1.dp, cardBorder),
+                shadowElevation = if (!isDark) 8.dp else 0.dp,
+                tonalElevation = 6.dp
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp)
+                ) {
+                    // ── Smooth Segmented Switcher (Sign In vs Create Account) ─
+                    BoxWithConstraints(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(segmentedTrackColor)
+                            .padding(4.dp)
+                    ) {
+                        val tabWidth = maxWidth / 2
+                        val targetOffset = if (selectedTab == AuthTab.SIGN_IN) 0.dp else tabWidth
+                        val animatedOffset by animateDpAsState(
+                            targetValue = targetOffset,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioLowBouncy,
+                                stiffness = Spring.StiffnessMediumLow
+                            ),
+                            label = "tab_indicator_offset"
+                        )
+
+                        // Smooth sliding indicator pill
+                        Box(
+                            modifier = Modifier
+                                .width(tabWidth)
+                                .fillMaxHeight()
+                                .offset(x = animatedOffset)
+                                .then(
+                                    if (!isDark) Modifier.shadow(2.dp, RoundedCornerShape(20.dp))
+                                    else Modifier
+                                )
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(segmentedPillColor)
+                        )
+
+                        // Tab click targets & labels
+                        Row(modifier = Modifier.fillMaxSize()) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .clickable { selectedTab = AuthTab.SIGN_IN },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Sign In",
+                                    fontFamily = DmSansFontFamily,
+                                    fontWeight = if (selectedTab == AuthTab.SIGN_IN) FontWeight.Bold else FontWeight.SemiBold,
+                                    fontSize = 14.sp,
+                                    color = if (selectedTab == AuthTab.SIGN_IN) textPrimary else textMuted
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .clickable { selectedTab = AuthTab.CREATE_ACCOUNT },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Create Account",
+                                    fontFamily = DmSansFontFamily,
+                                    fontWeight = if (selectedTab == AuthTab.CREATE_ACCOUNT) FontWeight.Bold else FontWeight.SemiBold,
+                                    fontSize = 14.sp,
+                                    color = if (selectedTab == AuthTab.CREATE_ACCOUNT) textPrimary else textMuted
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    // ── Full Name Field (Smooth expand/collapse for Create Account) ─
+                    AnimatedVisibility(
+                        visible = selectedTab == AuthTab.CREATE_ACCOUNT,
+                        enter = expandVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeIn(),
+                        exit = shrinkVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeOut()
+                    ) {
+                        Column {
+                            AuthFormField(
+                                label = "FULL NAME",
+                                value = fullName,
+                                onValueChange = { fullName = it },
+                                placeholder = "Your name",
+                                leadingIcon = Icons.Outlined.Person,
+                                labelColor = labelColor,
+                                fieldBackground = fieldBackground,
+                                fieldBorder = fieldBorder,
+                                fieldPlaceholder = fieldPlaceholder,
+                                fieldIcon = fieldIcon,
+                                textPrimary = textPrimary,
+                                imeAction = ImeAction.Next,
+                                onImeAction = { focusManager.moveFocus(FocusDirection.Down) }
+                            )
+                            Spacer(modifier = Modifier.height(14.dp))
+                        }
+                    }
+
+                    // ── Email Field ───────────────────────────────────────────
+                    AuthFormField(
+                        label = "EMAIL",
+                        value = email,
+                        onValueChange = { email = it },
+                        placeholder = "you@example.com",
+                        leadingIcon = Icons.Outlined.Email,
+                        labelColor = labelColor,
+                        fieldBackground = fieldBackground,
+                        fieldBorder = fieldBorder,
+                        fieldPlaceholder = fieldPlaceholder,
+                        fieldIcon = fieldIcon,
+                        textPrimary = textPrimary,
+                        keyboardType = KeyboardType.Email,
+                        imeAction = ImeAction.Next,
+                        onImeAction = { focusManager.moveFocus(FocusDirection.Down) }
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // ── Password Field ────────────────────────────────────────
+                    AuthFormField(
+                        label = "PASSWORD",
+                        value = password,
+                        onValueChange = { password = it },
+                        placeholder = "••••••••",
+                        leadingIcon = Icons.Outlined.Lock,
+                        labelColor = labelColor,
+                        fieldBackground = fieldBackground,
+                        fieldBorder = fieldBorder,
+                        fieldPlaceholder = fieldPlaceholder,
+                        fieldIcon = fieldIcon,
+                        textPrimary = textPrimary,
+                        isPassword = true,
+                        passwordVisible = passwordVisible,
+                        onTogglePasswordVisibility = { passwordVisible = !passwordVisible },
+                        keyboardType = KeyboardType.Password,
+                        imeAction = ImeAction.Done,
+                        onImeAction = {
+                            if (isSubmitEnabled) {
+                                focusManager.clearFocus()
+                                if (selectedTab == AuthTab.SIGN_IN) {
+                                    viewModel.login(email, password)
+                                } else {
+                                    viewModel.createAccount(fullName, email, password)
+                                }
+                            }
+                        }
+                    )
+
+                    // ── Forgot Password Link (Only in Sign In) ─────────────────
+                    AnimatedVisibility(
+                        visible = selectedTab == AuthTab.SIGN_IN,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 10.dp, bottom = 4.dp),
+                            contentAlignment = Alignment.CenterEnd
+                        ) {
+                            Text(
+                                text = "Forgot password?",
+                                fontFamily = DmSansFontFamily,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = forgotPasswordColor,
+                                modifier = Modifier
+                                    .clickable { /* future password reset */ }
+                                    .padding(vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    // ── Submit Button (Disabled when fields empty) ────────────
+                    Button(
+                        onClick = {
+                            if (isSubmitEnabled) {
+                                focusManager.clearFocus()
+                                if (selectedTab == AuthTab.SIGN_IN) {
+                                    viewModel.login(email, password)
+                                } else {
+                                    viewModel.createAccount(fullName, email, password)
+                                }
+                            }
+                        },
+                        enabled = isSubmitEnabled,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = submitBtnBg,
+                            contentColor = submitBtnTextColor,
+                            disabledContainerColor = submitBtnDisabledBg,
+                            disabledContentColor = submitBtnTextColor
+                        ),
+                        border = if (isSubmitEnabled && isDark) BorderStroke(0.8.dp, Color(0xFF333D52)) else null
+                    ) {
+                        if (uiState is AuthUiState.LoggingIn) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = submitBtnTextColor,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text(
+                                text = if (selectedTab == AuthTab.SIGN_IN) "Sign In →" else "Create Account →",
+                                fontFamily = DmSansFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = submitBtnTextColor
+                            )
+                        }
+                    }
+
+                    // ── Divider ───────────────────────────────────────────────
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 18.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        HorizontalDivider(
+                            modifier = Modifier.weight(1f),
+                            color = dividerColor
+                        )
+                        Text(
+                            text = "  or continue with  ",
+                            fontFamily = DmSansFontFamily,
+                            fontWeight = FontWeight.Bold,
+                            color = dividerTextColor,
+                            fontSize = 14.sp
+                        )
+                        HorizontalDivider(
+                            modifier = Modifier.weight(1f),
+                            color = dividerColor
+                        )
+                    }
+
+                    // ── Google Sign In Button with Official Multi-Color Logo ───
+                    Button(
+                        onClick = { viewModel.loginWithGoogle() },
+                        enabled = uiState !is AuthUiState.LoggingIn,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = googleBtnBg,
+                            contentColor = googleBtnTextColor
+                        ),
+                        border = BorderStroke(1.dp, googleBtnBorder),
+                        elevation = if (!isDark) ButtonDefaults.buttonElevation(defaultElevation = 2.dp) else null
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Image(
+                                painter = painterResource(R.drawable.ic_google_logo),
+                                contentDescription = "Google",
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Continue with Google",
+                                fontFamily = DmSansFontFamily,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp,
+                                color = googleBtnTextColor
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Reusable Form Field Component ────────────────────────────────────────────
+@Composable
+private fun AuthFormField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    leadingIcon: ImageVector,
+    labelColor: Color,
+    fieldBackground: Color,
+    fieldBorder: Color,
+    fieldPlaceholder: Color,
+    fieldIcon: Color,
+    textPrimary: Color,
+    isPassword: Boolean = false,
+    passwordVisible: Boolean = false,
+    onTogglePasswordVisibility: () -> Unit = {},
+    keyboardType: KeyboardType = KeyboardType.Text,
+    imeAction: ImeAction = ImeAction.Next,
+    onImeAction: () -> Unit = {}
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = label,
+            fontFamily = DmSansFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 11.sp,
+            letterSpacing = 1.sp,
+            color = labelColor
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(54.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(fieldBackground)
+                .border(0.8.dp, fieldBorder, RoundedCornerShape(16.dp))
+                .padding(horizontal = 14.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = leadingIcon,
+                    contentDescription = null,
+                    tint = fieldIcon,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Box(modifier = Modifier.weight(1f)) {
+                    if (value.isEmpty()) {
+                        Text(
+                            text = placeholder,
+                            fontFamily = DmSansFontFamily,
+                            fontSize = 14.sp,
+                            color = fieldPlaceholder
+                        )
+                    }
+                    BasicTextField(
+                        value = value,
+                        onValueChange = onValueChange,
+                        singleLine = true,
+                        textStyle = TextStyle(
+                            fontFamily = DmSansFontFamily,
+                            fontSize = 14.sp,
+                            color = textPrimary
+                        ),
+                        cursorBrush = SolidColor(Amber),
+                        visualTransformation = if (isPassword && !passwordVisible) PasswordVisualTransformation() else VisualTransformation.None,
+                        keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = imeAction),
+                        keyboardActions = KeyboardActions(onAny = { onImeAction() }),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                if (isPassword) {
+                    IconButton(
+                        onClick = onTogglePasswordVisibility,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (passwordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                            contentDescription = if (passwordVisible) "Hide password" else "Show password",
+                            tint = fieldIcon,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}

@@ -158,10 +158,24 @@ private fun Long.toLocalDate(): LocalDate =
 @Composable
 fun PlanScreen(
     viewModel: PlanViewModel = hiltViewModel(),
-    onMenuClick: () -> Unit = {}
+    onMenuClick: () -> Unit = {},
+    onTripGenerated: (tripId: Long) -> Unit = {}
 ) {
+    val uiState by viewModel.uiState.collectAsState()
+
+    // Navigate to TripDetail when itinerary is ready
+    LaunchedEffect(uiState) {
+        if (uiState is PlanUiState.ItineraryGenerated) {
+            val tripId = (uiState as PlanUiState.ItineraryGenerated).tripId
+            viewModel.resetState()
+            onTripGenerated(tripId)
+        }
+    }
     val context     = LocalContext.current
     val scope       = rememberCoroutineScope()
+    val isGenerating = uiState is PlanUiState.GeneratingItinerary
+    val generatingStep = (uiState as? PlanUiState.GeneratingItinerary)?.step ?: ""
+    val generationError = (uiState as? PlanUiState.Error)?.message
 
     // ── Origin city (editable) ────────────────────────────────────────────────
     var originQuery        by remember { mutableStateOf("") }
@@ -349,18 +363,42 @@ fun PlanScreen(
             }
 
             item {
+                // Show error banner if generation failed
+                if (generationError != null) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = generationError,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(16.dp),
+                            fontSize = 13.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
                 GenerateTripButton(
-                    enabled = destination.isNotBlank(),
+                    enabled       = destination.isNotBlank() && !isGenerating,
+                    isLoading     = isGenerating,
+                    loadingText   = generatingStep,
                     onClick = {
                         viewModel.generateItinerary(
-                            destination = destination,
-                            days        = tripDays ?: 5,
-                            budget      = when (selectedBudget) {
+                            destination  = destination,
+                            days         = tripDays ?: 5,
+                            budget       = when (selectedBudget) {
                                 "budget"    -> 4000.0
                                 "mid_range" -> 10000.0
                                 else        -> 20000.0
                             },
-                            interests   = selectedInterests.toList()
+                            interests    = selectedInterests.toList(),
+                            travelStyle  = selectedStyle,
+                            startDate    = departureDate,
+                            notes        = additionalNotes
                         )
                     }
                 )
@@ -1424,7 +1462,12 @@ private fun AdditionalInstructionsSection(
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun GenerateTripButton(enabled: Boolean, onClick: () -> Unit) {
+private fun GenerateTripButton(
+    enabled: Boolean,
+    onClick: () -> Unit,
+    isLoading: Boolean = false,
+    loadingText: String = "Planning your trip..."
+) {
     val alpha by animateFloatAsState(
         targetValue   = if (enabled) 1f else 0.5f,
         animationSpec = tween(300),
@@ -1445,14 +1488,34 @@ private fun GenerateTripButton(enabled: Boolean, onClick: () -> Unit) {
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text          = "✦ Generate My Trip →",
-            fontFamily    = DmSansFontFamily,
-            fontWeight    = FontWeight.ExtraBold,
-            fontSize      = 16.sp,
-            letterSpacing = 0.3.sp,
-            color         = Color(0xFF1A0F00)
-        )
+        if (isLoading) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                CircularProgressIndicator(
+                    modifier    = Modifier.size(20.dp),
+                    color       = Color(0xFF1A0F00),
+                    strokeWidth = 2.dp
+                )
+                Text(
+                    text          = loadingText,
+                    fontFamily    = DmSansFontFamily,
+                    fontWeight    = FontWeight.Bold,
+                    fontSize      = 14.sp,
+                    color         = Color(0xFF1A0F00)
+                )
+            }
+        } else {
+            Text(
+                text          = "✦ Generate My Trip →",
+                fontFamily    = DmSansFontFamily,
+                fontWeight    = FontWeight.ExtraBold,
+                fontSize      = 16.sp,
+                letterSpacing = 0.3.sp,
+                color         = Color(0xFF1A0F00)
+            )
+        }
     }
 }
 

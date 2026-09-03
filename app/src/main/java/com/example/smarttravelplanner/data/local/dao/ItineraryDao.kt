@@ -8,7 +8,10 @@ import kotlinx.coroutines.flow.Flow
 interface ItineraryDao {
 
     @Query("SELECT * FROM itineraries WHERE tripId = :tripId ORDER BY dayNumber ASC")
-    fun getItinerariesForTrip(tripId: Long): Flow<List<ItineraryEntity>>
+    fun getItinerariesForTripAsFlow(tripId: Long): Flow<List<ItineraryEntity>>
+
+    @Query("SELECT * FROM itineraries WHERE tripId = :tripId ORDER BY dayNumber ASC")
+    suspend fun getItinerariesForTrip(tripId: Long): List<ItineraryEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertItinerary(itinerary: ItineraryEntity): Long

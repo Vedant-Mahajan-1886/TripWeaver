@@ -2,45 +2,64 @@ package com.example.smarttravelplanner.ui.screens.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.smarttravelplanner.data.repository.UserPreferencesRepository
 import com.example.smarttravelplanner.domain.model.UserPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
-    // DataStore preferences repository will be wired here
+    private val userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow<ProfileUiState>(
-        ProfileUiState.Success(UserPreferences())
-    )
-    val uiState = _uiState.asStateFlow()
+    /** Reactive preferences — persisted across app kills via DataStore. */
+    val preferences: StateFlow<UserPreferences> = userPreferencesRepository.userPreferences
+        .stateIn(
+            scope        = viewModelScope,
+            started      = SharingStarted.WhileSubscribed(5_000),
+            initialValue = UserPreferences()
+        )
 
-    fun updatePreferences(preferences: UserPreferences) {
-        viewModelScope.launch {
-            _uiState.value = ProfileUiState.Success(preferences)
-            // TODO: Persist to DataStore
-        }
+    /** UI state for ProfileScreen, MyProfileScreen, and MainActivity theme resolution */
+    val uiState: StateFlow<ProfileUiState> = userPreferencesRepository.userPreferences
+        .map { ProfileUiState.Success(it) }
+        .stateIn(
+            scope        = viewModelScope,
+            started      = SharingStarted.WhileSubscribed(5_000),
+            initialValue = ProfileUiState.Success(UserPreferences())
+        )
+
+    // ── Update helpers ────────────────────────────────────────────────────────
+
+    fun updatePreferences(updated: UserPreferences) {
+        viewModelScope.launch { userPreferencesRepository.update(updated) }
     }
 
-    fun updateProfile(firstName: String, lastName: String, phoneNumber: String, email: String) {
-        val currentPrefs = (_uiState.value as? ProfileUiState.Success)?.preferences ?: UserPreferences()
-        val updated = currentPrefs.copy(
-            firstName = firstName,
-            lastName = lastName,
-            phoneNumber = phoneNumber,
-            email = email
+    fun updateProfile(
+        firstName: String,
+        lastName: String,
+        phoneNumber: String,
+        email: String
+    ) {
+        val current = preferences.value
+        updatePreferences(
+            current.copy(
+                firstName   = firstName,
+                lastName    = lastName,
+                phoneNumber = phoneNumber,
+                email       = email
+            )
         )
-        updatePreferences(updated)
     }
 
     fun updateTheme(themeMode: String) {
-        val currentPrefs = (_uiState.value as? ProfileUiState.Success)?.preferences ?: UserPreferences()
-        val updated = currentPrefs.copy(themeMode = themeMode)
-        updatePreferences(updated)
+        updatePreferences(preferences.value.copy(themeMode = themeMode))
     }
 
     fun updateComprehensiveProfile(
@@ -52,21 +71,22 @@ class ProfileViewModel @Inject constructor(
         dateOfBirth: String,
         maritalStatus: String
     ) {
-        val currentPrefs = (_uiState.value as? ProfileUiState.Success)?.preferences ?: UserPreferences()
         val names = fullName.trim().split(" ", limit = 2)
         val fName = names.getOrNull(0) ?: ""
         val lName = names.getOrNull(1) ?: ""
-        val updated = currentPrefs.copy(
-            gender = gender,
-            fullNameInput = fullName,
-            firstName = if (fName.isNotBlank()) fName else currentPrefs.firstName,
-            lastName = if (lName.isNotBlank()) lName else currentPrefs.lastName,
-            phoneNumber = phone,
-            email = email,
-            homeLocation = homeLocation,
-            dateOfBirth = dateOfBirth,
-            maritalStatus = maritalStatus
+        val current = preferences.value
+        updatePreferences(
+            current.copy(
+                gender        = gender,
+                fullNameInput = fullName,
+                firstName     = fName.ifBlank { current.firstName },
+                lastName      = lName.ifBlank { current.lastName },
+                phoneNumber   = phone,
+                email         = email,
+                homeLocation  = homeLocation,
+                dateOfBirth   = dateOfBirth,
+                maritalStatus = maritalStatus
+            )
         )
-        updatePreferences(updated)
     }
 }
