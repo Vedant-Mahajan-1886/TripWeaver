@@ -508,7 +508,7 @@ fun LoginScreen(
                             horizontalArrangement = Arrangement.Center
                         ) {
                             Image(
-                                painter = painterResource(R.drawable.ic_google_logo),
+                                painter = painterResource(R.drawable.ic_google_symbol),
                                 contentDescription = "Google",
                                 modifier = Modifier.size(20.dp)
                             )
