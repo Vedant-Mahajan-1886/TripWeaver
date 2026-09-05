@@ -9,4 +9,10 @@ interface UserPreferencesRepository {
 
     /** Persist updated preferences to DataStore. */
     suspend fun update(prefs: UserPreferences)
+
+    /** Atomically update preferences using a transform lambda on current DataStore state. */
+    suspend fun updatePreferences(transform: (UserPreferences) -> UserPreferences)
+
+    /** Update only the theme mode in DataStore without touching any profile fields. */
+    suspend fun updateThemeMode(themeMode: String)
 }
