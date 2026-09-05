@@ -1,15 +1,17 @@
 package com.example.smarttravelplanner.data.remote.service
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.example.smarttravelplanner.R
 import com.example.smarttravelplanner.util.SecurityUtils
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -20,6 +22,7 @@ class EmailVerificationService @Inject constructor(
     private val channelId = "auth_verification_channel"
     private val notificationManager =
         context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    private val prefs = context.getSharedPreferences("otp_sessions_prefs", Context.MODE_PRIVATE)
 
     data class OtpSession(
         val email: String,
@@ -27,9 +30,6 @@ class EmailVerificationService @Inject constructor(
         val expiresAt: Long,
         var attemptsLeft: Int = 3
     )
-
-    // In-memory store of active OTP sessions keyed by lowercase email
-    private val activeSessions = ConcurrentHashMap<String, OtpSession>()
 
     init {
         createNotificationChannel()
@@ -48,19 +48,74 @@ class EmailVerificationService @Inject constructor(
         }
     }
 
+    private fun saveSession(session: OtpSession) {
+        prefs.edit()
+            .putString("session_${session.email}_code", session.code)
+            .putLong("session_${session.email}_expires", session.expiresAt)
+            .putInt("session_${session.email}_attempts", session.attemptsLeft)
+            .apply()
+    }
+
+    private fun getSession(email: String): OtpSession? {
+        val code = prefs.getString("session_${email}_code", null) ?: return null
+        val expiresAt = prefs.getLong("session_${email}_expires", 0L)
+        val attempts = prefs.getInt("session_${email}_attempts", 3)
+        return OtpSession(
+            email = email,
+            code = code,
+            expiresAt = expiresAt,
+            attemptsLeft = attempts
+        )
+    }
+
+    private fun postNotificationIfPermitted(
+        title: String,
+        text: String,
+        bigText: String,
+        notificationId: Int
+    ) {
+        runCatching {
+            val hasPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+            } else {
+                notificationManager.areNotificationsEnabled()
+            }
+
+            if (hasPermission && notificationManager.areNotificationsEnabled()) {
+                val notification = NotificationCompat.Builder(context, channelId)
+                    .setSmallIcon(R.drawable.ic_launcher_foreground)
+                    .setContentTitle(title)
+                    .setContentText(text)
+                    .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setAutoCancel(true)
+                    .build()
+                notificationManager.notify(notificationId, notification)
+            }
+        }.onFailure { e ->
+            Log.w("AuthOTP", "Could not post verification notification: ${e.message}")
+        }
+    }
+
     /**
      * Generates a 6-digit OTP valid for 5 minutes and sends it via Gmail SMTP
-     * directly to the recipient's email inbox.
+     * directly to the recipient's email inbox. Persists session to SharedPreferences.
      */
     suspend fun sendVerificationOtp(email: String): Result<String> = runCatching {
         val normalizedEmail = email.trim().lowercase()
         val code = SecurityUtils.generateOtp()
         val expiresAt = System.currentTimeMillis() + 5 * 60 * 1000 // 5 minutes
 
-        activeSessions[normalizedEmail] = OtpSession(
-            email = normalizedEmail,
-            code = code,
-            expiresAt = expiresAt
+        saveSession(
+            OtpSession(
+                email = normalizedEmail,
+                code = code,
+                expiresAt = expiresAt,
+                attemptsLeft = 3
+            )
         )
 
         Log.d("AuthOTP", "Verification code for $normalizedEmail: $code")
@@ -75,22 +130,17 @@ class EmailVerificationService @Inject constructor(
             ).getOrThrow()
         } else {
             throw IllegalStateException(
-                "Please configure your Gmail address and 16-character Google App Password in EmailConfig.kt to send real OTP emails."
+                "Please configure your Gmail address and 16-character Google App Password in local.properties to send OTP emails."
             )
         }
 
-        // 2. Also post notification for device convenience
-        runCatching {
-            val notification = NotificationCompat.Builder(context, channelId)
-                .setSmallIcon(R.drawable.ic_launcher_foreground)
-                .setContentTitle("SmartTravelPlanner Verification")
-                .setContentText("Your verification code is: $code")
-                .setStyle(NotificationCompat.BigTextStyle().bigText("Your 6-digit verification code is: $code. This code will expire in 5 minutes."))
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setAutoCancel(true)
-                .build()
-            notificationManager.notify(normalizedEmail.hashCode(), notification)
-        }
+        // 2. Also post notification for device convenience if permitted
+        postNotificationIfPermitted(
+            title = "SmartTravelPlanner Verification",
+            text = "Your verification code is: $code",
+            bigText = "Your 6-digit verification code is: $code. This code will expire in 5 minutes.",
+            notificationId = normalizedEmail.hashCode()
+        )
 
         code
     }
@@ -103,10 +153,13 @@ class EmailVerificationService @Inject constructor(
         val code = SecurityUtils.generateOtp()
         val expiresAt = System.currentTimeMillis() + 5 * 60 * 1000 // 5 minutes
 
-        activeSessions[normalizedEmail] = OtpSession(
-            email = normalizedEmail,
-            code = code,
-            expiresAt = expiresAt
+        saveSession(
+            OtpSession(
+                email = normalizedEmail,
+                code = code,
+                expiresAt = expiresAt,
+                attemptsLeft = 3
+            )
         )
 
         Log.d("AuthOTP", "Password reset code for $normalizedEmail: $code")
@@ -125,17 +178,12 @@ class EmailVerificationService @Inject constructor(
             )
         }
 
-        runCatching {
-            val notification = NotificationCompat.Builder(context, channelId)
-                .setSmallIcon(R.drawable.ic_launcher_foreground)
-                .setContentTitle("Password Reset Code")
-                .setContentText("Your password reset code is: $code")
-                .setStyle(NotificationCompat.BigTextStyle().bigText("Your 6-digit password reset code is: $code. This code will expire in 5 minutes."))
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setAutoCancel(true)
-                .build()
-            notificationManager.notify(normalizedEmail.hashCode(), notification)
-        }
+        postNotificationIfPermitted(
+            title = "Password Reset Code",
+            text = "Your password reset code is: $code",
+            bigText = "Your 6-digit password reset code is: $code. This code will expire in 5 minutes.",
+            notificationId = normalizedEmail.hashCode()
+        )
 
         code
     }
@@ -145,26 +193,27 @@ class EmailVerificationService @Inject constructor(
      */
     fun verifyOtp(email: String, enteredCode: String): Result<Boolean> = runCatching {
         val normalizedEmail = email.trim().lowercase()
-        val session = activeSessions[normalizedEmail]
+        val session = getSession(normalizedEmail)
             ?: throw IllegalStateException("No verification code sent to this email. Please request a new code.")
 
         if (System.currentTimeMillis() > session.expiresAt) {
-            activeSessions.remove(normalizedEmail)
+            clearSession(normalizedEmail)
             throw IllegalStateException("Verification code has expired. Please request a new code.")
         }
 
         if (session.attemptsLeft <= 0) {
-            activeSessions.remove(normalizedEmail)
+            clearSession(normalizedEmail)
             throw IllegalStateException("Too many incorrect attempts. Please request a new code.")
         }
 
         if (session.code != enteredCode.trim()) {
             session.attemptsLeft -= 1
+            saveSession(session)
             throw IllegalArgumentException("Invalid verification code. ${session.attemptsLeft} attempts remaining.")
         }
 
         // Successfully verified
-        activeSessions.remove(normalizedEmail)
+        clearSession(normalizedEmail)
         true
     }
 
@@ -172,6 +221,11 @@ class EmailVerificationService @Inject constructor(
      * Clears any active OTP session for the email.
      */
     fun clearSession(email: String) {
-        activeSessions.remove(email.trim().lowercase())
+        val normalized = email.trim().lowercase()
+        prefs.edit()
+            .remove("session_${normalized}_code")
+            .remove("session_${normalized}_expires")
+            .remove("session_${normalized}_attempts")
+            .apply()
     }
 }

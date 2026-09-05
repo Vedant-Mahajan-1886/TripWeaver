@@ -4,8 +4,12 @@ package com.example.smarttravelplanner.ui.screens.plan
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.location.Address
 import android.location.Geocoder
+import android.location.Location
+import android.location.LocationManager
 import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -215,9 +219,15 @@ fun PlanScreen(
             isLocating = true
             scope.launch {
                 val city = fetchCurrentCity(context)
-                originQuery = city   // already on Main dispatcher via withContext
+                if (!city.isNullOrBlank()) {
+                    originQuery = city   // already on Main dispatcher via withContext
+                } else {
+                    Toast.makeText(context, "Could not detect city name. Please enter manually.", Toast.LENGTH_SHORT).show()
+                }
                 isLocating  = false
             }
+        } else {
+            Toast.makeText(context, "Location permission is required to detect city", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -289,7 +299,11 @@ fun PlanScreen(
                             isLocating = true
                             scope.launch {
                                 val city = fetchCurrentCity(context)
-                                originQuery = city   // safe – withContext(Main) inside
+                                if (!city.isNullOrBlank()) {
+                                    originQuery = city   // safe – withContext(Main) inside
+                                } else {
+                                    Toast.makeText(context, "Could not detect city name. Please enter manually.", Toast.LENGTH_SHORT).show()
+                                }
                                 isLocating  = false
                             }
                         } else {
@@ -417,51 +431,132 @@ fun PlanScreen(
  * Always returns on the **Main** dispatcher so Compose state can be
  * updated directly from the calling coroutine.
  */
-private suspend fun fetchCurrentCity(context: Context): String =
+private suspend fun fetchCurrentCity(context: Context): String? =
     withContext(Dispatchers.IO) {
+        val location = getDeviceLocation(context) ?: return@withContext null
         suspendCancellableCoroutine { cont ->
-            val fusedClient  = LocationServices.getFusedLocationProviderClient(context)
-            val cancelSource = CancellationTokenSource()
-
-            cont.invokeOnCancellation { cancelSource.cancel() }
-
             try {
-                // PRIORITY_BALANCED_POWER_ACCURACY works for both fine & coarse grants
-                fusedClient.getCurrentLocation(
-                    Priority.PRIORITY_BALANCED_POWER_ACCURACY,
-                    cancelSource.token
-                ).addOnSuccessListener { location ->
-                    if (location == null) { cont.resume("My Location"); return@addOnSuccessListener }
-                    try {
-                        val geocoder = Geocoder(context, Locale.getDefault())
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            // API 33+ async geocoder – callback fires on main thread already
-                            geocoder.getFromLocation(location.latitude, location.longitude, 1) { addresses ->
-                                val city = addresses.firstOrNull()?.let {
-                                    it.locality ?: it.subAdminArea ?: it.adminArea
-                                } ?: "My Location"
-                                if (cont.isActive) cont.resume(city)
-                            }
-                        } else {
-                            @Suppress("DEPRECATION")
-                            val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
-                            val city = addresses?.firstOrNull()?.let {
-                                it.locality ?: it.subAdminArea ?: it.adminArea
-                            } ?: "My Location"
-                            cont.resume(city)
-                        }
-                    } catch (e: Exception) {
-                        if (cont.isActive) cont.resume("My Location")
+                val geocoder = Geocoder(context, Locale.getDefault())
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    geocoder.getFromLocation(location.latitude, location.longitude, 5) { addresses ->
+                        val city = extractCityName(addresses)
+                        if (cont.isActive) cont.resume(city)
                     }
-                }.addOnFailureListener {
-                    if (cont.isActive) cont.resume("My Location")
+                } else {
+                    @Suppress("DEPRECATION")
+                    val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 5)
+                    val city = extractCityName(addresses ?: emptyList())
+                    if (cont.isActive) cont.resume(city)
                 }
-            } catch (e: SecurityException) {
-                // Permission revoked between check and call
-                cont.resume("My Location")
+            } catch (e: Exception) {
+                if (cont.isActive) cont.resume(null)
             }
         }
     }
+
+private suspend fun getDeviceLocation(context: Context): Location? =
+    suspendCancellableCoroutine { cont ->
+        val fusedClient = LocationServices.getFusedLocationProviderClient(context)
+        val cancelSource = CancellationTokenSource()
+        cont.invokeOnCancellation { cancelSource.cancel() }
+
+        try {
+            // 1. Try fusedClient.lastLocation first (instant, especially for approximate location)
+            fusedClient.lastLocation.addOnSuccessListener { lastLoc ->
+                if (lastLoc != null) {
+                    if (cont.isActive) cont.resume(lastLoc)
+                } else {
+                    // 2. Request current location with appropriate priority for coarse / fine
+                    val hasFine = ContextCompat.checkSelfPermission(
+                        context, Manifest.permission.ACCESS_FINE_LOCATION
+                    ) == PackageManager.PERMISSION_GRANTED
+                    val priority = if (hasFine) {
+                        Priority.PRIORITY_HIGH_ACCURACY
+                    } else {
+                        Priority.PRIORITY_BALANCED_POWER_ACCURACY
+                    }
+                    fusedClient.getCurrentLocation(priority, cancelSource.token)
+                        .addOnSuccessListener { currentLoc ->
+                            if (currentLoc != null) {
+                                if (cont.isActive) cont.resume(currentLoc)
+                            } else {
+                                val fallback = getFallbackLocation(context)
+                                if (cont.isActive) cont.resume(fallback)
+                            }
+                        }
+                        .addOnFailureListener {
+                            val fallback = getFallbackLocation(context)
+                            if (cont.isActive) cont.resume(fallback)
+                        }
+                }
+            }.addOnFailureListener {
+                val fallback = getFallbackLocation(context)
+                if (cont.isActive) cont.resume(fallback)
+            }
+        } catch (e: SecurityException) {
+            val fallback = getFallbackLocation(context)
+            if (cont.isActive) cont.resume(fallback)
+        }
+    }
+
+private fun getFallbackLocation(context: Context): Location? {
+    return try {
+        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
+        val providers = listOf(
+            LocationManager.NETWORK_PROVIDER,
+            LocationManager.PASSIVE_PROVIDER,
+            LocationManager.GPS_PROVIDER
+        )
+        for (provider in providers) {
+            try {
+                if (locationManager.isProviderEnabled(provider)) {
+                    val loc = locationManager.getLastKnownLocation(provider)
+                    if (loc != null) return loc
+                }
+            } catch (_: SecurityException) {
+            }
+        }
+        null
+    } catch (e: Exception) {
+        null
+    }
+}
+
+private fun extractCityName(addresses: List<Address>): String? {
+    if (addresses.isEmpty()) return null
+
+    // 1. Locality is the actual City across any candidate address
+    for (addr in addresses) {
+        val locality = addr.locality
+        if (!locality.isNullOrBlank() && !locality.equals("Unknown", ignoreCase = true)) {
+            return locality.trim()
+        }
+    }
+
+    // 2. Sub-Admin area (often city / metropolitan area)
+    for (addr in addresses) {
+        val subAdmin = addr.subAdminArea
+        if (!subAdmin.isNullOrBlank()) {
+            val cleaned = subAdmin
+                .replace(" District", "", ignoreCase = true)
+                .replace(" Urban", "", ignoreCase = true)
+                .replace(" Rural", "", ignoreCase = true)
+                .replace(" Division", "", ignoreCase = true)
+                .trim()
+            if (cleaned.isNotBlank()) return cleaned
+        }
+    }
+
+    // 3. Sub-Locality (town / major neighborhood)
+    for (addr in addresses) {
+        val subLocality = addr.subLocality
+        if (!subLocality.isNullOrBlank()) {
+            return subLocality.trim()
+        }
+    }
+
+    return null
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Date range picker bottom sheet
@@ -546,11 +641,11 @@ private fun TripDateRangeSheet(
                     subheadContentColor               = MaterialTheme.colorScheme.onSurface,
                     yearContentColor                  = MaterialTheme.colorScheme.onSurface,
                     currentYearContentColor           = Amber,
-                    selectedYearContentColor          = Color(0xFF1A0F00),
+                    selectedYearContentColor          = OnAmberContent,
                     selectedYearContainerColor        = Amber,
                     dayContentColor                   = MaterialTheme.colorScheme.onSurface,
                     disabledDayContentColor           = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
-                    selectedDayContentColor           = Color(0xFF1A0F00),
+                    selectedDayContentColor           = OnAmberContent,
                     selectedDayContainerColor         = Amber,
                     disabledSelectedDayContentColor   = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
                     disabledSelectedDayContainerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -572,7 +667,7 @@ private fun TripDateRangeSheet(
                     .clip(RoundedCornerShape(16.dp))
                     .background(
                         Brush.horizontalGradient(
-                            listOf(Color(0xFFBF7A10), Amber, Color(0xFFF5B942))
+                            listOf(AmberDark, Amber, AmberLight)
                         )
                     )
                     .clickable {
@@ -589,7 +684,7 @@ private fun TripDateRangeSheet(
                     fontWeight = FontWeight.ExtraBold,
                     fontSize   = 15.sp,
                     letterSpacing = 2.sp,
-                    color      = Color(0xFF1A0F00)
+                    color      = OnAmberContent
                 )
             }
             Spacer(modifier = Modifier.height(16.dp))
@@ -1482,7 +1577,7 @@ private fun GenerateTripButton(
             .clip(RoundedCornerShape(18.dp))
             .background(
                 Brush.horizontalGradient(
-                    listOf(Color(0xFFBF7A10), Amber, Color(0xFFF5B942))
+                    listOf(AmberDark, Amber, AmberLight)
                 )
             )
             .clickable(enabled = enabled, onClick = onClick),
@@ -1495,7 +1590,7 @@ private fun GenerateTripButton(
             ) {
                 CircularProgressIndicator(
                     modifier    = Modifier.size(20.dp),
-                    color       = Color(0xFF1A0F00),
+                    color       = OnAmberContent,
                     strokeWidth = 2.dp
                 )
                 Text(
@@ -1503,7 +1598,7 @@ private fun GenerateTripButton(
                     fontFamily    = DmSansFontFamily,
                     fontWeight    = FontWeight.Bold,
                     fontSize      = 14.sp,
-                    color         = Color(0xFF1A0F00)
+                    color         = OnAmberContent
                 )
             }
         } else {
@@ -1513,7 +1608,7 @@ private fun GenerateTripButton(
                 fontWeight    = FontWeight.ExtraBold,
                 fontSize      = 16.sp,
                 letterSpacing = 0.3.sp,
-                color         = Color(0xFF1A0F00)
+                color         = OnAmberContent
             )
         }
     }

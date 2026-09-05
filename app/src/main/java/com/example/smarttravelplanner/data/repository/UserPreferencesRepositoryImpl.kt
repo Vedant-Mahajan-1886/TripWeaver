@@ -23,6 +23,7 @@ class UserPreferencesRepositoryImpl @Inject constructor(
         val PHONE_COUNTRY_CODE  = stringPreferencesKey("phone_country_code")
         val IS_PHONE_VERIFIED   = booleanPreferencesKey("is_phone_verified")
         val EMAIL               = stringPreferencesKey("email")
+        val PROFILE_PICTURE_URL = stringPreferencesKey("profile_picture_url")
         val IS_GOOGLE_VERIFIED  = booleanPreferencesKey("is_google_verified")
         val HOME_LOCATION       = stringPreferencesKey("home_location")
         val DATE_OF_BIRTH       = stringPreferencesKey("date_of_birth")
@@ -44,14 +45,15 @@ class UserPreferencesRepositoryImpl @Inject constructor(
         }
         .map { prefs ->
             UserPreferences(
-                firstName          = prefs[Keys.FIRST_NAME]         ?: "Pramendra",
-                lastName           = prefs[Keys.LAST_NAME]          ?: "Kumar Jaiswal",
-                fullNameInput      = prefs[Keys.FULL_NAME_INPUT]    ?: "Pramendra Kumar Jaiswal",
-                gender             = prefs[Keys.GENDER]             ?: "Male",
-                phoneNumber        = prefs[Keys.PHONE_NUMBER]       ?: "8477007224",
+                firstName          = prefs[Keys.FIRST_NAME]         ?: "",
+                lastName           = prefs[Keys.LAST_NAME]          ?: "",
+                fullNameInput      = prefs[Keys.FULL_NAME_INPUT]    ?: "",
+                gender             = prefs[Keys.GENDER]             ?: "",
+                phoneNumber        = prefs[Keys.PHONE_NUMBER]       ?: "",
                 phoneCountryCode   = prefs[Keys.PHONE_COUNTRY_CODE] ?: "+91",
-                isPhoneVerified    = prefs[Keys.IS_PHONE_VERIFIED]  ?: true,
-                email              = prefs[Keys.EMAIL]              ?: "pramendraj@rediffmail.com",
+                isPhoneVerified    = prefs[Keys.IS_PHONE_VERIFIED]  ?: false,
+                email              = prefs[Keys.EMAIL]              ?: "",
+                profilePictureUrl  = prefs[Keys.PROFILE_PICTURE_URL]?: "",
                 isGoogleVerified   = prefs[Keys.IS_GOOGLE_VERIFIED] ?: false,
                 homeLocation       = prefs[Keys.HOME_LOCATION]      ?: "",
                 dateOfBirth        = prefs[Keys.DATE_OF_BIRTH]      ?: "",
@@ -78,6 +80,7 @@ class UserPreferencesRepositoryImpl @Inject constructor(
             p[Keys.PHONE_COUNTRY_CODE]   = prefs.phoneCountryCode
             p[Keys.IS_PHONE_VERIFIED]    = prefs.isPhoneVerified
             p[Keys.EMAIL]                = prefs.email
+            p[Keys.PROFILE_PICTURE_URL]  = prefs.profilePictureUrl
             p[Keys.IS_GOOGLE_VERIFIED]   = prefs.isGoogleVerified
             p[Keys.HOME_LOCATION]        = prefs.homeLocation
             p[Keys.DATE_OF_BIRTH]        = prefs.dateOfBirth

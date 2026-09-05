@@ -28,6 +28,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -449,7 +451,7 @@ private fun PassportProfileCard(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.Top
                 ) {
-                    // Left Column: Silhouette + Completion Badge
+                    // Left Column: Avatar + Completion Badge
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.padding(end = 18.dp)
@@ -460,16 +462,25 @@ private fun PassportProfileCard(
                                 .clip(RoundedCornerShape(18.dp))
                                 .background(Color(0xFFDED3BF))
                                 .border(1.dp, Color(0xFFC7BBA5), RoundedCornerShape(18.dp)),
-                            contentAlignment = Alignment.BottomCenter
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = "Profile Photo",
-                                tint = Color(0xFFA8997F),
-                                modifier = Modifier
-                                    .size(72.dp)
-                                    .offset(y = 6.dp)
-                            )
+                            if (prefs.profilePictureUrl.isNotBlank()) {
+                                AsyncImage(
+                                    model = prefs.profilePictureUrl,
+                                    contentDescription = "Profile Photo",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Person,
+                                    contentDescription = "Profile Photo",
+                                    tint = Color(0xFFA8997F),
+                                    modifier = Modifier
+                                        .size(72.dp)
+                                        .offset(y = 6.dp)
+                                )
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(8.dp))
@@ -482,17 +493,22 @@ private fun PassportProfileCard(
                     ) {
                         PassportField(
                             label = "First name",
-                            value = prefs.firstName.ifEmpty { "Pramendra" }
+                            value = prefs.firstName.ifEmpty { "Traveler" }
                         )
 
                         PassportField(
                             label = "Last name",
-                            value = prefs.lastName.ifEmpty { "Kumar Jaiswal" }
+                            value = prefs.lastName.ifEmpty { "—" }
+                        )
+
+                        PassportField(
+                            label = "Email",
+                            value = prefs.email.ifEmpty { "—" }
                         )
 
                         PassportField(
                             label = "Phone number",
-                            value = prefs.phoneNumber.ifEmpty { "+91 8477007224" }
+                            value = prefs.phoneNumber.ifEmpty { "Not added" }
                         )
                     }
                 }

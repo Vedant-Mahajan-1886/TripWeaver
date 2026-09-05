@@ -39,6 +39,17 @@ val PlayfairFontFamily = FontFamily(
     Font(R.font.playfair_display_italic, weight = FontWeight.ExtraBold, style = FontStyle.Italic),
 )
 
+val ProductSansFontFamily = FontFamily(
+    Font(R.font.product_sans_regular, weight = FontWeight.Normal),
+    Font(R.font.product_sans_regular, weight = FontWeight.Medium),
+    Font(R.font.product_sans_bold, weight = FontWeight.SemiBold),
+    Font(R.font.product_sans_bold, weight = FontWeight.Bold),
+    Font(R.font.product_sans_italic, weight = FontWeight.Normal, style = FontStyle.Italic),
+    Font(R.font.product_sans_bold_italic, weight = FontWeight.Bold, style = FontStyle.Italic),
+)
+
+val GoogleSansFontFamily = ProductSansFontFamily
+
 val Typography = Typography(
     displayLarge = TextStyle(
         fontFamily = DmSansFontFamily,

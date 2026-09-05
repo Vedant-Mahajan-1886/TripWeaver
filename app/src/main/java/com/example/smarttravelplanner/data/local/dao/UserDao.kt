@@ -28,6 +28,31 @@ interface UserDao {
     @Query("UPDATE users SET passwordHash = :passwordHash, salt = :salt WHERE LOWER(email) = LOWER(:email)")
     suspend fun updatePassword(email: String, passwordHash: String, salt: String)
 
+    @Query("""
+        UPDATE users SET 
+            fullName = :fullName,
+            phoneNumber = :phoneNumber,
+            profilePictureUrl = COALESCE(:profilePictureUrl, profilePictureUrl),
+            gender = :gender,
+            homeLocation = :homeLocation,
+            dateOfBirth = :dateOfBirth,
+            maritalStatus = :maritalStatus
+        WHERE LOWER(email) = LOWER(:email)
+    """)
+    suspend fun updateProfileDetails(
+        email: String,
+        fullName: String,
+        phoneNumber: String,
+        profilePictureUrl: String?,
+        gender: String,
+        homeLocation: String,
+        dateOfBirth: String,
+        maritalStatus: String
+    )
+
+    @Query("UPDATE users SET profilePictureUrl = :profilePictureUrl WHERE LOWER(email) = LOWER(:email)")
+    suspend fun updateProfilePicture(email: String, profilePictureUrl: String?)
+
     @Query("DELETE FROM users WHERE id = :userId")
     suspend fun deleteUser(userId: Long)
 }

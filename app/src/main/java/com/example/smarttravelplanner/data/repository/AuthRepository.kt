@@ -26,7 +26,8 @@ interface AuthRepository {
     /** Google Sign-In helper */
     suspend fun loginWithGoogle(
         email: String = "google.traveler@gmail.com",
-        fullName: String = "Google Traveler"
+        fullName: String = "Google Traveler",
+        profilePictureUrl: String? = null
     ): Result<Unit>
 
     /** Sends a 6-digit password reset OTP to the registered email */

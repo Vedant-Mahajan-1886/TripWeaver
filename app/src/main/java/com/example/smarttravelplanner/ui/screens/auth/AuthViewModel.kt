@@ -8,8 +8,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -18,15 +20,18 @@ class AuthViewModel @Inject constructor(
     private val authRepository: AuthRepository
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
+    private val _uiState = MutableStateFlow(AuthUiState())
     val uiState = _uiState.asStateFlow()
 
-    /** Observes persistent login session across app runs */
-    val isLoggedIn = authRepository.isLoggedIn
+    /**
+     * Observes persistent login session across app runs.
+     * initialValue is null to distinguish cold-start loading from an actual false.
+     */
+    val isLoggedIn: StateFlow<Boolean?> = authRepository.isLoggedIn
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = false
+            started = SharingStarted.Eagerly,
+            initialValue = null
         )
 
     /** Countdown timer in seconds for OTP resend cooldown */
@@ -40,15 +45,19 @@ class AuthViewModel @Inject constructor(
      */
     fun login(email: String, password: String) {
         viewModelScope.launch {
-            _uiState.value = AuthUiState.Loading
-            authRepository.login(email, password)
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            val normalizedEmail = email.trim().lowercase()
+            authRepository.login(normalizedEmail, password)
                 .onSuccess {
-                    _uiState.value = AuthUiState.Success
+                    _uiState.update { it.copy(isLoading = false, isSuccess = true) }
                 }
                 .onFailure { error ->
-                    _uiState.value = AuthUiState.Error(
-                        error.message ?: "Failed to sign in. Please check your credentials."
-                    )
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = error.message ?: "Failed to sign in. Please check your credentials."
+                        )
+                    }
                 }
         }
     }
@@ -58,29 +67,39 @@ class AuthViewModel @Inject constructor(
      */
     fun requestRegistrationOtp(fullName: String, email: String, password: String) {
         if (fullName.isBlank()) {
-            _uiState.value = AuthUiState.Error("Please enter your full name.")
+            _uiState.update { it.copy(errorMessage = "Please enter your full name.") }
             return
         }
         if (email.isBlank()) {
-            _uiState.value = AuthUiState.Error("Please enter your email.")
+            _uiState.update { it.copy(errorMessage = "Please enter your email.") }
             return
         }
         if (password.length < 6) {
-            _uiState.value = AuthUiState.Error("Password must be at least 6 characters.")
+            _uiState.update { it.copy(errorMessage = "Password must be at least 6 characters.") }
             return
         }
 
         viewModelScope.launch {
-            _uiState.value = AuthUiState.Loading
-            authRepository.sendRegistrationOtp(email)
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            val normalizedEmail = email.trim().lowercase()
+            authRepository.sendRegistrationOtp(normalizedEmail)
                 .onSuccess {
-                    _uiState.value = AuthUiState.OtpSent(email.trim())
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            viewMode = AuthViewMode.RegistrationOtp(normalizedEmail),
+                            errorMessage = null
+                        )
+                    }
                     startResendCooldown()
                 }
                 .onFailure { error ->
-                    _uiState.value = AuthUiState.Error(
-                        error.message ?: "Failed to send verification code. Please try again."
-                    )
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = error.message ?: "Failed to send verification code. Please try again."
+                        )
+                    }
                 }
         }
     }
@@ -92,16 +111,20 @@ class AuthViewModel @Inject constructor(
         if (_resendCountdown.value > 0) return
 
         viewModelScope.launch {
-            _uiState.value = AuthUiState.Loading
-            authRepository.sendRegistrationOtp(email)
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            val normalizedEmail = email.trim().lowercase()
+            authRepository.sendRegistrationOtp(normalizedEmail)
                 .onSuccess {
-                    _uiState.value = AuthUiState.OtpSent(email.trim())
+                    _uiState.update { it.copy(isLoading = false, errorMessage = null) }
                     startResendCooldown()
                 }
                 .onFailure { error ->
-                    _uiState.value = AuthUiState.Error(
-                        error.message ?: "Failed to resend code."
-                    )
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = error.message ?: "Failed to resend code."
+                        )
+                    }
                 }
         }
     }
@@ -116,20 +139,24 @@ class AuthViewModel @Inject constructor(
         otp: String
     ) {
         if (otp.length != 6) {
-            _uiState.value = AuthUiState.Error("Please enter the complete 6-digit verification code.")
+            _uiState.update { it.copy(errorMessage = "Please enter the complete 6-digit verification code.") }
             return
         }
 
         viewModelScope.launch {
-            _uiState.value = AuthUiState.Loading
-            authRepository.verifyOtpAndCreateAccount(fullName, email, password, otp)
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            val normalizedEmail = email.trim().lowercase()
+            authRepository.verifyOtpAndCreateAccount(fullName, normalizedEmail, password, otp)
                 .onSuccess {
-                    _uiState.value = AuthUiState.Success
+                    _uiState.update { it.copy(isLoading = false, isSuccess = true) }
                 }
                 .onFailure { error ->
-                    _uiState.value = AuthUiState.Error(
-                        error.message ?: "Verification failed. Please check the code."
-                    )
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = error.message ?: "Verification failed. Please check the code."
+                        )
+                    }
                 }
         }
     }
@@ -139,27 +166,35 @@ class AuthViewModel @Inject constructor(
      */
     fun loginWithGoogle(
         email: String = "google.traveler@gmail.com",
-        fullName: String = "Google Traveler"
+        fullName: String = "Google Traveler",
+        profilePictureUrl: String? = null
     ) {
         viewModelScope.launch {
-            _uiState.value = AuthUiState.Loading
-            authRepository.loginWithGoogle(email, fullName)
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            val normalizedEmail = email.trim().lowercase()
+            authRepository.loginWithGoogle(normalizedEmail, fullName, profilePictureUrl)
                 .onSuccess {
-                    _uiState.value = AuthUiState.Success
+                    _uiState.update { it.copy(isLoading = false, isSuccess = true) }
                 }
                 .onFailure { error ->
-                    _uiState.value = AuthUiState.Error(error.message ?: "Google sign-in failed.")
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = error.message ?: "Google sign-in failed."
+                        )
+                    }
                 }
         }
     }
 
     /**
-     * Clears active session and logs out.
+     * Clears active session and logs out. Resets UI state synchronously so
+     * destination screens never receive stale isSuccess == true.
      */
     fun logout() {
+        _uiState.value = AuthUiState()
         viewModelScope.launch {
             authRepository.logout()
-            _uiState.value = AuthUiState.Idle
         }
     }
 
@@ -169,14 +204,26 @@ class AuthViewModel @Inject constructor(
     fun cancelOtp() {
         countdownJob?.cancel()
         _resendCountdown.value = 0
-        _uiState.value = AuthUiState.Idle
+        _uiState.update {
+            it.copy(
+                viewMode = AuthViewMode.StandardForm,
+                errorMessage = null,
+                isLoading = false
+            )
+        }
     }
 
     /**
      * Initiates the forgot password flow.
      */
     fun startForgotPassword(initialEmail: String = "") {
-        _uiState.value = AuthUiState.ForgotPasswordEmail(initialEmail.trim())
+        _uiState.update {
+            it.copy(
+                viewMode = AuthViewMode.ForgotPasswordEmail(initialEmail.trim()),
+                errorMessage = null,
+                isLoading = false
+            )
+        }
     }
 
     /**
@@ -184,21 +231,31 @@ class AuthViewModel @Inject constructor(
      */
     fun sendPasswordResetOtp(email: String) {
         if (email.isBlank()) {
-            _uiState.value = AuthUiState.Error("Please enter your registered email.")
+            _uiState.update { it.copy(errorMessage = "Please enter your registered email.") }
             return
         }
 
         viewModelScope.launch {
-            _uiState.value = AuthUiState.Loading
-            authRepository.sendPasswordResetOtp(email)
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            val normalizedEmail = email.trim().lowercase()
+            authRepository.sendPasswordResetOtp(normalizedEmail)
                 .onSuccess {
-                    _uiState.value = AuthUiState.ForgotPasswordOtp(email.trim())
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            viewMode = AuthViewMode.ForgotPasswordOtp(normalizedEmail),
+                            errorMessage = null
+                        )
+                    }
                     startResendCooldown()
                 }
                 .onFailure { error ->
-                    _uiState.value = AuthUiState.Error(
-                        error.message ?: "Failed to send reset code. Please check your email."
-                    )
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = error.message ?: "Failed to send reset code. Please check your email."
+                        )
+                    }
                 }
         }
     }
@@ -210,14 +267,20 @@ class AuthViewModel @Inject constructor(
         if (_resendCountdown.value > 0) return
 
         viewModelScope.launch {
-            _uiState.value = AuthUiState.Loading
-            authRepository.sendPasswordResetOtp(email)
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            val normalizedEmail = email.trim().lowercase()
+            authRepository.sendPasswordResetOtp(normalizedEmail)
                 .onSuccess {
-                    _uiState.value = AuthUiState.ForgotPasswordOtp(email.trim())
+                    _uiState.update { it.copy(isLoading = false, errorMessage = null) }
                     startResendCooldown()
                 }
                 .onFailure { error ->
-                    _uiState.value = AuthUiState.Error(error.message ?: "Failed to resend code.")
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = error.message ?: "Failed to resend code."
+                        )
+                    }
                 }
         }
     }
@@ -232,28 +295,32 @@ class AuthViewModel @Inject constructor(
         confirmPassword: String
     ) {
         if (otp.length != 6) {
-            _uiState.value = AuthUiState.Error("Please enter the complete 6-digit verification code.")
+            _uiState.update { it.copy(errorMessage = "Please enter the complete 6-digit verification code.") }
             return
         }
         if (newPassword.length < 6) {
-            _uiState.value = AuthUiState.Error("Password must be at least 6 characters.")
+            _uiState.update { it.copy(errorMessage = "Password must be at least 6 characters.") }
             return
         }
         if (newPassword != confirmPassword) {
-            _uiState.value = AuthUiState.Error("Passwords do not match.")
+            _uiState.update { it.copy(errorMessage = "Passwords do not match.") }
             return
         }
 
         viewModelScope.launch {
-            _uiState.value = AuthUiState.Loading
-            authRepository.resetPassword(email, otp, newPassword)
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            val normalizedEmail = email.trim().lowercase()
+            authRepository.resetPassword(normalizedEmail, otp, newPassword)
                 .onSuccess {
-                    _uiState.value = AuthUiState.Success
+                    _uiState.update { it.copy(isLoading = false, isSuccess = true) }
                 }
                 .onFailure { error ->
-                    _uiState.value = AuthUiState.Error(
-                        error.message ?: "Failed to reset password. Please check the code."
-                    )
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = error.message ?: "Failed to reset password. Please check the code."
+                        )
+                    }
                 }
         }
     }
@@ -264,21 +331,25 @@ class AuthViewModel @Inject constructor(
     fun cancelForgotPassword() {
         countdownJob?.cancel()
         _resendCountdown.value = 0
-        _uiState.value = AuthUiState.Idle
-    }
-
-    fun setError(message: String) {
-        _uiState.value = AuthUiState.Error(message)
-    }
-
-    fun clearError() {
-        if (_uiState.value is AuthUiState.Error) {
-            _uiState.value = AuthUiState.Idle
+        _uiState.update {
+            it.copy(
+                viewMode = AuthViewMode.StandardForm,
+                errorMessage = null,
+                isLoading = false
+            )
         }
     }
 
+    fun setError(message: String) {
+        _uiState.update { it.copy(errorMessage = message, isLoading = false) }
+    }
+
+    fun clearError() {
+        _uiState.update { it.copy(errorMessage = null) }
+    }
+
     fun resetState() {
-        _uiState.value = AuthUiState.Idle
+        _uiState.value = AuthUiState()
     }
 
     private fun startResendCooldown() {

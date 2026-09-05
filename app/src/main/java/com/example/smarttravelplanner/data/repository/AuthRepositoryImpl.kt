@@ -37,7 +37,12 @@ class AuthRepositoryImpl @Inject constructor(
         prefs[Keys.LOGGED_IN_EMAIL]
     }
 
-    private suspend fun syncUserProfile(fullName: String, email: String) {
+    private suspend fun syncUserProfile(
+        fullName: String,
+        email: String,
+        profilePictureUrl: String? = null,
+        isGoogleVerified: Boolean? = null
+    ) {
         val currentPrefs = userPreferencesRepository.userPreferences.first()
         val names = fullName.trim().split(" ", limit = 2)
         val fName = names.getOrNull(0) ?: ""
@@ -47,13 +52,15 @@ class AuthRepositoryImpl @Inject constructor(
                 firstName = fName,
                 lastName = lName,
                 fullNameInput = fullName,
-                email = email
+                email = email,
+                profilePictureUrl = profilePictureUrl ?: currentPrefs.profilePictureUrl,
+                isGoogleVerified = isGoogleVerified ?: currentPrefs.isGoogleVerified
             )
         )
     }
 
     override suspend fun sendRegistrationOtp(email: String): Result<Unit> = runCatching {
-        val trimmedEmail = email.trim()
+        val trimmedEmail = email.trim().lowercase()
         if (trimmedEmail.isBlank() || !Patterns.EMAIL_ADDRESS.matcher(trimmedEmail).matches()) {
             throw IllegalArgumentException("Please enter a valid email address.")
         }
@@ -74,7 +81,7 @@ class AuthRepositoryImpl @Inject constructor(
         otp: String
     ): Result<Unit> = runCatching {
         val trimmedName = fullName.trim()
-        val trimmedEmail = email.trim()
+        val trimmedEmail = email.trim().lowercase()
 
         if (trimmedName.isBlank()) {
             throw IllegalArgumentException("Full name cannot be empty.")
@@ -114,7 +121,7 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     override suspend fun login(email: String, password: String): Result<Unit> = runCatching {
-        val trimmedEmail = email.trim()
+        val trimmedEmail = email.trim().lowercase()
         if (trimmedEmail.isBlank()) {
             throw IllegalArgumentException("Please enter your email.")
         }
@@ -124,6 +131,10 @@ class AuthRepositoryImpl @Inject constructor(
 
         val user = userDao.getUserByEmail(trimmedEmail)
             ?: throw IllegalArgumentException("No account found with this email. Please Create Account.")
+
+        if (user.isGoogleUser) {
+            throw IllegalArgumentException("This account is linked with Google. Please tap 'Continue with Google'.")
+        }
 
         val passwordValid = SecurityUtils.verifyPassword(password, user.salt, user.passwordHash)
         if (!passwordValid) {
@@ -142,7 +153,8 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun loginWithGoogle(
         email: String,
-        fullName: String
+        fullName: String,
+        profilePictureUrl: String?
     ): Result<Unit> = runCatching {
         val googleEmail = email.trim().lowercase()
         val googleName = fullName.trim().ifBlank { "Google Traveler" }
@@ -158,12 +170,20 @@ class AuthRepositoryImpl @Inject constructor(
                     passwordHash = SecurityUtils.hashPassword("google_oauth_token", salt),
                     salt = salt,
                     isEmailVerified = true,
-                    isGoogleUser = true
+                    isGoogleUser = true,
+                    profilePictureUrl = profilePictureUrl
                 )
             )
+        } else if (!profilePictureUrl.isNullOrBlank()) {
+            userDao.updateProfilePicture(googleEmail, profilePictureUrl)
         }
 
-        syncUserProfile(googleName, googleEmail)
+        syncUserProfile(
+            fullName = googleName,
+            email = googleEmail,
+            profilePictureUrl = profilePictureUrl,
+            isGoogleVerified = true
+        )
 
         dataStore.edit { prefs ->
             prefs[Keys.IS_LOGGED_IN] = true
@@ -172,13 +192,17 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     override suspend fun sendPasswordResetOtp(email: String): Result<Unit> = runCatching {
-        val trimmedEmail = email.trim()
+        val trimmedEmail = email.trim().lowercase()
         if (trimmedEmail.isBlank() || !Patterns.EMAIL_ADDRESS.matcher(trimmedEmail).matches()) {
             throw IllegalArgumentException("Please enter a valid email address.")
         }
 
         val user = userDao.getUserByEmail(trimmedEmail)
             ?: throw IllegalArgumentException("No account registered with this email address.")
+
+        if (user.isGoogleUser) {
+            throw IllegalArgumentException("This account is linked with Google. Please tap 'Continue with Google' to sign in.")
+        }
 
         emailVerificationService.sendPasswordResetOtp(trimmedEmail).getOrThrow()
     }
@@ -188,7 +212,7 @@ class AuthRepositoryImpl @Inject constructor(
         otp: String,
         newPassword: String
     ): Result<Unit> = runCatching {
-        val trimmedEmail = email.trim()
+        val trimmedEmail = email.trim().lowercase()
 
         if (!Patterns.EMAIL_ADDRESS.matcher(trimmedEmail).matches()) {
             throw IllegalArgumentException("Please enter a valid email address.")

@@ -8,7 +8,11 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.io.PrintWriter
+import java.net.ConnectException
 import java.net.InetSocketAddress
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
+import javax.net.ssl.SSLException
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.SSLSocketFactory
 
@@ -28,7 +32,7 @@ object GmailSmtpSender {
         otp: String,
         isPasswordReset: Boolean = false
     ): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
+        try {
             val cleanPassword = senderAppPassword.replace(" ", "").trim()
             val cleanSender = senderEmail.trim()
             val cleanRecipient = recipientEmail.trim()
@@ -148,7 +152,22 @@ object GmailSmtpSender {
             socket.close()
 
             Log.i(TAG, "Successfully delivered OTP email to $cleanRecipient via Gmail SMTP!")
-            Unit
+            Result.success(Unit)
+        } catch (e: UnknownHostException) {
+            Log.e(TAG, "Host resolution failed for $SMTP_HOST", e)
+            Result.failure(IllegalStateException("Unable to reach email server. Please check your internet connection.", e))
+        } catch (e: SocketTimeoutException) {
+            Log.e(TAG, "Socket connection/read timed out", e)
+            Result.failure(IllegalStateException("Connection to email server timed out. Please check your network connection and try again.", e))
+        } catch (e: ConnectException) {
+            Log.e(TAG, "Connection refused or unreachable", e)
+            Result.failure(IllegalStateException("Could not connect to email server. Please check your network and try again.", e))
+        } catch (e: SSLException) {
+            Log.e(TAG, "SSL handshake failed", e)
+            Result.failure(IllegalStateException("Secure connection to email server failed. Please try again.", e))
+        } catch (e: Throwable) {
+            Log.e(TAG, "Failed to send OTP email", e)
+            Result.failure(e)
         }
     }
 

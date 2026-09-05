@@ -25,6 +25,7 @@ import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -69,13 +70,6 @@ private enum class AuthTab {
     CREATE_ACCOUNT
 }
 
-private enum class AuthViewMode {
-    STANDARD_FORM,
-    REGISTRATION_OTP,
-    FORGOT_PASSWORD_EMAIL,
-    FORGOT_PASSWORD_RESET
-}
-
 // High-resolution internet image of Taj Mahal at dawn
 private const val TAJ_MAHAL_ONLINE_IMAGE =
     "https://images.unsplash.com/photo-1564507592333-c60657eea523?auto=format&fit=crop&w=1400&q=80"
@@ -93,97 +87,83 @@ fun LoginScreen(
     // Synchronize with active theme mode (Dark / Light / System)
     val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
-    var selectedTab by remember { mutableStateOf(AuthTab.SIGN_IN) }
-    var fullName by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
-    var regOtpCode by remember { mutableStateOf("") }
+    var selectedTab by rememberSaveable { mutableStateOf(AuthTab.SIGN_IN) }
+    var fullName by rememberSaveable { mutableStateOf("") }
+    var email by rememberSaveable { mutableStateOf("") }
+    var password by rememberSaveable { mutableStateOf("") }
+    var passwordVisible by rememberSaveable { mutableStateOf(false) }
+    var regOtpCode by rememberSaveable { mutableStateOf("") }
 
     // Forgot Password states
-    var resetEmail by remember { mutableStateOf("") }
-    var resetOtpCode by remember { mutableStateOf("") }
-    var resetNewPassword by remember { mutableStateOf("") }
-    var resetConfirmPassword by remember { mutableStateOf("") }
+    var resetEmail by rememberSaveable { mutableStateOf("") }
+    var resetOtpCode by rememberSaveable { mutableStateOf("") }
+    var resetNewPassword by rememberSaveable { mutableStateOf("") }
+    var resetConfirmPassword by rememberSaveable { mutableStateOf("") }
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var showGoogleSetupDialog by remember { mutableStateOf(false) }
 
-    // Derive active view mode from uiState
-    val viewMode = when (uiState) {
-        is AuthUiState.OtpSent -> AuthViewMode.REGISTRATION_OTP
-        is AuthUiState.ForgotPasswordEmail -> AuthViewMode.FORGOT_PASSWORD_EMAIL
-        is AuthUiState.ForgotPasswordOtp -> AuthViewMode.FORGOT_PASSWORD_RESET
-        else -> AuthViewMode.STANDARD_FORM
-    }
-
     // Pre-populate email in forgot password if user already typed in login
-    LaunchedEffect(uiState) {
-        if (uiState is AuthUiState.ForgotPasswordEmail) {
-            val initEmail = (uiState as AuthUiState.ForgotPasswordEmail).initialEmail
-            if (initEmail.isNotBlank()) resetEmail = initEmail
-            resetOtpCode = ""
-            resetNewPassword = ""
-            resetConfirmPassword = ""
-        } else if (uiState is AuthUiState.ForgotPasswordOtp) {
-            val otpEmail = (uiState as AuthUiState.ForgotPasswordOtp).email
-            if (otpEmail.isNotBlank()) resetEmail = otpEmail
+    LaunchedEffect(uiState.viewMode) {
+        when (val mode = uiState.viewMode) {
+            is AuthViewMode.ForgotPasswordEmail -> {
+                if (mode.initialEmail.isNotBlank()) resetEmail = mode.initialEmail
+                resetOtpCode = ""
+                resetNewPassword = ""
+                resetConfirmPassword = ""
+            }
+            is AuthViewMode.ForgotPasswordOtp -> {
+                if (mode.email.isNotBlank()) resetEmail = mode.email
+            }
+            else -> {}
         }
     }
 
-    // Scroll & IME tracking so keyboard never hides the fields
+    // Scroll state for scrollable container
     val scrollState = rememberScrollState()
-    val isImeVisible = WindowInsets.isImeVisible
 
-    LaunchedEffect(isImeVisible) {
-        if (isImeVisible) {
-            scrollState.animateScrollTo(scrollState.maxValue)
-        }
-    }
-
-    LaunchedEffect(uiState) {
-        if (uiState is AuthUiState.Success) {
-            viewModel.resetState()
+    LaunchedEffect(uiState.isSuccess) {
+        if (uiState.isSuccess) {
             onLoginSuccess()
         }
     }
 
     val isSubmitEnabled = when (selectedTab) {
-        AuthTab.SIGN_IN -> email.isNotBlank() && password.isNotBlank() && uiState !is AuthUiState.Loading
-        AuthTab.CREATE_ACCOUNT -> fullName.isNotBlank() && email.isNotBlank() && password.isNotBlank() && uiState !is AuthUiState.Loading
+        AuthTab.SIGN_IN -> email.isNotBlank() && password.isNotBlank() && !uiState.isLoading
+        AuthTab.CREATE_ACCOUNT -> fullName.isNotBlank() && email.isNotBlank() && password.isNotBlank() && !uiState.isLoading
     }
 
     // Theme adaptive color tokens matching app theme (Color.kt)
     val screenBackground = if (isDark) BackgroundDark else BackgroundLight
     val cardBackground = if (isDark) SurfaceDark.copy(alpha = 0.95f) else SurfaceLight.copy(alpha = 0.97f)
-    val cardBorder = if (isDark) Color(0xFF2C2C2C) else Color(0xFFE2E8F0)
+    val cardBorder = if (isDark) CardBorderDark else CardBorderLight
 
-    val segmentedTrackColor = if (isDark) SurfaceElevated else Color(0xFFE5E7EB)
-    val segmentedPillColor = if (isDark) Color(0xFF121212) else Color.White
+    val segmentedTrackColor = if (isDark) SurfaceElevated else SegmentedTrackLight
+    val segmentedPillColor = if (isDark) SegmentedPillDark else Color.White
 
     val textPrimary = if (isDark) OnBackgroundWhite else OnBackgroundDark
     val textMuted = if (isDark) OnBackgroundGray else OnBackgroundMedium
     val labelColor = if (isDark) Color(0xFF8E8E8E) else OnBackgroundMedium
 
-    val fieldBackground = if (isDark) SurfaceElevated else Color(0xFFF9FAFB)
-    val fieldBorder = if (isDark) Color(0xFF333333) else Color(0xFFD1D5DB)
+    val fieldBackground = if (isDark) SurfaceElevated else FieldBackgroundLight
+    val fieldBorder = if (isDark) FieldBorderDark else FieldBorderLight
     val fieldPlaceholder = if (isDark) OnBackgroundMuted else OnBackgroundSubtle
     val fieldIcon = if (isDark) OnBackgroundGray else OnBackgroundMedium
 
-    val submitBtnBg = if (isDark) Color(0xFF2C2C2C) else OnBackgroundDark
-    val submitBtnDisabledBg = if (isDark) Color(0xFF1C1C1C).copy(alpha = 0.6f) else Color(0xFFE5E7EB)
+    val submitBtnBg = if (isDark) CardBorderDark else OnBackgroundDark
+    val submitBtnDisabledBg = if (isDark) Color(0xFF1C1C1C).copy(alpha = 0.6f) else SegmentedTrackLight
     val submitBtnTextColor = if (isSubmitEnabled) Color.White else (if (isDark) OnBackgroundMuted else OnBackgroundSubtle)
 
     val googleBtnBg = if (isDark) Color(0xFF222222) else Color.White
-    val googleBtnBorder = if (isDark) Color(0xFF333333) else Color(0xFFD1D5DB)
+    val googleBtnBorder = if (isDark) FieldBorderDark else FieldBorderLight
     val googleBtnTextColor = if (isDark) Color.White else OnBackgroundDark
 
-    val dividerColor = if (isDark) Color(0xFF2A2A2A) else Color(0xFFE5E7EB)
+    val dividerColor = if (isDark) DividerDark else DividerLight
     val dividerTextColor = if (isDark) OnBackgroundMuted else OnBackgroundSubtle
     val forgotPasswordColor = Amber
 
-    val errorMessage = (uiState as? AuthUiState.Error)?.message
+    val errorMessage = uiState.errorMessage
 
     Box(
         modifier = Modifier
@@ -314,7 +294,7 @@ fun LoginScreen(
 
                     // ── Animated Switcher: Forms, OTPs, and Forgot Password ───
                     AnimatedContent(
-                        targetState = viewMode,
+                        targetState = uiState.viewMode,
                         transitionSpec = {
                             fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) togetherWith
                                 fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
@@ -322,17 +302,16 @@ fun LoginScreen(
                         label = "AuthViewTransition"
                     ) { mode ->
                         when (mode) {
-                            AuthViewMode.REGISTRATION_OTP -> {
-                                val sentEmail = (uiState as? AuthUiState.OtpSent)?.email ?: email
+                            is AuthViewMode.RegistrationOtp -> {
                                 OtpVerificationView(
-                                    email = sentEmail,
+                                    email = mode.email,
                                     otp = regOtpCode,
                                     onOtpChange = {
                                         regOtpCode = it
                                         viewModel.clearError()
                                     },
                                     resendCountdown = resendCountdown,
-                                    isLoading = uiState is AuthUiState.Loading,
+                                    isLoading = uiState.isLoading,
                                     isDark = isDark,
                                     textPrimary = textPrimary,
                                     textMuted = textMuted,
@@ -344,12 +323,12 @@ fun LoginScreen(
                                         focusManager.clearFocus()
                                         viewModel.verifyOtpAndCreateAccount(
                                             fullName = fullName,
-                                            email = sentEmail,
+                                            email = mode.email,
                                             password = password,
                                             otp = regOtpCode
                                         )
                                     },
-                                    onResend = { viewModel.resendOtp(sentEmail) },
+                                    onResend = { viewModel.resendOtp(mode.email) },
                                     onCancel = {
                                         regOtpCode = ""
                                         viewModel.cancelOtp()
@@ -357,14 +336,14 @@ fun LoginScreen(
                                 )
                             }
 
-                            AuthViewMode.FORGOT_PASSWORD_EMAIL -> {
+                            is AuthViewMode.ForgotPasswordEmail -> {
                                 ForgotPasswordEmailView(
                                     email = resetEmail,
                                     onEmailChange = {
                                         resetEmail = it
                                         viewModel.clearError()
                                     },
-                                    isLoading = uiState is AuthUiState.Loading,
+                                    isLoading = uiState.isLoading,
                                     textPrimary = textPrimary,
                                     textMuted = textMuted,
                                     labelColor = labelColor,
@@ -383,9 +362,9 @@ fun LoginScreen(
                                 )
                             }
 
-                            AuthViewMode.FORGOT_PASSWORD_RESET -> {
+                            is AuthViewMode.ForgotPasswordOtp -> {
                                 ForgotPasswordResetView(
-                                    email = resetEmail,
+                                    email = mode.email,
                                     otp = resetOtpCode,
                                     onOtpChange = {
                                         resetOtpCode = it
@@ -402,7 +381,7 @@ fun LoginScreen(
                                         viewModel.clearError()
                                     },
                                     resendCountdown = resendCountdown,
-                                    isLoading = uiState is AuthUiState.Loading,
+                                    isLoading = uiState.isLoading,
                                     isDark = isDark,
                                     textPrimary = textPrimary,
                                     textMuted = textMuted,
@@ -418,18 +397,18 @@ fun LoginScreen(
                                     onResetPassword = {
                                         focusManager.clearFocus()
                                         viewModel.resetPassword(
-                                            email = resetEmail,
+                                            email = mode.email,
                                             otp = resetOtpCode,
                                             newPassword = resetNewPassword,
                                             confirmPassword = resetConfirmPassword
                                         )
                                     },
-                                    onResend = { viewModel.resendPasswordResetOtp(resetEmail) },
+                                    onResend = { viewModel.resendPasswordResetOtp(mode.email) },
                                     onBack = { viewModel.cancelForgotPassword() }
                                 )
                             }
 
-                            AuthViewMode.STANDARD_FORM -> {
+                            is AuthViewMode.StandardForm -> {
                                 StandardAuthForm(
                                     selectedTab = selectedTab,
                                     onTabSelected = { tab ->
@@ -454,7 +433,7 @@ fun LoginScreen(
                                     passwordVisible = passwordVisible,
                                     onTogglePasswordVisibility = { passwordVisible = !passwordVisible },
                                     isSubmitEnabled = isSubmitEnabled,
-                                    isLoading = uiState is AuthUiState.Loading,
+                                    isLoading = uiState.isLoading,
                                     isDark = isDark,
                                     segmentedTrackColor = segmentedTrackColor,
                                     segmentedPillColor = segmentedPillColor,
@@ -493,7 +472,8 @@ fun LoginScreen(
                                                     .onSuccess { googleUser ->
                                                         viewModel.loginWithGoogle(
                                                             email = googleUser.email,
-                                                            fullName = googleUser.displayName
+                                                            fullName = googleUser.displayName,
+                                                            profilePictureUrl = googleUser.profilePictureUri
                                                         )
                                                     }
                                                     .onFailure { error ->
@@ -545,7 +525,8 @@ fun LoginScreen(
                             showGoogleSetupDialog = false
                             viewModel.loginWithGoogle(
                                 email = "google.traveler@gmail.com",
-                                fullName = "Google Traveler"
+                                fullName = "Google Traveler",
+                                profilePictureUrl = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=300&q=80"
                             )
                         },
                         colors = ButtonDefaults.buttonColors(
@@ -711,8 +692,8 @@ private fun ForgotPasswordResetView(
     onResend: () -> Unit,
     onBack: () -> Unit
 ) {
-    var newPasswordVisible by remember { mutableStateOf(false) }
-    var confirmPasswordVisible by remember { mutableStateOf(false) }
+    var newPasswordVisible by rememberSaveable { mutableStateOf(false) }
+    var confirmPasswordVisible by rememberSaveable { mutableStateOf(false) }
 
     val isResetEnabled = otp.length == 6 &&
             newPassword.length >= 6 &&
@@ -1375,9 +1356,9 @@ private fun StandardAuthForm(
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
                     text = "Continue with Google",
-                    fontFamily = DmSansFontFamily,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp,
+                    fontFamily = ProductSansFontFamily,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 15.sp,
                     color = googleBtnTextColor
                 )
             }

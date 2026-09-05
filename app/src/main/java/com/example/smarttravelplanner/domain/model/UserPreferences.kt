@@ -1,14 +1,15 @@
 package com.example.smarttravelplanner.domain.model
 
 data class UserPreferences(
-    val firstName: String = "Pramendra",
-    val lastName: String = "Kumar Jaiswal",
-    val fullNameInput: String = "Pramendra Kumar Jaiswal",
-    val gender: String = "Male", // "Male", "Female", "Others"
-    val phoneNumber: String = "8477007224",
+    val firstName: String = "",
+    val lastName: String = "",
+    val fullNameInput: String = "",
+    val gender: String = "", // "Male", "Female", "Others"
+    val phoneNumber: String = "",
     val phoneCountryCode: String = "+91",
-    val isPhoneVerified: Boolean = true,
-    val email: String = "pramendraj@rediffmail.com",
+    val isPhoneVerified: Boolean = false,
+    val email: String = "",
+    val profilePictureUrl: String = "",
     val isGoogleVerified: Boolean = false,
     val homeLocation: String = "",
     val dateOfBirth: String = "",
@@ -23,12 +24,17 @@ data class UserPreferences(
     val ollamaBaseUrl: String = "http://10.0.2.2:11434/"
 ) {
     val displayFullName: String
-        get() = if (fullNameInput.isNotBlank()) fullNameInput else "$firstName $lastName".trim()
+        get() = when {
+            fullNameInput.isNotBlank() -> fullNameInput
+            firstName.isNotBlank() || lastName.isNotBlank() -> "$firstName $lastName".trim()
+            email.isNotBlank() -> email.substringBefore("@")
+            else -> "Traveler"
+        }
 
     val profileCompletionPercent: Int
         get() {
             var score = 0
-            if (displayFullName.isNotBlank()) score += 20
+            if (displayFullName.isNotBlank() && displayFullName != "Traveler") score += 20
             if (gender.isNotBlank()) score += 10
             if (phoneNumber.isNotBlank()) score += 20
             if (email.isNotBlank()) score += 20

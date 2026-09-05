@@ -1,11 +1,15 @@
 package com.example.smarttravelplanner.ui.screens.auth
 
-sealed class AuthUiState {
-    object Idle : AuthUiState()
-    object Loading : AuthUiState()
-    data class OtpSent(val email: String) : AuthUiState()
-    data class ForgotPasswordEmail(val initialEmail: String = "") : AuthUiState()
-    data class ForgotPasswordOtp(val email: String) : AuthUiState()
-    object Success : AuthUiState()
-    data class Error(val message: String) : AuthUiState()
+sealed interface AuthViewMode {
+    data object StandardForm : AuthViewMode
+    data class RegistrationOtp(val email: String) : AuthViewMode
+    data class ForgotPasswordEmail(val initialEmail: String = "") : AuthViewMode
+    data class ForgotPasswordOtp(val email: String) : AuthViewMode
 }
+
+data class AuthUiState(
+    val viewMode: AuthViewMode = AuthViewMode.StandardForm,
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null,
+    val isSuccess: Boolean = false
+)

@@ -18,6 +18,8 @@ private val TravelDarkColorScheme = darkColorScheme(
     onSurface        = OnBackgroundWhite,
     surfaceVariant   = SurfaceElevated,
     onSurfaceVariant = OnBackgroundGray,
+    outline          = CardBorderDark,
+    outlineVariant   = DividerDark,
 )
 
 // ── Light Color Scheme ────────────────────────────────────────────────────────
@@ -32,6 +34,8 @@ private val TravelLightColorScheme = lightColorScheme(
     onSurface        = OnBackgroundDark,
     surfaceVariant   = SurfaceElevatedLight,
     onSurfaceVariant = OnBackgroundMedium,
+    outline          = CardBorderLight,
+    outlineVariant   = DividerLight,
 )
 
 /**
