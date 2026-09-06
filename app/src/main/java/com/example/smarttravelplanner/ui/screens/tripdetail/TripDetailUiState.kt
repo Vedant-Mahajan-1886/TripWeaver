@@ -1,9 +1,11 @@
 package com.example.smarttravelplanner.ui.screens.tripdetail
 
+import androidx.compose.runtime.Immutable
 import com.example.smarttravelplanner.domain.model.DayWeather
 import com.example.smarttravelplanner.domain.model.Itinerary
 import com.example.smarttravelplanner.domain.model.Trip
 
+@Immutable
 data class TripDetailUiState(
     val trip: Trip? = null,
     val itineraries: List<Itinerary> = emptyList(),

@@ -493,7 +493,7 @@ private fun PassportProfileCard(
                     ) {
                         PassportField(
                             label = "First name",
-                            value = prefs.firstName.ifEmpty { "Traveler" }
+                            value = prefs.firstName.ifEmpty { "What the F**k? BC ye kyu nhi chal rha" }
                         )
 
                         PassportField(
@@ -504,11 +504,6 @@ private fun PassportProfileCard(
                         PassportField(
                             label = "Email",
                             value = prefs.email.ifEmpty { "—" }
-                        )
-
-                        PassportField(
-                            label = "Phone number",
-                            value = prefs.phoneNumber.ifEmpty { "Not added" }
                         )
                     }
                 }

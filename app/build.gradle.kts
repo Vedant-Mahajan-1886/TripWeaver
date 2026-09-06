@@ -32,8 +32,14 @@ android {
             }
         }
 
-        // Ollama base URL — use 10.0.2.2 for emulator, laptop's LAN IP for physical device
-        buildConfigField("String", "OLLAMA_BASE_URL", "\"http://192.168.1.6:11434/\"")
+        // Ollama base URL:
+        // - "http://127.0.0.1:11434/" for physical phone over USB with `adb reverse tcp:11434 tcp:11434`
+        // - "http://10.0.2.2:11434/" for Android Emulator
+        // - "http://<Mac-LAN-IP>:11434/" for physical phone over Wi-Fi
+        val ollamaBaseUrl = properties.getProperty("OLLAMA_BASE_URL")
+            ?: (project.findProperty("OLLAMA_BASE_URL") as? String)
+            ?: "http://127.0.0.1:11434/"
+        buildConfigField("String", "OLLAMA_BASE_URL", "\"$ollamaBaseUrl\"")
 
         // Maps API key from local.properties
         val mapsApiKey = properties.getProperty("MAPS_API_KEY")

@@ -4,28 +4,31 @@ import com.example.smarttravelplanner.data.remote.dto.ActivityDto
 import com.example.smarttravelplanner.data.repository.AiRepository
 import com.example.smarttravelplanner.data.repository.ItineraryRepository
 import com.example.smarttravelplanner.data.repository.TripRepository
+import com.example.smarttravelplanner.data.repository.PhotoRepository
+import com.example.smarttravelplanner.util.DestinationImageHelper
 import com.example.smarttravelplanner.domain.model.Activity
 import com.example.smarttravelplanner.domain.model.ActivityCategory
 import com.example.smarttravelplanner.domain.model.Itinerary
 import com.example.smarttravelplanner.domain.model.Trip
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import javax.inject.Inject
 
 /**
  * Orchestrates the full "Generate + Save" flow:
  *  1. Calls AiRepository.generateItinerary() → structured GeneratedItineraryDto
- *  2. Saves the Trip to Room → gets a real tripId
- *  3. Maps Dto activities to domain Activity objects, assigns tripId
- *  4. Saves all Itinerary days to Room
- *  5. Returns Result<Long> (the new tripId, used for navigation to TripDetail)
- *
- * In Track B, steps before step 1 will fetch real Google Places + weather data
- * and inject them as context into the AI prompt.
+ *  2. Resolves cover image URL from Wikipedia if no local bundled image exists
+ *  3. Saves the Trip to Room → gets a real tripId
+ *  4. Maps Dto activities to domain Activity objects, assigns tripId
+ *  5. Saves all Itinerary days to Room
+ *  6. Returns Result<Long> (the new tripId, used for navigation to TripDetail)
  */
 class GenerateTripUseCase @Inject constructor(
     private val aiRepository: AiRepository,
     private val tripRepository: TripRepository,
-    private val itineraryRepository: ItineraryRepository
+    private val itineraryRepository: ItineraryRepository,
+    private val photoRepository: PhotoRepository
 ) {
     suspend operator fun invoke(
         destination: String,
@@ -36,7 +39,8 @@ class GenerateTripUseCase @Inject constructor(
         startDate: LocalDate?,
         notes: String,
         model: String
-    ): Result<Long> = runCatching {
+    ): Result<Long> = withContext(Dispatchers.IO) {
+        runCatching {
 
         val startDateStr = startDate?.toString() ?: ""
 
@@ -54,7 +58,13 @@ class GenerateTripUseCase @Inject constructor(
 
         // Step 2 — Build Trip domain object and persist it
         val resolvedStart = startDate ?: LocalDate.now()
-        val resolvedEnd   = resolvedStart.plusDays(days.toLong())
+        val resolvedEnd   = resolvedStart.plusDays((days - 1).toLong().coerceAtLeast(0))
+
+        val coverImageUrl = if (!DestinationImageHelper.hasLocalDrawable(destination)) {
+            photoRepository.getDestinationPhotoUrl(destination).getOrDefault("")
+        } else {
+            ""
+        }
 
         val trip = Trip(
             title         = "Trip to $destination",
@@ -63,7 +73,8 @@ class GenerateTripUseCase @Inject constructor(
             endDate       = resolvedEnd,
             budget        = budget,
             interests     = interests,
-            notes         = notes
+            notes         = notes,
+            coverImageUrl = coverImageUrl
         )
         val tripId = tripRepository.saveTrip(trip)
 
@@ -84,6 +95,7 @@ class GenerateTripUseCase @Inject constructor(
 
         tripId
     }
+}
 
     private fun ActivityDto.toDomain(itineraryId: Long, id: Long) = Activity(
         id            = id,

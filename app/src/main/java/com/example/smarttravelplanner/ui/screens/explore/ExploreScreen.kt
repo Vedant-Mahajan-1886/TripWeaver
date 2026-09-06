@@ -28,10 +28,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
-import com.bumptech.glide.integration.compose.GlideImage
-import com.bumptech.glide.integration.compose.placeholder
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.smarttravelplanner.R
 import com.example.smarttravelplanner.ui.theme.*
 import androidx.compose.material3.MaterialTheme
@@ -576,8 +576,8 @@ fun ExploreScreen(
                     }
                 }
             } else {
-                // Destination Cards List
-                items(filteredDestinations) { dest ->
+                // Destination Cards List with stable keys
+                items(filteredDestinations, key = { it.name }) { dest ->
                     ExploreDestinationCard(destination = dest)
                     Spacer(modifier = Modifier.height(16.dp))
                 }
@@ -602,16 +602,19 @@ private fun ExploreDestinationCard(destination: ExploreDestination) {
                 .fillMaxWidth()
                 .height(180.dp)
         ) {
-            @OptIn(ExperimentalGlideComposeApi::class)
-            GlideImage(
-                model             = destination.imageRes,
-                contentDescription = destination.name,
-                contentScale      = ContentScale.Crop,
-                modifier          = Modifier.matchParentSize()
-            ) {
-                it.diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.RESOURCE)
-                  .transition(com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions.withCrossFade(300))
+            val context = LocalContext.current
+            val imageRequest = remember(destination.imageRes) {
+                ImageRequest.Builder(context)
+                    .data(destination.imageRes)
+                    .crossfade(true)
+                    .build()
             }
+            AsyncImage(
+                model = imageRequest,
+                contentDescription = destination.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.matchParentSize()
+            )
 
             // Gradient Scrim for readable text over image
             Box(

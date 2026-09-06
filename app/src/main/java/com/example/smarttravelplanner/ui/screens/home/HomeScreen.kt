@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
@@ -38,10 +39,13 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.smarttravelplanner.R
 import com.example.smarttravelplanner.ui.theme.*
-
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.smarttravelplanner.ui.components.DestinationTripCard
+import com.example.smarttravelplanner.ui.components.DestinationTripCardBase
 
 // ── Data models for mock display ─────────────────────────────────────────────
 
@@ -127,9 +131,16 @@ fun HomeScreen(
                     alpha = (1f - (offset / heroHeightPx) * 0.55f).coerceIn(0.25f, 1f)
                 }
         ) {
-            // Full-bleed Mountain Landscape Background Photo
-            Image(
-                painter = painterResource(R.drawable.hero_mountain_bg),
+            // Full-bleed Mountain Landscape Background Photo (Coil AsyncImage off the main thread)
+            val context = LocalContext.current
+            val heroImageRequest = remember {
+                ImageRequest.Builder(context)
+                    .data(R.drawable.hero_mountain_bg)
+                    .crossfade(true)
+                    .build()
+            }
+            AsyncImage(
+                model = heroImageRequest,
                 contentDescription = "Hero Background",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.matchParentSize()
@@ -225,16 +236,21 @@ fun HomeScreen(
                     val savedTrips = (uiState as? HomeUiState.Success)?.trips ?: emptyList()
                     if (savedTrips.isNotEmpty()) {
                         savedTrips.take(3).forEach { trip ->
-                            RealRecentTripCard(
+                            DestinationTripCard(
                                 trip = trip,
+                                modifier = Modifier.padding(horizontal = 20.dp),
                                 onClick = { onTripClick(trip.id) }
                             )
                             Spacer(modifier = Modifier.height(14.dp))
                         }
                     } else {
                         recentTrips.forEach { trip ->
-                            RecentTripCard(
-                                trip = trip,
+                            DestinationTripCardBase(
+                                title = trip.name,
+                                subtitle = trip.subtitle,
+                                dateText = "${trip.dateRange} · ${trip.nights} nights",
+                                imageModel = trip.imageRes,
+                                modifier = Modifier.padding(horizontal = 20.dp),
                                 onClick = onMyTripsClick
                             )
                             Spacer(modifier = Modifier.height(14.dp))
@@ -496,7 +512,7 @@ private fun DestinationCarousel(
         contentPadding = PaddingValues(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        items(destinations) { dest ->
+        items(destinations, key = { it.name }) { dest ->
             DestinationCard(
                 dest = dest,
                 onClick = onDestinationClick
@@ -510,6 +526,14 @@ private fun DestinationCard(
     dest: DestinationItem,
     onClick: () -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val imageRequest = remember(dest.imageRes) {
+        ImageRequest.Builder(context)
+            .data(dest.imageRes)
+            .crossfade(true)
+            .build()
+    }
+
     Box(
         modifier = Modifier
             .width(165.dp)
@@ -517,8 +541,8 @@ private fun DestinationCard(
             .clip(RoundedCornerShape(18.dp))
             .clickable(onClick = onClick)
     ) {
-        Image(
-            painter = painterResource(dest.imageRes),
+        AsyncImage(
+            model = imageRequest,
             contentDescription = dest.name,
             contentScale = ContentScale.Crop,
             modifier = Modifier.matchParentSize()
@@ -596,194 +620,3 @@ private fun DestinationCard(
     }
 }
 
-// ── Recent Trip Card ──────────────────────────────────────────────────────────
-
-@Composable
-private fun RecentTripCard(
-    trip: TripItem,
-    onClick: () -> Unit = {}
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp)
-            .height(165.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .clickable(onClick = onClick)
-    ) {
-        Image(
-            painter = painterResource(trip.imageRes),
-            contentDescription = trip.name,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.matchParentSize()
-        )
-
-        // Dark overlay gradient
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .background(
-                    Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0.0f to Color(0x66000000),
-                            0.5f to Color(0x88000000),
-                            1.0f to Color(0xEE0B111B)
-                        )
-                    )
-                )
-        )
-
-        // Content
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(18.dp),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            // Status chip
-            Box(
-                modifier = Modifier
-                    .background(CompletedGreenBg, RoundedCornerShape(20.dp))
-                    .padding(horizontal = 12.dp, vertical = 5.dp)
-            ) {
-                Text(
-                    text = trip.status,
-                    fontFamily = DmSansFontFamily,
-                    color = CompletedGreen,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            // Trip info
-            Column {
-                Text(
-                    text = trip.name,
-                    fontFamily = PlayfairFontFamily,
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 24.sp
-                )
-                Text(
-                    text = trip.subtitle,
-                    fontFamily = DmSansFontFamily,
-                    color = OnBackgroundGray,
-                    fontSize = 13.sp
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                // Date range & duration
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Outlined.CalendarMonth,
-                        contentDescription = null,
-                        tint = OnBackgroundGray,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(5.dp))
-                    Text(
-                        text = "${trip.dateRange} · ${trip.nights} nights",
-                        fontFamily = DmSansFontFamily,
-                        color = OnBackgroundGray,
-                        fontSize = 12.sp
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun RealRecentTripCard(
-    trip: com.example.smarttravelplanner.domain.model.Trip,
-    onClick: () -> Unit = {}
-) {
-    val durationDays = remember(trip.startDate, trip.endDate) {
-        val days = trip.endDate.toEpochDay() - trip.startDate.toEpochDay()
-        if (days <= 0) 1 else days.toInt()
-    }
-    val fmt = remember { java.time.format.DateTimeFormatter.ofPattern("MMM d", java.util.Locale.getDefault()) }
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 4.dp
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(18.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .background(CompletedGreenBg, RoundedCornerShape(20.dp))
-                        .padding(horizontal = 12.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "Planned",
-                        fontFamily = DmSansFontFamily,
-                        color = CompletedGreen,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                if (trip.budget > 0) {
-                    Text(
-                        text = "₹${trip.budget.toInt()}",
-                        fontFamily = DmSansFontFamily,
-                        color = Amber,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Text(
-                text = trip.destination,
-                fontFamily = PlayfairFontFamily,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.Bold,
-                fontSize = 22.sp
-            )
-
-            if (trip.title.isNotBlank()) {
-                Text(
-                    text = trip.title,
-                    fontFamily = DmSansFontFamily,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 13.sp
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Outlined.CalendarMonth,
-                    contentDescription = null,
-                    tint = OnBackgroundGray,
-                    modifier = Modifier.size(14.dp)
-                )
-                Spacer(modifier = Modifier.width(5.dp))
-                Text(
-                    text = "${trip.startDate.format(fmt)} – ${trip.endDate.format(fmt)} · $durationDays days",
-                    fontFamily = DmSansFontFamily,
-                    color = OnBackgroundGray,
-                    fontSize = 12.sp
-                )
-            }
-        }
-    }
-}

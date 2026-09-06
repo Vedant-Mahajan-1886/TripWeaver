@@ -22,11 +22,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import com.example.smarttravelplanner.util.DestinationImageHelper
 import com.example.smarttravelplanner.domain.model.Activity
 import com.example.smarttravelplanner.domain.model.ActivityCategory
 import com.example.smarttravelplanner.domain.model.DayWeather
@@ -129,13 +134,14 @@ private fun TripDetailContent(
                         EmptyDayCard()
                     }
                 } else {
-                    item {
-                        selected.activities.forEachIndexed { idx, activity ->
-                            ActivityCard(
-                                activity  = activity,
-                                isLast    = idx == selected.activities.lastIndex
-                            )
-                        }
+                    itemsIndexed(
+                        items = selected.activities,
+                        key = { _, activity -> activity.id }
+                    ) { idx, activity ->
+                        ActivityCard(
+                            activity  = activity,
+                            isLast    = idx == selected.activities.lastIndex
+                        )
                     }
                 }
             }
@@ -157,53 +163,55 @@ private fun TripDetailContent(
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
 private fun HeroSection(trip: Trip, onBackClick: () -> Unit) {
+    val context = LocalContext.current
+    val imageModel = remember(trip.destination, trip.coverImageUrl) {
+        DestinationImageHelper.getDestinationImage(trip.destination, trip.coverImageUrl)
+    }
+    val imageRequest = remember(imageModel) {
+        ImageRequest.Builder(context)
+            .data(imageModel)
+            .setHeader("User-Agent", "SmartTravelPlanner/1.0 (Android travel planner app)")
+            .crossfade(true)
+            .build()
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(260.dp)
+            .height(280.dp)
     ) {
-        // Gradient background (placeholder for Unsplash photo in Track B)
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.linearGradient(
-                        listOf(Color(0xFF1A3A5C), Color(0xFF0D1B2A))
-                    )
-                )
+        // High-res Destination Image (Coil AsyncImage)
+        AsyncImage(
+            model = imageRequest,
+            contentDescription = trip.destination,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
         )
 
-        // Decorative amber orb
-        Box(
-            modifier = Modifier
-                .size(200.dp)
-                .align(Alignment.TopEnd)
-                .offset(x = 60.dp, y = (-30).dp)
-                .background(
-                    Brush.radialGradient(listOf(Amber.copy(alpha = 0.2f), Color.Transparent)),
-                    CircleShape
-                )
-        )
-
-        // Dark gradient overlay
+        // Dark gradient overlay for text readability and cinematic look
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        listOf(Color.Transparent, Color(0xCC000000)),
-                        startY = 100f
+                        colors = listOf(
+                            Color.Black.copy(alpha = 0.45f),
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.88f)
+                        ),
+                        startY = 0f,
+                        endY = Float.POSITIVE_INFINITY
                     )
                 )
         )
 
-        // Back button
+        // Back button with frosted glass container
         IconButton(
             onClick  = onBackClick,
             modifier = Modifier
-                .padding(12.dp)
+                .padding(16.dp)
                 .clip(CircleShape)
-                .background(Color.Black.copy(alpha = 0.35f))
+                .background(Color.Black.copy(alpha = 0.45f))
         ) {
             Icon(
                 imageVector         = Icons.AutoMirrored.Filled.ArrowBack,
@@ -216,19 +224,21 @@ private fun HeroSection(trip: Trip, onBackClick: () -> Unit) {
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(20.dp)
+                .padding(horizontal = 20.dp, vertical = 20.dp)
         ) {
             Text(
                 text       = trip.destination,
+                fontFamily = PlayfairFontFamily,
                 color      = Color.White,
-                fontSize   = 28.sp,
+                fontSize   = 32.sp,
                 fontWeight = FontWeight.Bold
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text  = trip.title,
-                color = Color.White.copy(alpha = 0.75f),
-                fontSize = 14.sp
+                text       = trip.title,
+                fontFamily = DmSansFontFamily,
+                color      = Color.White.copy(alpha = 0.85f),
+                fontSize   = 14.sp
             )
         }
     }
@@ -524,7 +534,7 @@ private fun ActivityCard(activity: Activity, isLast: Boolean) {
                         ) {
                             Text("🌤️", fontSize = 14.sp)
                             Text(
-                                text     = activity.weatherNote!!,
+                                text     = activity.weatherNote,
                                 fontSize = 12.sp,
                                 color    = Color(0xFF90CAF9)
                             )

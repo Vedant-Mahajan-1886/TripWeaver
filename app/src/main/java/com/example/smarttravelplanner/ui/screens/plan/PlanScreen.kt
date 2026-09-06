@@ -197,7 +197,9 @@ fun PlanScreen(
 
     val tripDays = remember(departureDate, returnDate) {
         if (departureDate != null && returnDate != null) {
-            (returnDate!!.toEpochDay() - departureDate!!.toEpochDay()).toInt()
+            val daysDiff = (returnDate!!.toEpochDay() - departureDate!!.toEpochDay()).toInt()
+            // Inclusive of both departure date and return date (e.g., 15 to 18 = 4 days, 3 nights)
+            if (daysDiff >= 0) daysDiff + 1 else 1
         } else {
             null
         }
@@ -254,8 +256,10 @@ fun PlanScreen(
         TripDateRangeSheet(
             state   = datePickerState,
             onDone  = { start, end ->
-                if (start != null) departureDate = start.toLocalDate()
-                if (end   != null) returnDate    = end.toLocalDate()
+                if (start != null) {
+                    departureDate = start.toLocalDate()
+                    returnDate    = end?.toLocalDate() ?: start.toLocalDate()
+                }
                 showDatePicker = false
             },
             onDismiss = { showDatePicker = false }
@@ -267,10 +271,11 @@ fun PlanScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .imePadding()
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 32.dp)
+            contentPadding = PaddingValues(bottom = 60.dp)
         ) {
 
             item {
@@ -398,10 +403,14 @@ fun PlanScreen(
                 }
 
                 GenerateTripButton(
-                    enabled       = destination.isNotBlank() && !isGenerating,
+                    enabled       = destination.isNotBlank() && originQuery.isNotBlank() && !isGenerating,
                     isLoading     = isGenerating,
                     loadingText   = generatingStep,
                     onClick = {
+                        val finalNotes = if (originQuery.isNotBlank()) {
+                            if (additionalNotes.isNotBlank()) "Starting from: $originQuery. $additionalNotes" else "Starting from: $originQuery"
+                        } else additionalNotes
+
                         viewModel.generateItinerary(
                             destination  = destination,
                             days         = tripDays ?: 5,
@@ -413,7 +422,7 @@ fun PlanScreen(
                             interests    = selectedInterests.toList(),
                             travelStyle  = selectedStyle,
                             startDate    = departureDate,
-                            notes        = additionalNotes
+                            notes        = finalNotes
                         )
                     }
                 )

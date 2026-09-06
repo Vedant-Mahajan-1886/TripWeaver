@@ -33,7 +33,7 @@ fun GoogleVerificationCard(
     ) {
         Text(
             text = "Other Verification Option",
-            fontSize = 11.sp,
+            fontSize = 13.sp,
             fontFamily = DmSansFontFamily,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 8.dp)

@@ -75,4 +75,20 @@ object NetworkModule {
     @Singleton
     fun provideWeatherApi(@Named("weather") retrofit: Retrofit): WeatherApi =
         retrofit.create(WeatherApi::class.java)
+
+    // ── Wikipedia Retrofit (Free destination image search, no API key) ────────
+    @Provides
+    @Singleton
+    @Named("wikipedia")
+    fun provideWikipediaRetrofit(okHttpClient: OkHttpClient, gson: Gson): Retrofit =
+        Retrofit.Builder()
+            .baseUrl("https://en.wikipedia.org/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create(gson))
+            .build()
+
+    @Provides
+    @Singleton
+    fun provideWikipediaApi(@Named("wikipedia") retrofit: Retrofit): com.example.smarttravelplanner.data.remote.api.WikipediaApi =
+        retrofit.create(com.example.smarttravelplanner.data.remote.api.WikipediaApi::class.java)
 }

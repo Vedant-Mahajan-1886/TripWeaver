@@ -18,7 +18,6 @@ interface WeatherApi {
         @Query("daily")              daily: String = "temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode",
         @Query("timezone")           timezone: String = "auto",
         @Query("start_date")         startDate: String,
-        @Query("end_date")           endDate: String,
-        @Query("forecast_days")      forecastDays: Int = 16
+        @Query("end_date")           endDate: String
     ): WeatherResponseDto
 }

@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.smarttravelplanner.R
 import com.example.smarttravelplanner.ui.theme.*
 
@@ -170,11 +171,16 @@ fun LoginScreen(
             .fillMaxSize()
             .background(screenBackground)
     ) {
-        // ── 1. Full-bleed Internet Image with local fallback ─────────────────
+        // ── 1. Full-bleed Internet Image with local fallback (Coil background decode)
+        val loginImageRequest = remember {
+            ImageRequest.Builder(context)
+                .data(TAJ_MAHAL_ONLINE_IMAGE)
+                .error(R.drawable.dest_agra)
+                .crossfade(true)
+                .build()
+        }
         AsyncImage(
-            model = TAJ_MAHAL_ONLINE_IMAGE,
-            placeholder = painterResource(R.drawable.dest_agra),
-            error = painterResource(R.drawable.dest_agra),
+            model = loginImageRequest,
             contentDescription = "Taj Mahal Background",
             contentScale = ContentScale.Crop,
             modifier = Modifier

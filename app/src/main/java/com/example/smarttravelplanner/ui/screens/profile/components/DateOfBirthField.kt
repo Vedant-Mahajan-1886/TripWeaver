@@ -60,14 +60,6 @@ fun DateOfBirthField(
                             fontSize = 15.sp,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = if (isDobLocked) "Verified & locked" else "Tap to change date",
-                            fontFamily = DmSansFontFamily,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 11.sp,
-                            color = if (isDobLocked) Amber else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
                     } else {
                         Text(
                             text = "Select Date of Birth",
@@ -75,14 +67,6 @@ fun DateOfBirthField(
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp,
                             color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Tap calendar to choose",
-                            fontFamily = DmSansFontFamily,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                         )
                     }
                 }
@@ -112,7 +96,7 @@ fun DateOfBirthField(
 
         Text(
             text = if (isDobLocked) "Date of Birth is verified and locked" else "Please note: You won't be able to edit DOB afterwards",
-            fontSize = 11.sp,
+            fontSize = 13.sp,
             fontFamily = DmSansFontFamily,
             color = if (isDobLocked) Amber else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 2.dp)

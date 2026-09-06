@@ -6,6 +6,8 @@ import com.example.smarttravelplanner.data.remote.dto.OllamaChatRequest
 import com.example.smarttravelplanner.data.remote.dto.OllamaMessage
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 class AiRepositoryImpl @Inject constructor(
@@ -71,7 +73,8 @@ class AiRepositoryImpl @Inject constructor(
         startDate: String,
         notes: String,
         model: String
-    ): Result<GeneratedItineraryDto> = runCatching {
+    ): Result<GeneratedItineraryDto> = withContext(Dispatchers.IO) {
+        runCatching {
 
         val interestText = interests.ifEmpty { listOf("general sightseeing") }.joinToString(", ")
         val styleDesc = when (travelStyle) {
@@ -79,7 +82,9 @@ class AiRepositoryImpl @Inject constructor(
             "packed"  -> "Packed schedule — maximize experiences, 5+ activities per day"
             else      -> "Balanced pace — 3-4 activities per day with some downtime"
         }
-        val dateContext = if (startDate.isNotBlank()) "Trip starts on $startDate." else ""
+        val dateContext = if (startDate.isNotBlank()) {
+            "Trip starts on $startDate and lasts exactly $days days (inclusive of both departure and final return day). You MUST generate a full day plan for each day from Day 1 to Day $days."
+        } else ""
         val notesContext = if (notes.isNotBlank()) "Special instructions: $notes" else ""
 
         val userMessage = """
@@ -121,22 +126,24 @@ class AiRepositoryImpl @Inject constructor(
         } catch (e: JsonSyntaxException) {
             error("AI response could not be parsed. Please try again. (${e.message})")
         }
-    }
+    } }
 
     // ─────────────────────────────────────────────────────────────────────────
-    override suspend fun chat(userMessage: String, model: String): Result<String> = runCatching {
-        val response = ollamaApi.chat(
-            OllamaChatRequest(
-                model    = model,
-                messages = listOf(
-                    OllamaMessage(role = "system", content = chatSystemPrompt),
-                    OllamaMessage(role = "user",   content = userMessage)
-                ),
-                stream = false
-                // No format = "json" here — freeform chat response is fine
+    override suspend fun chat(userMessage: String, model: String): Result<String> = withContext(Dispatchers.IO) {
+        runCatching {
+            val response = ollamaApi.chat(
+                OllamaChatRequest(
+                    model    = model,
+                    messages = listOf(
+                        OllamaMessage(role = "system", content = chatSystemPrompt),
+                        OllamaMessage(role = "user",   content = userMessage)
+                    ),
+                    stream = false
+                    // No format = "json" here — freeform chat response is fine
+                )
             )
-        )
-        response.message?.content ?: error("Empty response from AI")
+            response.message?.content ?: error("Empty response from AI")
+        }
     }
 }
 

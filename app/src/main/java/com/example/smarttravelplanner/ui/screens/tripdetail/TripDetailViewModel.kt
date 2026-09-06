@@ -3,10 +3,14 @@ package com.example.smarttravelplanner.ui.screens.tripdetail
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.smarttravelplanner.data.repository.PhotoRepository
 import com.example.smarttravelplanner.data.repository.PlacesRepository
+import com.example.smarttravelplanner.data.repository.TripRepository
 import com.example.smarttravelplanner.domain.usecase.GetTripDetailUseCase
 import com.example.smarttravelplanner.domain.usecase.GetWeatherForTripUseCase
+import com.example.smarttravelplanner.util.DestinationImageHelper
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -18,7 +22,9 @@ class TripDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val getTripDetailUseCase: GetTripDetailUseCase,
     private val getWeatherForTripUseCase: GetWeatherForTripUseCase,
-    private val placesRepository: PlacesRepository
+    private val placesRepository: PlacesRepository,
+    private val photoRepository: PhotoRepository,
+    private val tripRepository: TripRepository
 ) : ViewModel() {
 
     private val tripId: Long = checkNotNull(savedStateHandle["tripId"])
@@ -31,7 +37,7 @@ class TripDetailViewModel @Inject constructor(
     }
 
     private fun loadTrip() {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             // Load the Trip object (one-shot)
             val trip = getTripDetailUseCase.getTrip(tripId)
             if (trip == null) {
@@ -40,8 +46,29 @@ class TripDetailViewModel @Inject constructor(
             }
             _uiState.update { it.copy(trip = trip, isLoading = false) }
 
+            android.util.Log.d("TripDetailVM", "Trip loaded: id=${trip.id}, destination='${trip.destination}', coverImageUrl='${trip.coverImageUrl}', hasLocal=${DestinationImageHelper.hasLocalDrawable(trip.destination)}")
+
+            // If the trip lacks an online cover photo and has no local bundled drawable, fetch from Wikipedia
+            if (trip.coverImageUrl.isBlank() && !DestinationImageHelper.hasLocalDrawable(trip.destination)) {
+                launch(Dispatchers.IO) {
+                    android.util.Log.d("TripDetailVM", "Requesting online photo for '${trip.destination}' from Wikipedia...")
+                    photoRepository.getDestinationPhotoUrl(trip.destination)
+                        .onSuccess { photoUrl ->
+                            android.util.Log.d("TripDetailVM", "Got photo URL for '${trip.destination}': '$photoUrl'")
+                            if (photoUrl.isNotBlank()) {
+                                val updatedTrip = trip.copy(coverImageUrl = photoUrl)
+                                tripRepository.updateTrip(updatedTrip)
+                                _uiState.update { it.copy(trip = updatedTrip) }
+                            }
+                        }
+                        .onFailure { e ->
+                            android.util.Log.e("TripDetailVM", "Error resolving photo for '${trip.destination}'", e)
+                        }
+                }
+            }
+
             // Collect itineraries reactively
-            launch {
+            launch(Dispatchers.IO) {
                 getTripDetailUseCase.getItineraries(tripId).collect { itineraries ->
                     _uiState.update { it.copy(itineraries = itineraries) }
                 }
@@ -60,7 +87,7 @@ class TripDetailViewModel @Inject constructor(
     }
 
     private fun loadWeather(lat: Double, lng: Double, startDate: String, endDate: String) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             _uiState.update { it.copy(isLoadingWeather = true) }
             getWeatherForTripUseCase(lat, lng, startDate, endDate)
                 .onSuccess { weather ->

@@ -11,10 +11,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -82,7 +79,8 @@ fun AppNavigation(
     val hiddenNavRoutes = setOf(
         "login", "profile", "my_profile", "manage_payments", "trip_detail/{tripId}"
     )
-    val showBottomNav = hiddenNavRoutes.none { currentRoute.startsWith(it.substringBefore("{")) }
+    val isImeVisible = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
+    val showBottomNav = hiddenNavRoutes.none { currentRoute.startsWith(it.substringBefore("{")) } && !isImeVisible
 
     Scaffold(
         bottomBar = {
@@ -276,7 +274,8 @@ fun AppNavigation(
                 MyTripsScreen(
                     onTripClick = { tripId ->
                         navController.navigate("trip_detail/$tripId")
-                    }
+                    },
+                    onMenuClick = { navController.navigate("profile") }
                 )
             }
 
