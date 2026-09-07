@@ -102,6 +102,7 @@ fun MyTripsScreen(
                             items(state.trips, key = { it.id }) { trip ->
                                 DestinationTripCard(
                                     trip = trip,
+                                    statusText = "Planning",
                                     onClick = { onTripClick(trip.id) },
                                     onDelete = { viewModel.deleteTrip(trip.id) }
                                 )

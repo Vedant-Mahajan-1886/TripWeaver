@@ -1,6 +1,7 @@
 package com.example.smarttravelplanner.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -35,7 +36,7 @@ import java.util.Locale
  * Features:
  * - High-resolution destination cover photo with Coil crossfade
  * - Dark multi-stop vertical gradient overlay ensuring high text legibility
- * - "Completed" (or custom) status badge pill at top-left
+ * - "Planning" (or custom) status badge pill at top-left
  * - Optional trashcan delete button at top-right with confirmation dialog (White icon on dark translucent circle)
  * - Elegant Playfair serif destination title and clean DM Sans metadata
  * - Calendar icon with formatted date range and duration nights
@@ -44,7 +45,7 @@ import java.util.Locale
  * @param trip The domain [Trip] to render.
  * @param modifier Custom modifier applied to the root card container.
  * @param cardHeight Height of the card (default 210.dp for ample vertical breathing room).
- * @param statusText Status badge text (default "Completed").
+ * @param statusText Status badge text (default "Planning").
  * @param onDelete Optional delete callback. If provided, renders the trashcan action button.
  * @param onClick Triggered when the card is clicked.
  */
@@ -53,7 +54,7 @@ fun DestinationTripCard(
     trip: Trip,
     modifier: Modifier = Modifier,
     cardHeight: Dp = 210.dp,
-    statusText: String = "Completed",
+    statusText: String = "Planning",
     onDelete: (() -> Unit)? = null,
     onClick: () -> Unit = {}
 ) {
@@ -98,7 +99,7 @@ fun DestinationTripCardBase(
     imageModel: Any,
     modifier: Modifier = Modifier,
     cardHeight: Dp = 210.dp,
-    statusText: String = "Completed",
+    statusText: String = "Planning",
     onDelete: (() -> Unit)? = null,
     deleteConfirmTitle: String = "Delete Trip",
     deleteConfirmMessage: String = "Are you sure you want to delete this trip?",
@@ -158,15 +159,21 @@ fun DestinationTripCardBase(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Status pill
+                val isPlanning = statusText.equals("Planning", ignoreCase = true)
+                val badgeBg = if (isPlanning) Amber.copy(alpha = 0.22f) else CompletedGreenBg
+                val badgeBorder = if (isPlanning) Amber.copy(alpha = 0.45f) else Color.Transparent
+                val badgeTextColor = if (isPlanning) AmberLight else CompletedGreen
+
                 Box(
                     modifier = Modifier
-                        .background(CompletedGreenBg, RoundedCornerShape(20.dp))
+                        .background(badgeBg, RoundedCornerShape(20.dp))
+                        .border(0.5.dp, badgeBorder, RoundedCornerShape(20.dp))
                         .padding(horizontal = 14.dp, vertical = 6.dp)
                 ) {
                     Text(
                         text = statusText,
                         fontFamily = DmSansFontFamily,
-                        color = CompletedGreen,
+                        color = badgeTextColor,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
                     )

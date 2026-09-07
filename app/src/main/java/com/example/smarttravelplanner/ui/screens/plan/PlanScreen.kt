@@ -81,18 +81,12 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.text.NumberFormat
+import kotlin.math.roundToInt
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Data models (UI-only, backend-ready)
 // ─────────────────────────────────────────────────────────────────────────────
-
-/** Describes a budget tier card shown in the Budget Per Day section. */
-private data class BudgetTier(
-    val id: String,
-    val emoji: String,
-    val label: String,
-    val subLabel: String
-)
 
 /** Describes an interest tag shown in the Travel Interests section. */
 private data class InterestTag(
@@ -109,27 +103,18 @@ private data class TravelStyle(
     val subLabel: String
 )
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  Static data – swap for ViewModel-provided data when backend is connected
-// ─────────────────────────────────────────────────────────────────────────────
-
-private val budgetTiers = listOf(
-    BudgetTier("budget",    "🪙", "Budget",    "Under ₹5K/day"),
-    BudgetTier("mid_range", "💳", "Mid-Range", "₹5K–15K/day"),
-    BudgetTier("luxury",    "💎", "Luxury",    "₹15K+/day")
-)
-
 private val interestTags = listOf(
-    InterestTag("heritage",  "Heritage",    Icons.Outlined.AccountBalance),
-    InterestTag("nature",    "Nature",      Icons.Outlined.Forest),
-    InterestTag("adventure", "Adventure",   Icons.Outlined.Terrain),
-    InterestTag("spiritual", "Spiritual",   Icons.Outlined.TempleHindu),
-    InterestTag("food",      "Food",        Icons.Outlined.Restaurant),
-    InterestTag("beaches",   "Beaches",     Icons.Outlined.BeachAccess),
-    InterestTag("wildlife",  "Wildlife",    Icons.Outlined.Pets),
-    InterestTag("art_craft", "Art & Craft", Icons.Outlined.Palette),
-    InterestTag("festivals", "Festivals",   Icons.Outlined.Celebration),
-    InterestTag("wellness",  "Wellness",    Icons.Outlined.Spa)
+    InterestTag("heritage",    "Heritage",    Icons.Outlined.AccountBalance),
+    InterestTag("nature",      "Nature",      Icons.Outlined.Forest),
+    InterestTag("adventure",   "Adventure",   Icons.Outlined.Terrain),
+    InterestTag("photography","Photography", Icons.Outlined.PhotoCamera),
+    InterestTag("spiritual",   "Spiritual",   Icons.Outlined.TempleHindu),
+    InterestTag("food",        "Food",        Icons.Outlined.Restaurant),
+    InterestTag("beaches",     "Beaches",     Icons.Outlined.BeachAccess),
+    InterestTag("wildlife",    "Wildlife",    Icons.Outlined.Pets),
+    InterestTag("art_craft",   "Art & Craft", Icons.Outlined.Palette),
+    InterestTag("festivals",   "Festivals",   Icons.Outlined.Celebration),
+    InterestTag("wellness",    "Wellness",    Icons.Outlined.Spa)
 )
 
 private val travelStyles = listOf(
@@ -206,7 +191,7 @@ fun PlanScreen(
     }
 
     // ── Other preferences ─────────────────────────────────────────────────────
-    var selectedBudget     by remember { mutableStateOf("mid_range") }
+    var tripBudget         by remember { mutableFloatStateOf(25000f) }
     val selectedInterests  = remember { mutableStateListOf<String>() }
     var selectedStyle      by remember { mutableStateOf("balanced") }
     var additionalNotes    by remember { mutableStateOf("") }
@@ -345,10 +330,9 @@ fun PlanScreen(
             }
 
             item {
-                BudgetSection(
-                    tiers            = budgetTiers,
-                    selectedBudget   = selectedBudget,
-                    onBudgetSelected = { selectedBudget = it }
+                TripBudgetSection(
+                    budget         = tripBudget,
+                    onBudgetChange = { tripBudget = it }
                 )
                 Spacer(modifier = Modifier.height(16.dp))
             }
@@ -416,11 +400,7 @@ fun PlanScreen(
                         viewModel.generateItinerary(
                             destination  = destination,
                             days         = durationDays,
-                            budget       = when (selectedBudget) {
-                                "budget"    -> 4000.0
-                                "mid_range" -> 10000.0
-                                else        -> 20000.0
-                            },
+                            budget       = tripBudget.toDouble(),
                             interests    = selectedInterests.toList(),
                             travelStyle  = selectedStyle,
                             startDate    = departureDate,
@@ -1084,91 +1064,121 @@ private fun TripDurationSection(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Section: Budget Per Day
+//  Section: Entire Trip Budget (Slider)
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun BudgetSection(
-    tiers: List<BudgetTier>,
-    selectedBudget: String,
-    onBudgetSelected: (String) -> Unit
+private fun TripBudgetSection(
+    budget: Float,
+    onBudgetChange: (Float) -> Unit
 ) {
     PlanCard(modifier = Modifier.padding(horizontal = 16.dp)) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 18.dp)) {
+            // Section Title
             Text(
-                text          = "BUDGET PER DAY",
+                text          = "ENTIRE TRIP BUDGET",
                 fontFamily    = DmSansFontFamily,
                 fontWeight    = FontWeight.SemiBold,
                 fontSize      = 10.sp,
                 color         = MaterialTheme.colorScheme.onSurfaceVariant,
                 letterSpacing = 1.2.sp
             )
-            Spacer(modifier = Modifier.height(14.dp))
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Large Amount Display
+            Text(
+                text = formatInr(budget),
+                fontFamily = PlayfairFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 28.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Budget Slider (Starting from ₹10,000)
+            Slider(
+                value = budget.coerceIn(10000f, 200000f),
+                onValueChange = { raw ->
+                    val stepped = (raw / 1000f).roundToInt() * 1000f
+                    onBudgetChange(stepped.coerceIn(10000f, 200000f))
+                },
+                valueRange = 10000f..200000f,
+                colors = SliderDefaults.colors(
+                    thumbColor = Amber,
+                    activeTrackColor = Amber,
+                    inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // Min and Max range markers
             Row(
-                modifier              = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                tiers.forEach { tier ->
-                    BudgetTierCard(
-                        tier       = tier,
-                        isSelected = selectedBudget == tier.id,
-                        modifier   = Modifier.weight(1f),
-                        onClick    = { onBudgetSelected(tier.id) }
-                    )
+                Text(
+                    text = "₹10,000",
+                    fontFamily = DmSansFontFamily,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "₹2,00,000+",
+                    fontFamily = DmSansFontFamily,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Quick Preset Budget Chips
+            val quickPresets = listOf(10000f, 25000f, 50000f, 100000f)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                quickPresets.forEach { preset ->
+                    val isSelected = budget == preset
+                    val chipBg = if (isSelected) Amber.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                    val chipBorder = if (isSelected) Amber else Color.Transparent
+                    val chipTextColor = if (isSelected) Amber else MaterialTheme.colorScheme.onSurface
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(chipBg)
+                            .border(1.dp, chipBorder, RoundedCornerShape(10.dp))
+                            .clickable { onBudgetChange(preset) }
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = formatInr(preset),
+                            fontFamily = DmSansFontFamily,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            fontSize = 12.sp,
+                            color = chipTextColor
+                        )
+                    }
                 }
             }
         }
     }
 }
 
-@Composable
-private fun BudgetTierCard(
-    tier: BudgetTier,
-    isSelected: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    val bgColor by animateColorAsState(
-        targetValue   = if (isSelected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant,
-        animationSpec = tween(250), label = "budgetBg"
-    )
-    val borderColor by animateColorAsState(
-        targetValue   = if (isSelected) Amber else Color.Transparent,
-        animationSpec = tween(250), label = "budgetBorder"
-    )
-    val scale by animateFloatAsState(
-        targetValue   = if (isSelected) 1.03f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-        label         = "budgetScale"
-    )
-
-    Column(
-        modifier = modifier
-            .scale(scale)
-            .clip(RoundedCornerShape(16.dp))
-            .background(bgColor)
-            .border(1.5.dp, borderColor, RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(text = tier.emoji, fontSize = 26.sp)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text       = tier.label,
-            fontFamily = DmSansFontFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize   = 13.sp,
-            color      = if (isSelected) Amber else MaterialTheme.colorScheme.onSurface
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text       = tier.subLabel,
-            fontFamily = DmSansFontFamily,
-            fontWeight = FontWeight.Medium,
-            fontSize   = 11.sp,
-            color      = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+private fun formatInr(amount: Float): String {
+    val intVal = amount.toInt()
+    return try {
+        val format = NumberFormat.getIntegerInstance(Locale.forLanguageTag("en-IN"))
+        "₹" + format.format(intVal)
+    } catch (_: Exception) {
+        "₹$intVal"
     }
 }
 
