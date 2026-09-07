@@ -86,7 +86,7 @@ class UserPreferencesRepositoryImpl @Inject constructor(
             currency            = this[Keys.CURRENCY]            ?: "INR",
             themeMode           = this[Keys.THEME_MODE]          ?: "Device Theme",
             defaultBudget       = this[Keys.DEFAULT_BUDGET]      ?: 25000.0,
-            ollamaModel         = this[Keys.OLLAMA_MODEL]        ?: "llama3.2",
+            ollamaModel         = this[Keys.OLLAMA_MODEL]        ?: "qwen3.5:4b",
             ollamaBaseUrl       = this[Keys.OLLAMA_BASE_URL]     ?: "http://10.0.2.2:11434/",
             preferredActivities = this[Keys.PREFERRED_ACTIVITIES]
                 ?.split(",")?.filter { it.isNotBlank() } ?: emptyList()

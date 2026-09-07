@@ -403,7 +403,7 @@ fun PlanScreen(
                 }
 
                 GenerateTripButton(
-                    enabled       = destination.isNotBlank() && originQuery.isNotBlank() && !isGenerating,
+                    enabled       = destination.isNotBlank() && originQuery.isNotBlank() && tripDays != null && !isGenerating,
                     isLoading     = isGenerating,
                     loadingText   = generatingStep,
                     onClick = {
@@ -411,9 +411,11 @@ fun PlanScreen(
                             if (additionalNotes.isNotBlank()) "Starting from: $originQuery. $additionalNotes" else "Starting from: $originQuery"
                         } else additionalNotes
 
+                        val durationDays = checkNotNull(tripDays) { "Trip duration is mandatory" }
+
                         viewModel.generateItinerary(
                             destination  = destination,
-                            days         = tripDays ?: 5,
+                            days         = durationDays,
                             budget       = when (selectedBudget) {
                                 "budget"    -> 4000.0
                                 "mid_range" -> 10000.0

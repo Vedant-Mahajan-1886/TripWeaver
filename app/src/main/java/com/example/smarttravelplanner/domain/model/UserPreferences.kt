@@ -19,7 +19,7 @@ data class UserPreferences(
     val themeMode: String = "Device Theme",
     val preferredActivities: List<String> = emptyList(),
     val defaultBudget: Double = 25000.0,
-    val ollamaModel: String = "llama3.2",
+    val ollamaModel: String = "qwen3.5:4b",
     // For physical device: replace with your laptop's LAN IP
     val ollamaBaseUrl: String = "http://10.0.2.2:11434/"
 ) {

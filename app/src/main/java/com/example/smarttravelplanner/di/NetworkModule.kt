@@ -39,7 +39,7 @@ object NetworkModule {
         return OkHttpClient.Builder()
             .addInterceptor(logging)
             .connectTimeout(60, TimeUnit.SECONDS)   // LLM responses can be slow
-            .readTimeout(120, TimeUnit.SECONDS)
+            .readTimeout(240, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
             .build()
     }

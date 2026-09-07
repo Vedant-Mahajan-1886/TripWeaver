@@ -50,7 +50,8 @@ class AiRepositoryImpl @Inject constructor(
         Rules:
         - Use REAL place names that exist at the destination.
         - Provide accurate lat/lng coordinates for each place.
-        - Each day should have 3-5 activities (morning, afternoon, evening).
+        - Each day should have 3 activities (morning, afternoon, evening).
+        - Keep descriptions concise (1 short sentence).
         - estimated_cost_inr should be realistic for India.
         - Spread activities sensibly across the day with realistic timings.
         - The "theme" for each day should be a short engaging title.
@@ -105,26 +106,45 @@ class AiRepositoryImpl @Inject constructor(
                     OllamaMessage(role = "system", content = itinerarySystemPrompt),
                     OllamaMessage(role = "user",   content = userMessage)
                 ),
-                stream = false,
-                format = "json"
+                stream  = false,
+                format  = "json",
+                think   = false,
+                options = mapOf(
+                    "num_ctx" to 8192,
+                    "num_predict" to 4096,
+                    "temperature" to 0.7
+                )
             )
         )
 
-        val raw = response.message?.content
-            ?: error("Empty response from AI model")
+        val raw = (response.message?.content?.takeIf { it.isNotBlank() }
+            ?: response.message?.thinking?.takeIf { it.isNotBlank() })
+            ?: error("Empty response from AI model '$model'. Make sure Ollama is running and the model is loaded.")
 
-        // Strip markdown code fences if the model wraps the JSON anyway
-        val cleaned = raw
-            .removePrefix("```json").removePrefix("```")
-            .removeSuffix("```")
-            .trim()
+        // 1. Remove <think>...</think> block if model emitted reasoning tags
+        val noThinking = raw.replace(Regex("<think>[\\s\\S]*?</think>"), "").trim()
+
+        // 2. Extract JSON object from first '{' to last '}'
+        val firstBrace = noThinking.indexOf('{')
+        val lastBrace  = noThinking.lastIndexOf('}')
+        val cleaned = if (firstBrace != -1 && lastBrace != -1 && lastBrace > firstBrace) {
+            noThinking.substring(firstBrace, lastBrace + 1)
+        } else {
+            noThinking.removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+        }
+
+        if (cleaned.isBlank()) {
+            error("AI model '$model' returned an empty response. Please try again or switch model.")
+        }
 
         try {
-            val dto = gson.fromJson(cleaned, GeneratedItineraryDto::class.java)
-            if (dto.days.isEmpty()) error("AI returned empty itinerary — try again")
+            val dto = tryParseOrRepairItineraryJson(cleaned)
+            if (dto.days.isNullOrEmpty()) {
+                error("AI returned an itinerary with 0 days — please try again.")
+            }
             dto
         } catch (e: JsonSyntaxException) {
-            error("AI response could not be parsed. Please try again. (${e.message})")
+            error("AI response could not be parsed as JSON: ${e.message}")
         }
     } }
 
@@ -138,12 +158,68 @@ class AiRepositoryImpl @Inject constructor(
                         OllamaMessage(role = "system", content = chatSystemPrompt),
                         OllamaMessage(role = "user",   content = userMessage)
                     ),
-                    stream = false
-                    // No format = "json" here — freeform chat response is fine
+                    stream = false,
+                    think  = false
                 )
             )
-            response.message?.content ?: error("Empty response from AI")
+            val content = (response.message?.content?.takeIf { it.isNotBlank() }
+                ?: response.message?.thinking?.takeIf { it.isNotBlank() })
+                ?: error("Empty response from AI")
+            content.replace(Regex("<think>[\\s\\S]*?</think>"), "").trim()
         }
+    }
+
+    // ── Helper: Robust JSON parser with auto-repair for truncated output ─────
+    private fun tryParseOrRepairItineraryJson(jsonStr: String): GeneratedItineraryDto {
+        // Attempt 1: Direct standard parse
+        try {
+            val dto = gson.fromJson(jsonStr, GeneratedItineraryDto::class.java)
+            if (dto != null && !dto.days.isNullOrEmpty()) return dto
+        } catch (_: Exception) { }
+
+        // Attempt 2: If truncated (EOFException / unclosed object/array), auto-close braces
+        try {
+            var candidate = jsonStr.trim()
+            val quoteCount = candidate.count { it == '"' }
+            if (quoteCount % 2 != 0) {
+                val lastQuote = candidate.lastIndexOf('"')
+                if (lastQuote != -1) {
+                    candidate = candidate.substring(0, lastQuote)
+                }
+            }
+            candidate = candidate.trim().trimEnd(',', ':', '{', '[')
+
+            var openBraces = candidate.count { it == '{' } - candidate.count { it == '}' }
+            var openBrackets = candidate.count { it == '[' } - candidate.count { it == ']' }
+
+            val sb = StringBuilder(candidate)
+            while (openBrackets > 0) {
+                sb.append("]")
+                openBrackets--
+            }
+            while (openBraces > 0) {
+                sb.append("}")
+                openBraces--
+            }
+
+            val repaired = sb.toString()
+            val dto = gson.fromJson(repaired, GeneratedItineraryDto::class.java)
+            if (dto != null && !dto.days.isNullOrEmpty()) return dto
+        } catch (_: Exception) { }
+
+        // Attempt 3: Slice to last complete day object
+        try {
+            val lastDayEnd = jsonStr.lastIndexOf("},")
+            if (lastDayEnd != -1) {
+                val candidate = jsonStr.substring(0, lastDayEnd + 1).trim() + "]}"
+                val dto = gson.fromJson(candidate, GeneratedItineraryDto::class.java)
+                if (dto != null && !dto.days.isNullOrEmpty()) return dto
+            }
+        } catch (_: Exception) { }
+
+        // Final attempt: rethrow standard parse exception so user gets detailed syntax error
+        return gson.fromJson(jsonStr, GeneratedItineraryDto::class.java)
+            ?: error("AI model returned an empty or invalid JSON structure.")
     }
 }
 
