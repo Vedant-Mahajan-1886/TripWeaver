@@ -28,7 +28,8 @@ class GenerateTripUseCase @Inject constructor(
     private val aiRepository: AiRepository,
     private val tripRepository: TripRepository,
     private val itineraryRepository: ItineraryRepository,
-    private val photoRepository: PhotoRepository
+    private val photoRepository: PhotoRepository,
+    private val getWeatherForTripUseCase: GetWeatherForTripUseCase
 ) {
     suspend operator fun invoke(
         destination: String,
@@ -43,23 +44,32 @@ class GenerateTripUseCase @Inject constructor(
         runCatching {
 
         val startDateStr = startDate?.toString() ?: ""
-
-        // Step 1 — Generate structured itinerary from AI
-        val dto = aiRepository.generateItinerary(
-            destination  = destination,
-            days         = days,
-            budget       = budget,
-            interests    = interests,
-            travelStyle  = travelStyle,
-            startDate    = startDateStr,
-            notes        = notes,
-            model        = model
-        ).getOrThrow()
-
-        // Step 2 — Build Trip domain object and persist it
         val resolvedStart = startDate ?: LocalDate.now()
         val resolvedEnd   = resolvedStart.plusDays((days - 1).toLong().coerceAtLeast(0))
 
+        // Step 1 — Pre-fetch weather forecast if available (graceful fallback if offline/out of horizon)
+        val weatherForecast = runCatching {
+            getWeatherForTripUseCase.getForDestination(
+                destination = destination,
+                startDate   = resolvedStart,
+                endDate     = resolvedEnd
+            ).getOrNull()
+        }.getOrNull()?.takeIf { it.isNotEmpty() }
+
+        // Step 2 — Generate structured weather-aware itinerary from AI
+        val dto = aiRepository.generateItinerary(
+            destination     = destination,
+            days            = days,
+            budget          = budget,
+            interests       = interests,
+            travelStyle     = travelStyle,
+            startDate       = startDateStr,
+            notes           = notes,
+            model           = model,
+            weatherForecast = weatherForecast
+        ).getOrThrow()
+
+        // Step 3 — Build Trip domain object and persist it
         val coverImageUrl = if (!DestinationImageHelper.hasLocalDrawable(destination)) {
             photoRepository.getDestinationPhotoUrl(destination).getOrDefault("")
         } else {

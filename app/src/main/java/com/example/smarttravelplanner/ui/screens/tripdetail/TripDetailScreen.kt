@@ -523,6 +523,24 @@ private fun ActivityCard(activity: Activity, isLast: Boolean) {
                 // Weather note
                 if (!activity.weatherNote.isNullOrBlank()) {
                     Spacer(Modifier.height(8.dp))
+                    val noteEmoji = when {
+                        activity.weatherNote.contains("golden hour", ignoreCase = true) ||
+                        activity.weatherNote.contains("sunrise", ignoreCase = true) ||
+                        activity.weatherNote.contains("sunset", ignoreCase = true) -> "🌅"
+                        activity.weatherNote.contains("altitude", ignoreCase = true) ||
+                        activity.weatherNote.contains("mountain", ignoreCase = true) ||
+                        activity.weatherNote.contains("hill", ignoreCase = true) -> "🏔️"
+                        activity.weatherNote.contains("rain", ignoreCase = true) ||
+                        activity.weatherNote.contains("umbrella", ignoreCase = true) ||
+                        activity.weatherNote.contains("storm", ignoreCase = true) ||
+                        activity.weatherNote.contains("drizzle", ignoreCase = true) -> "🌧️"
+                        activity.weatherNote.contains("heat", ignoreCase = true) ||
+                        activity.weatherNote.contains("sun", ignoreCase = true) -> "☀️"
+                        activity.weatherNote.contains("cold", ignoreCase = true) ||
+                        activity.weatherNote.contains("chilly", ignoreCase = true) ||
+                        activity.weatherNote.contains("snow", ignoreCase = true) -> "❄️"
+                        else -> "🌤️"
+                    }
                     Surface(
                         color = Color(0xFF1C2D40),
                         shape = RoundedCornerShape(8.dp)
@@ -532,7 +550,7 @@ private fun ActivityCard(activity: Activity, isLast: Boolean) {
                             verticalAlignment      = Alignment.CenterVertically,
                             horizontalArrangement  = Arrangement.spacedBy(6.dp)
                         ) {
-                            Text("🌤️", fontSize = 14.sp)
+                            Text(noteEmoji, fontSize = 14.sp)
                             Text(
                                 text     = activity.weatherNote,
                                 fontSize = 12.sp,

@@ -4,6 +4,8 @@ import com.example.smarttravelplanner.data.remote.api.OllamaApi
 import com.example.smarttravelplanner.data.remote.dto.GeneratedItineraryDto
 import com.example.smarttravelplanner.data.remote.dto.OllamaChatRequest
 import com.example.smarttravelplanner.data.remote.dto.OllamaMessage
+import com.example.smarttravelplanner.domain.model.DayWeather
+import com.example.smarttravelplanner.domain.util.WeatherPromptFormatter
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 import kotlinx.coroutines.Dispatchers
@@ -54,7 +56,17 @@ class AiRepositoryImpl @Inject constructor(
         - Keep descriptions concise (1 short sentence).
         - estimated_cost_inr should be realistic for India.
         - Spread activities sensibly across the day with realistic timings.
-        - The "theme" for each day should be a short engaging title.
+        - Weather-Aware Planning & "weather_note" Guidelines:
+          * When forecasted weather is provided, intelligently align activities (e.g. prioritize indoor museums/galleries during rain, schedule outdoor sightseeing and viewpoints during clear skies, avoid mid-day sun during extreme heat).
+          * SELECTIVE "weather_note" (CRITICAL):
+            - ONLY provide a "weather_note" when it is genuinely necessary or helpful for that specific activity.
+            - Do NOT force a weather note on every activity! Set "weather_note": null for standard indoor activities, dining, hotel stays/check-ins, or where weather has no notable impact.
+            - Use natural, practical notes only where relevant, such as:
+              • "Clear skies expected for golden hour" (for sunrise/sunset/viewpoints/outdoor photography)
+              • "Cool temperatures due to altitude" (for hills/mountains/high elevations)
+              • "Carry umbrella — rain showers likely in afternoon" (for outdoor rainy activities)
+              • "Visit early to avoid peak afternoon sun and heat" (for open-air forts/monuments/walking tours)
+              • "Pleasant evening breeze ideal for strolls" (for lakefront/beach/gardens)
     """.trimIndent()
 
     // ── System prompt for general chat ────────────────────────────────────────
@@ -73,7 +85,8 @@ class AiRepositoryImpl @Inject constructor(
         travelStyle: String,
         startDate: String,
         notes: String,
-        model: String
+        model: String,
+        weatherForecast: List<DayWeather>?
     ): Result<GeneratedItineraryDto> = withContext(Dispatchers.IO) {
         runCatching {
 
@@ -87,6 +100,9 @@ class AiRepositoryImpl @Inject constructor(
             "Trip starts on $startDate and lasts exactly $days days (inclusive of both departure and final return day). You MUST generate a full day plan for each day from Day 1 to Day $days."
         } else ""
         val notesContext = if (notes.isNotBlank()) "Special instructions: $notes" else ""
+        val weatherContext = weatherForecast?.takeIf { it.isNotEmpty() }?.let {
+            "\n" + WeatherPromptFormatter.formatForAiPrompt(it)
+        } ?: ""
 
         val userMessage = """
             Create a $days-day travel itinerary for $destination.
@@ -95,6 +111,7 @@ class AiRepositoryImpl @Inject constructor(
             Travel style: $styleDesc
             $dateContext
             $notesContext
+            $weatherContext
             
             Return the complete itinerary as a JSON object matching the schema exactly.
         """.trimIndent()

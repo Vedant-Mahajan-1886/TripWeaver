@@ -4,7 +4,6 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.smarttravelplanner.data.repository.PhotoRepository
-import com.example.smarttravelplanner.data.repository.PlacesRepository
 import com.example.smarttravelplanner.data.repository.TripRepository
 import com.example.smarttravelplanner.domain.usecase.GetTripDetailUseCase
 import com.example.smarttravelplanner.domain.usecase.GetWeatherForTripUseCase
@@ -15,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 import javax.inject.Inject
 
 @HiltViewModel
@@ -22,7 +22,6 @@ class TripDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val getTripDetailUseCase: GetTripDetailUseCase,
     private val getWeatherForTripUseCase: GetWeatherForTripUseCase,
-    private val placesRepository: PlacesRepository,
     private val photoRepository: PhotoRepository,
     private val tripRepository: TripRepository
 ) : ViewModel() {
@@ -74,22 +73,19 @@ class TripDetailViewModel @Inject constructor(
                 }
             }
 
-            // Geocode destination and fetch real-time weather (Open-Meteo)
-            val coords = placesRepository.geocodeDestination(trip.destination)
-                .getOrDefault(Pair(28.6139, 77.2090))
+            // Fetch real-time weather (Open-Meteo)
             loadWeather(
-                lat       = coords.first,
-                lng       = coords.second,
-                startDate = trip.startDate.toString(),
-                endDate   = trip.endDate.toString()
+                destination = trip.destination,
+                startDate   = trip.startDate,
+                endDate     = trip.endDate
             )
         }
     }
 
-    private fun loadWeather(lat: Double, lng: Double, startDate: String, endDate: String) {
+    private fun loadWeather(destination: String, startDate: LocalDate, endDate: LocalDate) {
         viewModelScope.launch(Dispatchers.IO) {
             _uiState.update { it.copy(isLoadingWeather = true) }
-            getWeatherForTripUseCase(lat, lng, startDate, endDate)
+            getWeatherForTripUseCase.getForDestination(destination, startDate, endDate)
                 .onSuccess { weather ->
                     _uiState.update { it.copy(weather = weather, isLoadingWeather = false) }
                 }
