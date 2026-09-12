@@ -146,14 +146,14 @@ fun TripMapView(
                     Polyline(
                         points = routeToDraw,
                         color = Color(0xFF0F172A).copy(alpha = 0.5f),
-                        width = 8f,
+                        width = 10f,
                         geodesic = true
                     )
                     // Vibrant Amber main route path (thin, sleek stroke)
                     Polyline(
                         points = routeToDraw,
                         color = Amber,
-                        width = 5f,
+                        width = 6f,
                         geodesic = true
                     )
                 }
