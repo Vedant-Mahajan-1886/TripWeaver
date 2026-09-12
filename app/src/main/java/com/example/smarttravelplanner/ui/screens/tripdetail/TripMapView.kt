@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.smarttravelplanner.data.remote.api.RouteService
 import com.example.smarttravelplanner.domain.model.Activity
 import com.example.smarttravelplanner.domain.model.ActivityCategory
 import com.example.smarttravelplanner.domain.model.Itinerary
@@ -46,6 +47,21 @@ fun TripMapView(
     val activities = itinerary?.activities.orEmpty()
     val validPoints = remember(activities) {
         MapUtils.getValidActivityPoints(activities)
+    }
+
+    // Real street road routing points (following actual city roads 1 -> 2 -> 3 -> ...)
+    var streetRoutePoints by remember(itinerary?.id, validPoints) {
+        mutableStateOf<List<LatLng>>(emptyList())
+    }
+
+    LaunchedEffect(validPoints) {
+        if (validPoints.size > 1) {
+            val coords = validPoints.map { it.second }
+            val roadPoints = RouteService.getStreetRoute(coords)
+            streetRoutePoints = roadPoints
+        } else {
+            streetRoutePoints = emptyList()
+        }
     }
 
     // Determine initial camera focus
@@ -123,15 +139,25 @@ fun TripMapView(
                     onActivitySelected(null)
                 }
             ) {
-                // Draw route Polyline between sequential stops
-                if (validPoints.size > 1) {
+                // Draw real street-level driving route following actual roads between sequential stops
+                val routeToDraw = if (streetRoutePoints.isNotEmpty()) streetRoutePoints else validPoints.map { it.second }
+                if (routeToDraw.size > 1) {
+                    // Underlay outline casing for crisp contrast on both normal and satellite maps
                     Polyline(
-                        points = validPoints.map { it.second },
+                        points = routeToDraw,
+                        color = Color(0xFF0F172A).copy(alpha = 0.5f),
+                        width = 8f,
+                        geodesic = true
+                    )
+                    // Vibrant Amber main route path (thin, sleek stroke)
+                    Polyline(
+                        points = routeToDraw,
                         color = Amber,
-                        width = 12f,
+                        width = 5f,
                         geodesic = true
                     )
                 }
+
 
                 // Draw custom numbered marker pins for each activity
                 validPoints.forEachIndexed { index, (act, latLng) ->
