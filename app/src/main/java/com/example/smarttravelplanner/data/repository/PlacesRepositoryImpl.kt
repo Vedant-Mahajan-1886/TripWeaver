@@ -18,9 +18,35 @@ class PlacesRepositoryImpl @Inject constructor() : PlacesRepository {
         "manali" to Pair(32.2432, 77.1892),
         "rishikesh" to Pair(30.0869, 78.2676),
         "alleppey" to Pair(9.4981, 76.3388),
+        "alappuzha" to Pair(9.4981, 76.3388),
         "srinagar" to Pair(34.0837, 74.7973),
-        "amritsar" to Pair(31.6340, 74.8723)
+        "amritsar" to Pair(31.6340, 74.8723),
+        "bangalore" to Pair(12.9716, 77.5946),
+        "bengaluru" to Pair(12.9716, 77.5946),
+        "hyderabad" to Pair(17.3850, 78.4867),
+        "chennai" to Pair(13.0827, 80.2707),
+        "kolkata" to Pair(22.5726, 88.3639),
+        "shimla" to Pair(31.1048, 77.1734),
+        "darjeeling" to Pair(27.0410, 88.2663),
+        "ooty" to Pair(11.4102, 76.6950),
+        "munnar" to Pair(10.0889, 77.0595),
+        "kochi" to Pair(9.9312, 76.2673),
+        "pondicherry" to Pair(11.9416, 79.8083),
+        "puducherry" to Pair(11.9416, 79.8083),
+        "leh" to Pair(34.1526, 77.5771),
+        "ladakh" to Pair(34.1526, 77.5771),
+        "hampi" to Pair(15.3350, 76.4600),
+        "jodhpur" to Pair(26.2389, 73.0243),
+        "jaisalmer" to Pair(26.9157, 70.9083),
+        "mysore" to Pair(12.2958, 76.6394),
+        "mysuru" to Pair(12.2958, 76.6394),
+        "kashmir" to Pair(34.0837, 74.7973),
+        "andaman" to Pair(11.6234, 92.7265),
+        "port blair" to Pair(11.6234, 92.7265),
+        "gangtok" to Pair(27.3389, 88.6065),
+        "shillong" to Pair(25.5788, 91.8933)
     )
+
 
     override suspend fun searchPlacesNearby(
         destination: String,

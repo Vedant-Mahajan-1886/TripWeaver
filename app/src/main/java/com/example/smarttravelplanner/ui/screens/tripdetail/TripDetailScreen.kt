@@ -62,9 +62,11 @@ fun TripDetailScreen(
                 onRetry   = onBackClick
             )
             uiState.trip != null -> TripDetailContent(
-                uiState      = uiState,
-                onBackClick  = onBackClick,
-                onDaySelect  = { viewModel.selectDay(it) }
+                uiState            = uiState,
+                onBackClick        = onBackClick,
+                onDaySelect        = { viewModel.selectDay(it) },
+                onViewModeSelect   = { viewModel.setViewMode(it) },
+                onActivitySelect   = { viewModel.selectActivity(it) }
             )
         }
     }
@@ -77,92 +79,227 @@ fun TripDetailScreen(
 private fun TripDetailContent(
     uiState: TripDetailUiState,
     onBackClick: () -> Unit,
-    onDaySelect: (Int) -> Unit
+    onDaySelect: (Int) -> Unit,
+    onViewModeSelect: (TripDetailViewMode) -> Unit,
+    onActivitySelect: (Long?) -> Unit
 ) {
     val trip        = uiState.trip!!
     val itineraries = uiState.itineraries
     val weather     = uiState.weather
+    val context     = LocalContext.current
 
-    LazyColumn(
-        modifier            = Modifier.fillMaxSize(),
-        contentPadding      = PaddingValues(bottom = 40.dp)
-    ) {
+    when (uiState.viewMode) {
+        TripDetailViewMode.TIMELINE -> {
+            LazyColumn(
+                modifier       = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 40.dp)
+            ) {
+                // Hero
+                item {
+                    HeroSection(trip = trip, onBackClick = onBackClick)
+                }
 
-        // ── Hero section ──────────────────────────────────────────────────────
-        item {
-            HeroSection(trip = trip, onBackClick = onBackClick)
-        }
+                // Summary Chips
+                item {
+                    TripSummaryChips(trip = trip)
+                    Spacer(Modifier.height(14.dp))
+                }
 
-        // ── Trip summary chips ────────────────────────────────────────────────
-        item {
-            TripSummaryChips(trip = trip)
-            Spacer(Modifier.height(16.dp))
-        }
-
-        // ── Weather strip (if available) ──────────────────────────────────────
-        if (weather.isNotEmpty()) {
-            item {
-                WeatherStrip(
-                    weather          = weather,
-                    selectedIndex    = uiState.selectedDayIndex
-                )
-                Spacer(Modifier.height(16.dp))
-            }
-        } else if (uiState.isLoadingWeather) {
-            item {
-                WeatherLoadingStrip()
-                Spacer(Modifier.height(16.dp))
-            }
-        }
-
-        // ── Day selector tabs ─────────────────────────────────────────────────
-        if (itineraries.isNotEmpty()) {
-            item {
-                DayTabs(
-                    itineraries   = itineraries,
-                    selectedIndex = uiState.selectedDayIndex,
-                    onTabSelect   = onDaySelect
-                )
-                Spacer(Modifier.height(8.dp))
-            }
-
-            // ── Activities for selected day ───────────────────────────────────
-            val selected = uiState.selectedItinerary
-            if (selected != null) {
-                if (selected.activities.isEmpty()) {
+                // Weather
+                if (weather.isNotEmpty()) {
                     item {
-                        EmptyDayCard()
+                        WeatherStrip(
+                            weather       = weather,
+                            selectedIndex = uiState.selectedDayIndex
+                        )
+                        Spacer(Modifier.height(14.dp))
+                    }
+                } else if (uiState.isLoadingWeather) {
+                    item {
+                        WeatherLoadingStrip()
+                        Spacer(Modifier.height(14.dp))
+                    }
+                }
+
+                // 3-Way View Mode Selector
+                item {
+                    ViewModeSelector(
+                        selectedMode = uiState.viewMode,
+                        onModeSelect = onViewModeSelect
+                    )
+                    Spacer(Modifier.height(16.dp))
+                }
+
+                // Day Tabs & Activities
+                if (itineraries.isNotEmpty()) {
+                    item {
+                        DayTabs(
+                            itineraries   = itineraries,
+                            selectedIndex = uiState.selectedDayIndex,
+                            onTabSelect   = onDaySelect
+                        )
+                        Spacer(Modifier.height(12.dp))
+                    }
+
+                    val selected = uiState.selectedItinerary
+                    if (selected != null) {
+                        if (selected.activities.isEmpty()) {
+                            item { EmptyDayCard() }
+                        } else {
+                            itemsIndexed(
+                                items = selected.activities,
+                                key   = { _, activity -> activity.id }
+                            ) { idx, activity ->
+                                ActivityCard(
+                                    activity    = activity,
+                                    isLast      = idx == selected.activities.lastIndex,
+                                    onViewOnMap = {
+                                        onActivitySelect(activity.id)
+                                        onViewModeSelect(TripDetailViewMode.VISUALIZE)
+                                    },
+                                    onNavigate  = {
+                                        if (MapUtils.isValidCoord(activity.lat, activity.lng)) {
+                                            MapUtils.launchGoogleMapsDirections(
+                                                context = context,
+                                                lat     = activity.lat!!,
+                                                lng     = activity.lng!!,
+                                                label   = activity.location.ifBlank { activity.title }
+                                            )
+                                        }
+                                    }
+                                )
+                            }
+                        }
                     }
                 } else {
-                    itemsIndexed(
-                        items = selected.activities,
-                        key = { _, activity -> activity.id }
-                    ) { idx, activity ->
-                        ActivityCard(
-                            activity  = activity,
-                            isLast    = idx == selected.activities.lastIndex
-                        )
+                    item {
+                        Box(
+                            modifier         = Modifier.fillMaxWidth().padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = Amber)
+                        }
                     }
                 }
             }
-        } else {
-            item {
-                Box(
-                    modifier            = Modifier.fillMaxWidth().padding(32.dp),
-                    contentAlignment    = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = Amber)
+        }
+
+        TripDetailViewMode.VISUALIZE -> {
+            Column(modifier = Modifier.fillMaxSize()) {
+                HeroSection(trip = trip, onBackClick = onBackClick, compact = true)
+                Spacer(Modifier.height(8.dp))
+                ViewModeSelector(
+                    selectedMode = uiState.viewMode,
+                    onModeSelect = onViewModeSelect
+                )
+                Spacer(Modifier.height(10.dp))
+                if (itineraries.isNotEmpty()) {
+                    DayTabs(
+                        itineraries   = itineraries,
+                        selectedIndex = uiState.selectedDayIndex,
+                        onTabSelect   = onDaySelect
+                    )
+                    Spacer(Modifier.height(8.dp))
                 }
+                Box(modifier = Modifier.weight(1f)) {
+                    TripMapView(
+                        trip               = trip,
+                        itinerary          = uiState.selectedItinerary,
+                        selectedActivityId = uiState.selectedActivityId,
+                        hasMapsApiKey      = uiState.hasMapsApiKey,
+                        onActivitySelected = onActivitySelect,
+                        modifier           = Modifier.fillMaxSize()
+                    )
+                }
+            }
+        }
+
+        TripDetailViewMode.BUDGET -> {
+            Column(modifier = Modifier.fillMaxSize()) {
+                HeroSection(trip = trip, onBackClick = onBackClick, compact = true)
+                Spacer(Modifier.height(8.dp))
+                ViewModeSelector(
+                    selectedMode = uiState.viewMode,
+                    onModeSelect = onViewModeSelect
+                )
+                TripBudgetAllocationView(
+                    uiState  = uiState,
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  View Mode Selector (Timeline, Visualize, Budget Allocation)
+// ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun ViewModeSelector(
+    selectedMode: TripDetailViewMode,
+    onModeSelect: (TripDetailViewMode) -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            TripDetailViewMode.values().forEach { mode ->
+                val isSelected = mode == selectedMode
+                val (label, icon) = when (mode) {
+                    TripDetailViewMode.TIMELINE  -> "Timeline"          to Icons.Outlined.CalendarMonth
+                    TripDetailViewMode.VISUALIZE -> "Visualize"         to Icons.Outlined.Map
+                    TripDetailViewMode.BUDGET    -> "Budget Allocation" to Icons.Outlined.PieChart
+                }
+
+                Surface(
+                    onClick = { onModeSelect(mode) },
+                    shape   = RoundedCornerShape(12.dp),
+                    color   = if (isSelected) Amber else Color.Transparent,
+                    tonalElevation = if (isSelected) 3.dp else 0.dp,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Row(
+                        modifier            = Modifier.padding(vertical = 9.dp, horizontal = 4.dp),
+                        verticalAlignment   = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector        = icon,
+                            contentDescription = null,
+                            tint               = if (isSelected) BackgroundDark else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier           = Modifier.size(15.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text       = label,
+                            fontSize   = 11.5.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color      = if (isSelected) BackgroundDark else MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines   = 1,
+                            overflow   = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  Hero Section
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun HeroSection(trip: Trip, onBackClick: () -> Unit) {
+private fun HeroSection(trip: Trip, onBackClick: () -> Unit, compact: Boolean = false) {
     val context = LocalContext.current
     val imageModel = remember(trip.destination, trip.coverImageUrl) {
         DestinationImageHelper.getDestinationImage(trip.destination, trip.coverImageUrl)
@@ -178,7 +315,7 @@ private fun HeroSection(trip: Trip, onBackClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(280.dp)
+            .height(if (compact) 170.dp else 280.dp)
     ) {
         // High-res Destination Image (Coil AsyncImage)
         AsyncImage(
@@ -209,7 +346,7 @@ private fun HeroSection(trip: Trip, onBackClick: () -> Unit) {
         IconButton(
             onClick  = onBackClick,
             modifier = Modifier
-                .padding(16.dp)
+                .padding(12.dp)
                 .clip(CircleShape)
                 .background(Color.Black.copy(alpha = 0.45f))
         ) {
@@ -224,25 +361,28 @@ private fun HeroSection(trip: Trip, onBackClick: () -> Unit) {
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(horizontal = 20.dp, vertical = 20.dp)
+                .padding(horizontal = 16.dp, vertical = if (compact) 10.dp else 18.dp)
         ) {
             Text(
                 text       = trip.destination,
                 fontFamily = PlayfairFontFamily,
                 color      = Color.White,
-                fontSize   = 32.sp,
+                fontSize   = if (compact) 24.sp else 32.sp,
                 fontWeight = FontWeight.Bold
             )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text       = trip.title,
-                fontFamily = DmSansFontFamily,
-                color      = Color.White.copy(alpha = 0.85f),
-                fontSize   = 14.sp
-            )
+            if (!compact) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text       = trip.title,
+                    fontFamily = DmSansFontFamily,
+                    color      = Color.White.copy(alpha = 0.85f),
+                    fontSize   = 14.sp
+                )
+            }
         }
     }
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Trip Summary Chips
@@ -406,7 +546,12 @@ private fun DayTabs(
 //  Activity Card
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun ActivityCard(activity: Activity, isLast: Boolean) {
+private fun ActivityCard(
+    activity: Activity,
+    isLast: Boolean,
+    onViewOnMap: () -> Unit = {},
+    onNavigate: () -> Unit = {}
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -560,31 +705,98 @@ private fun ActivityCard(activity: Activity, isLast: Boolean) {
                     }
                 }
 
-                // Cost
-                if (activity.estimatedCost > 0) {
-                    Spacer(Modifier.height(8.dp))
-                    Row(
-                        verticalAlignment      = Alignment.CenterVertically,
-                        horizontalArrangement  = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            Icons.Outlined.CurrencyRupee,
-                            contentDescription = null,
-                            tint               = CompletedGreen,
-                            modifier           = Modifier.size(14.dp)
-                        )
+                // Bottom row: Cost + Map Actions
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier              = Modifier.fillMaxWidth(),
+                    verticalAlignment     = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    // Cost
+                    if (activity.estimatedCost > 0) {
+                        Row(
+                            verticalAlignment      = Alignment.CenterVertically,
+                            horizontalArrangement  = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                Icons.Outlined.CurrencyRupee,
+                                contentDescription = null,
+                                tint               = CompletedGreen,
+                                modifier           = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text     = "₹${activity.estimatedCost.toInt()} est.",
+                                fontSize = 12.sp,
+                                color    = CompletedGreen,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    } else {
                         Text(
-                            text     = "₹${activity.estimatedCost.toInt()} estimated",
+                            text     = "Free / Included",
                             fontSize = 12.sp,
-                            color    = CompletedGreen,
-                            fontWeight = FontWeight.Medium
+                            color    = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+
+                    // Map & Navigate actions if coordinates are available
+                    if (MapUtils.isValidCoord(activity.lat, activity.lng)) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment     = Alignment.CenterVertically
+                        ) {
+                            OutlinedButton(
+                                onClick        = onViewOnMap,
+                                shape          = RoundedCornerShape(20.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                modifier       = Modifier.height(30.dp),
+                                border         = BorderStroke(1.dp, Amber.copy(alpha = 0.6f))
+                            ) {
+                                Icon(
+                                    Icons.Outlined.Map,
+                                    contentDescription = null,
+                                    tint               = Amber,
+                                    modifier           = Modifier.size(13.dp)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    text       = "Map",
+                                    fontSize   = 11.sp,
+                                    color      = Amber,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+
+                            Button(
+                                onClick        = onNavigate,
+                                shape          = RoundedCornerShape(20.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                modifier       = Modifier.height(30.dp),
+                                colors         = ButtonDefaults.buttonColors(
+                                    containerColor = Amber,
+                                    contentColor   = BackgroundDark
+                                )
+                            ) {
+                                Icon(
+                                    Icons.Outlined.Directions,
+                                    contentDescription = null,
+                                    modifier           = Modifier.size(13.dp)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    text       = "Go",
+                                    fontSize   = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
     }
 }
+
 
 @Composable
 private fun CategoryBadge(category: ActivityCategory) {

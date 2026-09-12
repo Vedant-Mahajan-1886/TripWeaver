@@ -97,6 +97,15 @@ class TripDetailViewModel @Inject constructor(
     }
 
     fun selectDay(index: Int) {
-        _uiState.update { it.copy(selectedDayIndex = index) }
+        _uiState.update { it.copy(selectedDayIndex = index, selectedActivityId = null) }
+    }
+
+    fun setViewMode(mode: TripDetailViewMode) {
+        _uiState.update { it.copy(viewMode = mode) }
+    }
+
+    fun selectActivity(activityId: Long?) {
+        _uiState.update { it.copy(selectedActivityId = activityId) }
     }
 }
+

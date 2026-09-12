@@ -12,6 +12,20 @@ import okhttp3.OkHttpClient
 @HiltAndroidApp
 class SmartTravelPlannerApp : Application(), ImageLoaderFactory {
 
+    override fun onCreate() {
+        super.onCreate()
+        if (BuildConfig.MAPS_API_KEY.isNotBlank()) {
+            try {
+                if (!com.google.android.libraries.places.api.Places.isInitialized()) {
+                    com.google.android.libraries.places.api.Places.initializeWithNewPlacesApiEnabled(applicationContext, BuildConfig.MAPS_API_KEY)
+                }
+
+            } catch (e: Exception) {
+                android.util.Log.w("SmartTravelPlannerApp", "Places SDK init failed", e)
+            }
+        }
+    }
+
     override fun newImageLoader(): ImageLoader {
         val okHttpClient = OkHttpClient.Builder()
             .addInterceptor { chain ->
