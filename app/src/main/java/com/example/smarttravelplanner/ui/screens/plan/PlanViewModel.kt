@@ -3,6 +3,7 @@ package com.example.smarttravelplanner.ui.screens.plan
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.smarttravelplanner.data.repository.UserPreferencesRepository
+import com.example.smarttravelplanner.domain.model.UserPreferences
 import com.example.smarttravelplanner.domain.usecase.GenerateTripUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,12 +23,12 @@ class PlanViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<PlanUiState>(PlanUiState.Idle)
     val uiState = _uiState.asStateFlow()
 
-    /** User's Ollama settings loaded from DataStore */
+    /** User's AI and trip settings loaded from DataStore */
     val userPreferences = userPreferencesRepository.userPreferences
         .stateIn(
             scope        = viewModelScope,
             started      = SharingStarted.WhileSubscribed(5_000),
-            initialValue = com.example.smarttravelplanner.domain.model.UserPreferences()
+            initialValue = UserPreferences()
         )
 
     fun generateItinerary(
@@ -40,9 +41,25 @@ class PlanViewModel @Inject constructor(
         notes: String = ""
     ) {
         viewModelScope.launch {
-            val model = userPreferences.value.ollamaModel
+            val prefs = userPreferences.value
+            val isCloud = !prefs.aiProvider.equals("LOCAL", ignoreCase = true)
+            val model = if (isCloud) {
+                prefs.cloudModel.ifBlank { "gemini-3.1-flash-lite" }
+            } else {
+                prefs.ollamaModel.ifBlank { "qwen3.5:4b" }
+            }
 
-            _uiState.value = PlanUiState.GeneratingItinerary("Planning your itinerary with AI...")
+            val progressMessage = if (isCloud) {
+                if (prefs.enableWebGrounding) {
+                    "Planning with Gemini & checking real-time travel data..."
+                } else {
+                    "Planning your itinerary with Gemini AI ($model)..."
+                }
+            } else {
+                "Planning with local AI ($model)..."
+            }
+
+            _uiState.value = PlanUiState.GeneratingItinerary(progressMessage)
 
             generateTripUseCase(
                 destination  = destination,
@@ -57,9 +74,15 @@ class PlanViewModel @Inject constructor(
                 _uiState.value = PlanUiState.ItineraryGenerated(tripId)
             }.onFailure { e ->
                 _uiState.value = PlanUiState.Error(
-                    e.message ?: "Something went wrong. Make sure Ollama is running."
+                    e.message ?: "Failed to generate itinerary. Please check your AI settings and network connection."
                 )
             }
+        }
+    }
+
+    fun updatePreferences(transform: (UserPreferences) -> UserPreferences) {
+        viewModelScope.launch {
+            userPreferencesRepository.updatePreferences(transform)
         }
     }
 

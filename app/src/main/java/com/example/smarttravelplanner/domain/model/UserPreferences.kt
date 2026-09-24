@@ -19,6 +19,10 @@ data class UserPreferences(
     val themeMode: String = "Device Theme",
     val preferredActivities: List<String> = emptyList(),
     val defaultBudget: Double = 25000.0,
+    val aiProvider: String = "CLOUD", // "CLOUD", "LOCAL"
+    val cloudModel: String = "gemini-3.1-flash-lite", // "gemini-3.1-flash-lite" (default) | "gemini-3.6-flash" | "gemini-3.8-flash"
+    val enableWebGrounding: Boolean = false, // live Google Search grounding for flight surge & events
+    val cloudApiKey: String = "", // user custom API key (empty = use BuildConfig)
     val ollamaModel: String = "qwen3.5:4b",
     // For physical device: replace with your laptop's LAN IP
     val ollamaBaseUrl: String = "http://10.0.2.2:11434/"

@@ -65,7 +65,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.smarttravelplanner.ui.components.AiSettingsDialog
 import com.example.smarttravelplanner.ui.theme.*
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.CloudQueue
+import androidx.compose.material.icons.outlined.Terminal
 import com.example.smarttravelplanner.util.fetchCurrentCity
 import androidx.compose.material3.MaterialTheme
 import com.google.android.gms.location.LocationServices
@@ -166,6 +170,9 @@ fun PlanScreen(
     val isGenerating = uiState is PlanUiState.GeneratingItinerary
     val generatingStep = (uiState as? PlanUiState.GeneratingItinerary)?.step ?: ""
     val generationError = (uiState as? PlanUiState.Error)?.message
+
+    val userPreferences by viewModel.userPreferences.collectAsState()
+    var showAiSettingsDialog by remember { mutableStateOf(false) }
 
     // ── Origin city (editable) ────────────────────────────────────────────────
     var originQuery        by remember { mutableStateOf("") }
@@ -384,6 +391,99 @@ fun PlanScreen(
                         )
                     }
                     Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                // ── AI Engine Badge (Clickable to change settings) ──────────────
+                val isCloud = !userPreferences.aiProvider.equals("LOCAL", ignoreCase = true)
+                val activeModelName = if (isCloud) {
+                    when {
+                        userPreferences.cloudModel.contains("3.8") -> "Gemini 3.8 Flash"
+                        userPreferences.cloudModel.contains("3.6") -> "Gemini 3.6 Flash"
+                        else -> "Gemini 3.1 Flash-Lite"
+                    }
+                } else {
+                    "Ollama (${userPreferences.ollamaModel})"
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable { showAiSettingsDialog = true }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = if (isCloud) Icons.Outlined.CloudQueue else Icons.Outlined.Terminal,
+                                contentDescription = null,
+                                tint = Amber,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(
+                                    text = if (isCloud) "Cloud AI" else "Local AI",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "• $activeModelName",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                if (isCloud && userPreferences.enableWebGrounding) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = Amber.copy(alpha = 0.2f)
+                                    ) {
+                                        Text(
+                                            text = "Live Search",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Amber,
+                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Settings",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Amber
+                            )
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = "Settings",
+                                tint = Amber,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                if (showAiSettingsDialog) {
+                    AiSettingsDialog(
+                        prefs = userPreferences,
+                        onDismiss = { showAiSettingsDialog = false },
+                        onSave = { updated ->
+                            viewModel.updatePreferences { updated }
+                            Toast.makeText(context, "AI settings updated", Toast.LENGTH_SHORT).show()
+                        }
+                    )
                 }
 
                 GenerateTripButton(

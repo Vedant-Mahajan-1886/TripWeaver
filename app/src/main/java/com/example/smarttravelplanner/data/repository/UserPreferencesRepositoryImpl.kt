@@ -32,6 +32,10 @@ class UserPreferencesRepositoryImpl @Inject constructor(
         val CURRENCY            = stringPreferencesKey("currency")
         val THEME_MODE          = stringPreferencesKey("theme_mode")
         val DEFAULT_BUDGET      = doublePreferencesKey("default_budget")
+        val AI_PROVIDER         = stringPreferencesKey("ai_provider")
+        val CLOUD_MODEL         = stringPreferencesKey("cloud_model")
+        val ENABLE_WEB_GROUNDING = booleanPreferencesKey("enable_web_grounding")
+        val CLOUD_API_KEY       = stringPreferencesKey("cloud_api_key")
         val OLLAMA_MODEL        = stringPreferencesKey("ollama_model")
         val OLLAMA_BASE_URL     = stringPreferencesKey("ollama_base_url")
         val PREFERRED_ACTIVITIES = stringPreferencesKey("preferred_activities") // comma-separated
@@ -86,6 +90,10 @@ class UserPreferencesRepositoryImpl @Inject constructor(
             currency            = this[Keys.CURRENCY]            ?: "INR",
             themeMode           = this[Keys.THEME_MODE]          ?: "Device Theme",
             defaultBudget       = this[Keys.DEFAULT_BUDGET]      ?: 25000.0,
+            aiProvider          = this[Keys.AI_PROVIDER]         ?: "CLOUD",
+            cloudModel          = this[Keys.CLOUD_MODEL]         ?: "gemini-3.1-flash-lite",
+            enableWebGrounding  = this[Keys.ENABLE_WEB_GROUNDING] ?: false,
+            cloudApiKey         = this[Keys.CLOUD_API_KEY]       ?: "",
             ollamaModel         = this[Keys.OLLAMA_MODEL]        ?: "qwen3.5:4b",
             ollamaBaseUrl       = this[Keys.OLLAMA_BASE_URL]     ?: "http://10.0.2.2:11434/",
             preferredActivities = this[Keys.PREFERRED_ACTIVITIES]
@@ -111,6 +119,10 @@ class UserPreferencesRepositoryImpl @Inject constructor(
         this[Keys.CURRENCY]             = prefs.currency
         this[Keys.THEME_MODE]           = prefs.themeMode
         this[Keys.DEFAULT_BUDGET]       = prefs.defaultBudget
+        this[Keys.AI_PROVIDER]          = prefs.aiProvider
+        this[Keys.CLOUD_MODEL]          = prefs.cloudModel
+        this[Keys.ENABLE_WEB_GROUNDING] = prefs.enableWebGrounding
+        this[Keys.CLOUD_API_KEY]        = prefs.cloudApiKey
         this[Keys.OLLAMA_MODEL]         = prefs.ollamaModel
         this[Keys.OLLAMA_BASE_URL]      = prefs.ollamaBaseUrl
         this[Keys.PREFERRED_ACTIVITIES] = prefs.preferredActivities.joinToString(",")

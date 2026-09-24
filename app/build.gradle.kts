@@ -63,6 +63,12 @@ android {
             ?: (project.findProperty("GOOGLE_WEB_CLIENT_ID") as? String)
             ?: ""
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
+
+        // Gemini API key from local.properties
+        val geminiApiKey = properties.getProperty("GEMINI_API_KEY")
+            ?: (project.findProperty("GEMINI_API_KEY") as? String)
+            ?: ""
+        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
     }
 
     buildTypes {

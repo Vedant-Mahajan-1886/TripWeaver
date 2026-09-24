@@ -45,6 +45,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.example.smarttravelplanner.domain.model.UserPreferences
+import com.example.smarttravelplanner.ui.components.AiSettingsDialog
 import com.example.smarttravelplanner.ui.theme.Amber
 import com.example.smarttravelplanner.ui.theme.DmSansFontFamily
 import com.example.smarttravelplanner.ui.theme.PlayfairFontFamily
@@ -289,9 +290,13 @@ fun ProfileScreen(
         }
 
         if (showSettingsDialog) {
-            SettingsDialog(
+            AiSettingsDialog(
                 prefs = prefs,
-                onDismiss = { showSettingsDialog = false }
+                onDismiss = { showSettingsDialog = false },
+                onSave = { updatedPrefs ->
+                    viewModel.updatePreferences(updatedPrefs)
+                    Toast.makeText(context, "AI Settings saved", Toast.LENGTH_SHORT).show()
+                }
             )
         }
 
@@ -1122,53 +1127,4 @@ private fun NotificationToggleRow(
             )
         )
     }
-}
-
-@Composable
-private fun SettingsDialog(
-    prefs: UserPreferences,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surface,
-        title = {
-            Text(
-                text = "Settings",
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 18.sp
-            )
-        },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text("App Preferences", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text("Default Currency", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
-                        Text(prefs.currency, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text("AI Itinerary Engine", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
-                        Text(prefs.ollamaModel, color = Amber, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(containerColor = Amber)
-            ) {
-                Text("Close", color = Color(0xFF0F172A), fontWeight = FontWeight.Bold)
-            }
-        }
-    )
 }

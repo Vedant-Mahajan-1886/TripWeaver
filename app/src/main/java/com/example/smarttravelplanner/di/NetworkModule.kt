@@ -91,4 +91,20 @@ object NetworkModule {
     @Singleton
     fun provideWikipediaApi(@Named("wikipedia") retrofit: Retrofit): com.example.smarttravelplanner.data.remote.api.WikipediaApi =
         retrofit.create(com.example.smarttravelplanner.data.remote.api.WikipediaApi::class.java)
+
+    // ── Google Gemini Retrofit ────────────────────────────────────────────────
+    @Provides
+    @Singleton
+    @Named("gemini")
+    fun provideGeminiRetrofit(okHttpClient: OkHttpClient, gson: Gson): Retrofit =
+        Retrofit.Builder()
+            .baseUrl("https://generativelanguage.googleapis.com/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create(gson))
+            .build()
+
+    @Provides
+    @Singleton
+    fun provideGeminiApi(@Named("gemini") retrofit: Retrofit): com.example.smarttravelplanner.data.remote.api.GeminiApi =
+        retrofit.create(com.example.smarttravelplanner.data.remote.api.GeminiApi::class.java)
 }
