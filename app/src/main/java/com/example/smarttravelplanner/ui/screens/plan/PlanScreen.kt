@@ -654,8 +654,10 @@ private fun TripDateRangeSheet(
 private fun DateSummaryBar(state: DateRangePickerState) {
     val startDate = state.selectedStartDateMillis?.toLocalDate()
     val endDate   = state.selectedEndDateMillis?.toLocalDate()
-    val days      = if (startDate != null && endDate != null)
-        (endDate.toEpochDay() - startDate.toEpochDay()).toInt() else null
+    val days = if (startDate != null && endDate != null) {
+        val daysDiff = (endDate.toEpochDay() - startDate.toEpochDay()).toInt()
+        if (daysDiff >= 0) daysDiff + 1 else 1
+    } else null
 
     Row(
         modifier = Modifier
@@ -682,7 +684,7 @@ private fun DateSummaryBar(state: DateRangePickerState) {
                     .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
                 Text(
-                    text       = "$days DAYS",
+                    text       = if (days == 1) "1 DAY" else "$days DAYS",
                     fontSize   = 9.sp,
                     fontFamily = DmSansFontFamily,
                     fontWeight = FontWeight.Bold,

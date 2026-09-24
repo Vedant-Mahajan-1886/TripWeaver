@@ -390,7 +390,8 @@ private fun HeroSection(trip: Trip, onBackClick: () -> Unit, compact: Boolean = 
 @Composable
 private fun TripSummaryChips(trip: Trip) {
     val fmt = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
-    val days = (trip.endDate.toEpochDay() - trip.startDate.toEpochDay()).toInt()
+    val daysDiff = (trip.endDate.toEpochDay() - trip.startDate.toEpochDay()).toInt()
+    val days = if (daysDiff >= 0) daysDiff + 1 else 1
 
     LazyRow(
         contentPadding      = PaddingValues(horizontal = 16.dp),
@@ -400,7 +401,7 @@ private fun TripSummaryChips(trip: Trip) {
             SummaryChip(Icons.Outlined.CalendarMonth,
                 "${trip.startDate.format(fmt)} – ${trip.endDate.format(fmt)}")
         }
-        item { SummaryChip(Icons.Outlined.Schedule, "$days days") }
+        item { SummaryChip(Icons.Outlined.Schedule, if (days == 1) "1 day" else "$days days") }
         item { SummaryChip(Icons.Outlined.CurrencyRupee, "₹${trip.budget.toInt()}") }
         if (trip.interests.isNotEmpty()) {
             item { SummaryChip(Icons.Outlined.Interests, trip.interests.take(2).joinToString(", ")) }
