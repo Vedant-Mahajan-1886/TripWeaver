@@ -1,11 +1,13 @@
 package com.example.smarttravelplanner.ui.screens.explore
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -20,11 +22,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -298,36 +305,29 @@ fun ExploreScreen(
         }
     }
 
+    val listState = rememberLazyListState()
+    val scrollOffsetProvider: () -> Float = remember {
+        {
+            if (listState.firstVisibleItemIndex > 0) {
+                1000f
+            } else {
+                listState.firstVisibleItemScrollOffset.toFloat()
+            }
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 24.dp)
         ) {
             item {
-                Spacer(modifier = Modifier.height(16.dp))
-                // Hamburger Menu
-                Box(
-                    modifier = Modifier
-                        .padding(horizontal = 20.dp)
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surface)
-                        .clickable { onMenuClick() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Menu,
-                        contentDescription = "Menu",
-                        tint = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(68.dp))
 
                 // Search Bar + From Selector Row
                 val cities = listOf("New Delhi", "Mumbai", "Bangalore", "Chennai", "Kolkata", "Hyderabad")
@@ -368,7 +368,7 @@ fun ExploreScreen(
                                     Icon(
                                         imageVector = Icons.Default.KeyboardArrowDown,
                                         contentDescription = "Select City",
-                                        tint = Color.White,
+                                        tint = MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
@@ -380,10 +380,10 @@ fun ExploreScreen(
                             onDismissRequest = { showCityMenu = false },
                             offset = DpOffset(x = 0.dp, y = 8.dp),
                             shape = RoundedCornerShape(20.dp),
-                            containerColor = Color(0xFF161E2E),
+                            containerColor = MaterialTheme.colorScheme.surface,
                             modifier = Modifier
                                 .width(340.dp)
-                                .background(Color(0xFF161E2E), RoundedCornerShape(20.dp))
+                                .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(20.dp))
                         ) {
                             cities.forEachIndexed { index, city ->
                                 val isSelected = city == selectedCity
@@ -400,13 +400,13 @@ fun ExploreScreen(
                                         text = city,
                                         fontFamily = DmSansFontFamily,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                                        color = if (isSelected) Amber else Color.White,
+                                        color = if (isSelected) Amber else MaterialTheme.colorScheme.onSurface,
                                         fontSize = 15.sp
                                     )
                                 }
                                 if (index < cities.lastIndex) {
                                     HorizontalDivider(
-                                        color = Color(0xFF222B3C),
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                                         thickness = 0.8.dp
                                     )
                                 }
@@ -581,6 +581,88 @@ fun ExploreScreen(
                     ExploreDestinationCard(destination = dest)
                     Spacer(modifier = Modifier.height(16.dp))
                 }
+            }
+        }
+
+        // ── Pinned TopBar with Hamburger & Scrolled Right-Aligned "Explore India" Title ──
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(64.dp)
+        ) {
+            // Cloudy soft gradient backdrop (fades in smoothly as user scrolls)
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .graphicsLayer {
+                        val offset = scrollOffsetProvider()
+                        val topBarAlpha = (offset / 90f).coerceIn(0f, 1f)
+                        alpha = topBarAlpha
+                    }
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.95f),
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.82f),
+                                Color.Transparent
+                            )
+                        )
+                    )
+            )
+
+            // TopBar Controls
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Hamburger Menu Button (Top-Left, always pinned and clickable)
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f))
+                        .border(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), CircleShape)
+                        .clickable { onMenuClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Menu,
+                        contentDescription = "Menu",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
+                // Right-aligned "Explore India" title (always visible from top, styled with premium typography)
+                Text(
+                    text = buildAnnotatedString {
+                        withStyle(
+                            SpanStyle(
+                                fontFamily = PlayfairFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 23.sp,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                        ) {
+                            append("Explore ")
+                        }
+                        withStyle(
+                            SpanStyle(
+                                fontFamily = PlayfairFontFamily,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontStyle = FontStyle.Italic,
+                                fontSize = 23.sp,
+                                color = Amber
+                            )
+                        ) {
+                            append("India")
+                        }
+                    }
+                )
             }
         }
     }
