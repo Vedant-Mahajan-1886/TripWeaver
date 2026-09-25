@@ -58,7 +58,9 @@ fun TripBudgetAllocationView(
 
     val daysDiff = if (trip != null) (trip.endDate.toEpochDay() - trip.startDate.toEpochDay()).toInt() else 4
     val days = (daysDiff + 1).coerceAtLeast(1)
-    val travellers = 2
+    val adults = trip?.adults ?: 1
+    val kids = trip?.kids ?: 0
+    val travellers = (adults + kids).coerceAtLeast(1)
     val perDay = (displayTotal / days).toInt()
     val perPerson = (displayTotal / travellers).toInt()
 
@@ -210,8 +212,13 @@ fun TripBudgetAllocationView(
                                 modifier = Modifier.weight(1f),
                                 horizontalAlignment = Alignment.Start
                             ) {
+                                val passengerTag = when {
+                                    kids > 0 -> " ($adults Ad, $kids Kd)"
+                                    travellers > 1 -> " ($travellers pax)"
+                                    else -> " (1 pax)"
+                                }
                                 Text(
-                                    text = "Per person",
+                                    text = "Per person$passengerTag",
                                     fontSize = 12.sp,
                                     fontFamily = DmSansFontFamily,
                                     color = labelColor
@@ -395,28 +402,20 @@ private fun CategoryProgressCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Left: Premium Vector Icon Badge + Category Title
+                // Left: Subtle Outline Vector Symbol + Category Title
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(RoundedCornerShape(11.dp))
-                            .background(item.color.copy(alpha = if (isDark) 0.16f else 0.10f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = item.icon,
-                            contentDescription = null,
-                            tint = item.color,
-                            modifier = Modifier.size(19.dp)
-                        )
-                    }
+                    Icon(
+                        imageVector = item.icon,
+                        contentDescription = null,
+                        tint = if (isDark) item.color.copy(alpha = 0.90f) else item.color.copy(alpha = 0.85f),
+                        modifier = Modifier.size(20.dp)
+                    )
                     Text(
                         text = item.title,
-                        fontSize = 16.sp,
+                        fontSize = 15.5.sp,
                         fontWeight = FontWeight.SemiBold,
                         fontFamily = DmSansFontFamily,
                         color = MaterialTheme.colorScheme.onSurface

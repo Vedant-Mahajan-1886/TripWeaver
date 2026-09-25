@@ -25,6 +25,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
@@ -304,13 +305,7 @@ private fun TimelineModeView(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 36.dp)
     ) {
-        // 1. Metrics Dashboard
-        item {
-            TripMetricsDashboard(trip = trip, uiState = uiState)
-            Spacer(Modifier.height(14.dp))
-        }
-
-        // 2. Day Navigation Tabs
+        // 1. Day Navigation Tabs
         if (itineraries.isNotEmpty()) {
             item {
                 DayTabs(
@@ -599,20 +594,35 @@ private fun HeroSection(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Multi-stop gradient overlay for crisp white text and button visibility
+        val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+
+        // Multi-stop gradient overlay: In dark mode, provides deeper atmospheric contrast.
+        // In light mode, the dark tint/veil is completely removed from the image body so colors stay 100% natural and bright.
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Black.copy(alpha = 0.55f),
-                            Color.Black.copy(alpha = 0.15f),
-                            Color.Black.copy(alpha = 0.90f)
-                        ),
-                        startY = 0f,
-                        endY = Float.POSITIVE_INFINITY
-                    )
+                    if (isDark) {
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Black.copy(alpha = 0.50f),
+                                Color.Black.copy(alpha = 0.15f),
+                                Color.Black.copy(alpha = 0.85f)
+                            ),
+                            startY = 0f,
+                            endY = Float.POSITIVE_INFINITY
+                        )
+                    } else {
+                        // Light mode: subtle tint across image + deep bottom contrast for effortless text readability
+                        Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.0f to Color.Black.copy(alpha = 0.25f),
+                                0.35f to Color.Black.copy(alpha = 0.10f),
+                                0.60f to Color.Black.copy(alpha = 0.38f),
+                                1.0f to Color.Black.copy(alpha = 0.78f)
+                            )
+                        )
+                    }
                 )
         )
 
@@ -631,7 +641,7 @@ private fun HeroSection(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.45f))
+                    .background(Color.Black.copy(alpha = if (isDark) 0.45f else 0.35f))
                     .border(1.dp, Color.White.copy(alpha = 0.25f), CircleShape)
             ) {
                 Icon(
@@ -648,7 +658,7 @@ private fun HeroSection(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.45f))
+                    .background(Color.Black.copy(alpha = if (isDark) 0.45f else 0.35f))
                     .border(1.dp, Color.White.copy(alpha = 0.25f), CircleShape)
             ) {
                 Icon(
@@ -672,7 +682,13 @@ private fun HeroSection(
                 color = Color.White,
                 fontSize = if (compact) 22.sp else 30.sp,
                 fontWeight = FontWeight.Bold,
-                lineHeight = if (compact) 26.sp else 36.sp
+                lineHeight = if (compact) 26.sp else 36.sp,
+                style = LocalTextStyle.current.copy(
+                    shadow = Shadow(
+                        color = Color.Black.copy(alpha = 0.65f),
+                        blurRadius = 8f
+                    )
+                )
             )
 
             if (!compact && trip.title.isNotBlank()) {
@@ -680,173 +696,23 @@ private fun HeroSection(
                 Text(
                     text = trip.title,
                     fontFamily = DmSansFontFamily,
-                    color = Color.White.copy(alpha = 0.88f),
+                    color = Color.White.copy(alpha = 0.92f),
                     fontSize = 13.5.sp,
                     maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  Trip Metrics Dashboard
-// ─────────────────────────────────────────────────────────────────────────────
-@Composable
-private fun TripMetricsDashboard(trip: Trip, uiState: TripDetailUiState) {
-    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val fmt = remember { DateTimeFormatter.ofPattern("d MMM", Locale.getDefault()) }
-    val daysDiff = (trip.endDate.toEpochDay() - trip.startDate.toEpochDay()).toInt()
-    val days = if (daysDiff >= 0) daysDiff + 1 else 1
-    val totalCost = uiState.totalEstimatedCost
-    val budget = trip.budget
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(0.8.dp, if (isDark) CardBorderDark else CardBorderLight),
-        tonalElevation = 2.dp,
-        shadowElevation = if (isDark) 0.dp else 2.dp
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 14.dp, horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Column 1: Duration
-            Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(Amber.copy(alpha = 0.14f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.CalendarMonth,
-                        contentDescription = null,
-                        tint = if (isDark) Amber else AmberDark,
-                        modifier = Modifier.size(19.dp)
-                    )
-                }
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = if (days == 1) "1 Day" else "$days Days",
-                    fontSize = 14.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = DmSansFontFamily,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "${trip.startDate.format(fmt)} – ${trip.endDate.format(fmt)}",
-                    fontSize = 11.5.sp,
-                    fontFamily = DmSansFontFamily,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            VerticalDivider(
-                modifier = Modifier.height(38.dp),
-                color = if (isDark) DividerDark else DividerLight,
-                thickness = 0.8.dp
-            )
-
-            // Column 2: Budget
-            Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                val budgetColor = if (uiState.isOverBudget) Color(0xFFEF5350)
-                                  else if (isDark) CompletedGreen
-                                  else Color(0xFF1B873F)
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(budgetColor.copy(alpha = 0.14f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.CurrencyRupee,
-                        contentDescription = null,
-                        tint = budgetColor,
-                        modifier = Modifier.size(19.dp)
-                    )
-                }
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = if (budget > 0) "₹${budget.toInt()}" else "₹${totalCost.toInt()}",
-                    fontSize = 14.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = DmSansFontFamily,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = if (budget > 0) "₹${totalCost.toInt()} est." else "Est. Cost",
-                    fontSize = 11.5.sp,
-                    fontFamily = DmSansFontFamily,
-                    color = budgetColor,
-                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-
-            VerticalDivider(
-                modifier = Modifier.height(38.dp),
-                color = if (isDark) DividerDark else DividerLight,
-                thickness = 0.8.dp
-            )
-
-            // Column 3: Stops & Interest
-            Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF38BDF8).copy(alpha = 0.14f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Explore,
-                        contentDescription = null,
-                        tint = if (isDark) Color(0xFF38BDF8) else Color(0xFF0284C7),
-                        modifier = Modifier.size(19.dp)
+                    style = LocalTextStyle.current.copy(
+                        shadow = Shadow(
+                            color = Color.Black.copy(alpha = 0.65f),
+                            blurRadius = 6f
+                        )
                     )
-                }
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = "${uiState.allActivities.size} Stops",
-                    fontSize = 14.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = DmSansFontFamily,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = trip.interests.firstOrNull() ?: "Sightseeing",
-                    fontSize = 11.5.sp,
-                    fontFamily = DmSansFontFamily,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
     }
 }
+
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  View Mode Selector (Segmented Control matching MyProfile Gender tab style)
