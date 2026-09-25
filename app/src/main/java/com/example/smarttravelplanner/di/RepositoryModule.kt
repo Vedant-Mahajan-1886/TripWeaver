@@ -14,6 +14,8 @@ import com.example.smarttravelplanner.data.repository.AuthRepository
 import com.example.smarttravelplanner.data.repository.AuthRepositoryImpl
 import com.example.smarttravelplanner.data.repository.CurrencyRepository
 import com.example.smarttravelplanner.data.repository.CurrencyRepositoryImpl
+import com.example.smarttravelplanner.data.repository.DestinationRepository
+import com.example.smarttravelplanner.data.repository.DestinationRepositoryImpl
 import com.example.smarttravelplanner.data.repository.PhotoRepository
 import com.example.smarttravelplanner.data.repository.PhotoRepositoryImpl
 import com.example.smarttravelplanner.data.repository.PlacesRepository
@@ -54,4 +56,7 @@ abstract class RepositoryModule {
 
     @Binds @Singleton
     abstract fun bindCurrencyRepository(impl: CurrencyRepositoryImpl): CurrencyRepository
+
+    @Binds @Singleton
+    abstract fun bindDestinationRepository(impl: DestinationRepositoryImpl): DestinationRepository
 }
