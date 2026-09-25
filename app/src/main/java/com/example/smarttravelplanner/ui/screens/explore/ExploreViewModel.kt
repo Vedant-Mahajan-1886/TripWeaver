@@ -67,6 +67,14 @@ class ExploreViewModel @Inject constructor(
         _uiState.update { it.copy(selectedCity = city) }
     }
 
+    fun onDestinationClick(destination: ExploreDestination) {
+        _uiState.update { it.copy(selectedDestination = destination) }
+    }
+
+    fun onDetailsDismissed() {
+        _uiState.update { it.copy(selectedDestination = null) }
+    }
+
     fun clearFilters() = updateFilters {
         it.copy(searchQuery = "", selectedCategory = DestinationFilter.ALL)
     }

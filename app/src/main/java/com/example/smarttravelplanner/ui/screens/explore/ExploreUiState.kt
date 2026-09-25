@@ -18,7 +18,9 @@ data class ExploreUiState(
     val departureCities: List<String> = emptyList(),
     val selectedCity: String = "New Delhi",
     /** Destinations after search + category filters have been applied. */
-    val destinations: List<ExploreDestination> = emptyList()
+    val destinations: List<ExploreDestination> = emptyList(),
+    /** Destination whose details sheet is open, or null when no sheet is shown. */
+    val selectedDestination: ExploreDestination? = null
 ) {
     val hasActiveFilters: Boolean
         get() = searchQuery.isNotBlank() || selectedCategory != DestinationFilter.ALL

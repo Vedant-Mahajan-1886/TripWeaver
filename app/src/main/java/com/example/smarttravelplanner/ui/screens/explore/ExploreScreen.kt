@@ -62,7 +62,8 @@ private val categories = listOf(
 @Composable
 fun ExploreScreen(
     viewModel: ExploreViewModel = hiltViewModel(),
-    onMenuClick: () -> Unit = {}
+    onMenuClick: () -> Unit = {},
+    onPlanTrip: (destinationName: String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val searchQuery = uiState.searchQuery
@@ -375,7 +376,10 @@ fun ExploreScreen(
             } else {
                 // Destination Cards List with stable keys
                 items(filteredDestinations, key = { it.name }) { dest ->
-                    ExploreDestinationCard(destination = dest)
+                    ExploreDestinationCard(
+                        destination = dest,
+                        onClick = { viewModel.onDestinationClick(dest) }
+                    )
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
@@ -466,17 +470,32 @@ fun ExploreScreen(
             }
         }
     }
+
+    // ── Destination details sheet ────────────────────────────────────────────
+    uiState.selectedDestination?.let { selected ->
+        DestinationDetailsSheet(
+            destination = selected,
+            onDismiss = viewModel::onDetailsDismissed,
+            onPlanTrip = {
+                viewModel.onDetailsDismissed()
+                onPlanTrip(selected.name)
+            }
+        )
+    }
 }
 
 @Composable
-private fun ExploreDestinationCard(destination: ExploreDestination) {
+private fun ExploreDestinationCard(
+    destination: ExploreDestination,
+    onClick: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp)
             .clip(RoundedCornerShape(22.dp))
             .background(Color(0xFF131923))
-            .clickable { }
+            .clickable(onClick = onClick)
     ) {
         // Upper Image Section with Scrim and Title
         Box(
