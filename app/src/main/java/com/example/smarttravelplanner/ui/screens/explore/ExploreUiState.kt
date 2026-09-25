@@ -1,10 +1,25 @@
 package com.example.smarttravelplanner.ui.screens.explore
 
-import com.example.smarttravelplanner.domain.model.Destination
+import com.example.smarttravelplanner.domain.model.ExploreDestination
+import com.example.smarttravelplanner.domain.util.DestinationFilter
 
-sealed class ExploreUiState {
-    object Idle : ExploreUiState()
-    object Loading : ExploreUiState()
-    data class Success(val destinations: List<Destination>) : ExploreUiState()
-    data class Error(val message: String) : ExploreUiState()
+/**
+ * Everything the Explore screen renders, owned by [ExploreViewModel].
+ *
+ * A single immutable state object (rather than several `remember` variables in
+ * the composable) so the filters survive recomposition and configuration changes
+ * and the filtering logic can be tested without the UI.
+ */
+data class ExploreUiState(
+    val isLoading: Boolean = true,
+    val errorMessage: String? = null,
+    val searchQuery: String = "",
+    val selectedCategory: String = DestinationFilter.ALL,
+    val departureCities: List<String> = emptyList(),
+    val selectedCity: String = "New Delhi",
+    /** Destinations after search + category filters have been applied. */
+    val destinations: List<ExploreDestination> = emptyList()
+) {
+    val hasActiveFilters: Boolean
+        get() = searchQuery.isNotBlank() || selectedCategory != DestinationFilter.ALL
 }

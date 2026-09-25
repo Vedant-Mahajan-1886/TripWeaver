@@ -40,7 +40,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.example.smarttravelplanner.R
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.smarttravelplanner.domain.model.ExploreDestination
 import com.example.smarttravelplanner.ui.theme.*
 import androidx.compose.material3.MaterialTheme
 
@@ -58,253 +59,16 @@ private val categories = listOf(
     CategoryChip("adventure", "Adventure", Icons.Outlined.Terrain)
 )
 
-private data class ExploreDestination(
-    val name: String,
-    val stateCountry: String,
-    val idealDuration: String,
-    val bestSeason: String,
-    val tag: String,
-    val tagCategory: String,
-    val imageRes: Int
-)
-
-private val exploreDestinations = listOf(
-    ExploreDestination(
-        name = "Agra",
-        stateCountry = "UTTAR PRADESH · INDIA",
-        idealDuration = "2–3 days ideal",
-        bestSeason = "Best: Oct – Mar",
-        tag = "Heritage",
-        tagCategory = "cultural",
-        imageRes = R.drawable.dest_agra
-    ),
-    ExploreDestination(
-        name = "Varanasi",
-        stateCountry = "UTTAR PRADESH · INDIA",
-        idealDuration = "3–4 days ideal",
-        bestSeason = "Best: Nov – Feb",
-        tag = "Religious",
-        tagCategory = "religious",
-        imageRes = R.drawable.dest_varanasi
-    ),
-    ExploreDestination(
-        name = "Jaipur",
-        stateCountry = "RAJASTHAN · INDIA",
-        idealDuration = "3–5 days ideal",
-        bestSeason = "Best: Oct – Mar",
-        tag = "Royalty",
-        tagCategory = "cultural",
-        imageRes = R.drawable.dest_jaipur
-    ),
-    ExploreDestination(
-        name = "Udaipur",
-        stateCountry = "RAJASTHAN · INDIA",
-        idealDuration = "3–4 days ideal",
-        bestSeason = "Best: Sep – Mar",
-        tag = "Romantic",
-        tagCategory = "nature",
-        imageRes = R.drawable.dest_udaipur
-    ),
-    ExploreDestination(
-        name = "Rishikesh",
-        stateCountry = "UTTARAKHAND · INDIA",
-        idealDuration = "3–4 days ideal",
-        bestSeason = "Best: Sep – Apr",
-        tag = "Spiritual & Rafting",
-        tagCategory = "adventure",
-        imageRes = R.drawable.dest_rishikesh
-    ),
-    ExploreDestination(
-        name = "Alleppey",
-        stateCountry = "KERALA · INDIA",
-        idealDuration = "4–6 days ideal",
-        bestSeason = "Best: Sep – Mar",
-        tag = "Backwaters & Nature",
-        tagCategory = "nature",
-        imageRes = R.drawable.dest_kerala
-    ),
-    ExploreDestination(
-        name = "Mysore",
-        stateCountry = "KARNATAKA · INDIA",
-        idealDuration = "2–3 days ideal",
-        bestSeason = "Best: Oct – Mar",
-        tag = "Royal Heritage",
-        tagCategory = "cultural",
-        imageRes = R.drawable.dest_mysore
-    ),
-    ExploreDestination(
-        name = "Manali",
-        stateCountry = "HIMACHAL PRADESH · INDIA",
-        idealDuration = "4–5 days ideal",
-        bestSeason = "Best: Oct – Jun",
-        tag = "Snow & Trek",
-        tagCategory = "adventure",
-        imageRes = R.drawable.dest_manali
-    ),
-    ExploreDestination(
-        name = "Srinagar",
-        stateCountry = "JAMMU & KASHMIR · INDIA",
-        idealDuration = "5–7 days ideal",
-        bestSeason = "Best: Apr – Oct",
-        tag = "Paradise",
-        tagCategory = "nature",
-        imageRes = R.drawable.dest_kashmir
-    ),
-    ExploreDestination(
-        name = "Goa",
-        stateCountry = "GOA · INDIA",
-        idealDuration = "3–5 days ideal",
-        bestSeason = "Best: Nov – Feb",
-        tag = "Coastal & Beach",
-        tagCategory = "adventure",
-        imageRes = R.drawable.dest_goa
-    ),
-    ExploreDestination(
-        name = "Leh",
-        stateCountry = "LADAKH · INDIA",
-        idealDuration = "6–8 days ideal",
-        bestSeason = "Best: Jun – Sep",
-        tag = "High Altitude",
-        tagCategory = "adventure",
-        imageRes = R.drawable.dest_leh
-    ),
-    ExploreDestination(
-        name = "Jodhpur",
-        stateCountry = "RAJASTHAN · INDIA",
-        idealDuration = "2–3 days ideal",
-        bestSeason = "Best: Oct – Mar",
-        tag = "Blue City",
-        tagCategory = "cultural",
-        imageRes = R.drawable.dest_jodhpur
-    ),
-    ExploreDestination(
-        name = "Amritsar",
-        stateCountry = "PUNJAB · INDIA",
-        idealDuration = "2–3 days ideal",
-        bestSeason = "Best: Oct – Mar",
-        tag = "Spiritual",
-        tagCategory = "religious",
-        imageRes = R.drawable.dest_amritsar
-    ),
-    ExploreDestination(
-        name = "Munnar",
-        stateCountry = "KERALA · INDIA",
-        idealDuration = "3–4 days ideal",
-        bestSeason = "Best: Sep – Mar",
-        tag = "Tea Gardens",
-        tagCategory = "nature",
-        imageRes = R.drawable.dest_munnar
-    ),
-    ExploreDestination(
-        name = "Coorg",
-        stateCountry = "KARNATAKA · INDIA",
-        idealDuration = "3–4 days ideal",
-        bestSeason = "Best: Oct – May",
-        tag = "Coffee Country",
-        tagCategory = "nature",
-        imageRes = R.drawable.dest_coorg
-    ),
-    ExploreDestination(
-        name = "Darjeeling",
-        stateCountry = "WEST BENGAL · INDIA",
-        idealDuration = "3–4 days ideal",
-        bestSeason = "Best: Mar – May",
-        tag = "Hill Station",
-        tagCategory = "nature",
-        imageRes = R.drawable.dest_darjeeling
-    ),
-    ExploreDestination(
-        name = "Gangtok",
-        stateCountry = "SIKKIM · INDIA",
-        idealDuration = "4–5 days ideal",
-        bestSeason = "Best: Mar – May",
-        tag = "Mountain Town",
-        tagCategory = "nature",
-        imageRes = R.drawable.dest_gangtok
-    ),
-    ExploreDestination(
-        name = "Andaman",
-        stateCountry = "ANDAMAN & NICOBAR · INDIA",
-        idealDuration = "5–7 days ideal",
-        bestSeason = "Best: Oct – May",
-        tag = "Island Paradise",
-        tagCategory = "adventure",
-        imageRes = R.drawable.dest_andaman
-    ),
-    ExploreDestination(
-        name = "Pondicherry",
-        stateCountry = "PUDUCHERRY · INDIA",
-        idealDuration = "2–3 days ideal",
-        bestSeason = "Best: Oct – Mar",
-        tag = "French Colony",
-        tagCategory = "cultural",
-        imageRes = R.drawable.dest_pondicherry
-    ),
-    ExploreDestination(
-        name = "Mussoorie",
-        stateCountry = "UTTARAKHAND · INDIA",
-        idealDuration = "3–4 days ideal",
-        bestSeason = "Best: Mar – Jun",
-        tag = "Queen of Hills",
-        tagCategory = "nature",
-        imageRes = R.drawable.dest_mussoorie
-    ),
-    ExploreDestination(
-        name = "Spiti Valley",
-        stateCountry = "HIMACHAL PRADESH · INDIA",
-        idealDuration = "7–10 days ideal",
-        bestSeason = "Best: Jun – Sep",
-        tag = "Cold Desert",
-        tagCategory = "adventure",
-        imageRes = R.drawable.dest_spiti
-    ),
-    ExploreDestination(
-        name = "Gokarna",
-        stateCountry = "KARNATAKA · INDIA",
-        idealDuration = "2–3 days ideal",
-        bestSeason = "Best: Oct – Mar",
-        tag = "Beach & Temple",
-        tagCategory = "religious",
-        imageRes = R.drawable.dest_gokarna
-    ),
-    ExploreDestination(
-        name = "Shillong",
-        stateCountry = "MEGHALAYA · INDIA",
-        idealDuration = "3–4 days ideal",
-        bestSeason = "Best: Sep – May",
-        tag = "Scotland of East",
-        tagCategory = "nature",
-        imageRes = R.drawable.dest_shillong
-    )
-)
-
 @Composable
 fun ExploreScreen(
     viewModel: ExploreViewModel = hiltViewModel(),
     onMenuClick: () -> Unit = {}
 ) {
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf("all") }
-    var selectedCity by remember { mutableStateOf("New Delhi") }
-
-    val filteredDestinations = remember(selectedCategory, searchQuery) {
-        val query = searchQuery.trim().lowercase()
-        exploreDestinations.filter { dest ->
-            val matchesCategory = selectedCategory == "all" ||
-                dest.tagCategory.equals(selectedCategory, ignoreCase = true) ||
-                dest.tag.lowercase().contains(selectedCategory)
-
-            val matchesSearch = query.isBlank() ||
-                dest.name.lowercase().contains(query) ||
-                dest.stateCountry.lowercase().contains(query) ||
-                dest.tag.lowercase().contains(query) ||
-                dest.tagCategory.lowercase().contains(query) ||
-                dest.idealDuration.lowercase().contains(query) ||
-                dest.bestSeason.lowercase().contains(query)
-
-            matchesCategory && matchesSearch
-        }
-    }
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val searchQuery = uiState.searchQuery
+    val selectedCategory = uiState.selectedCategory
+    val selectedCity = uiState.selectedCity
+    val filteredDestinations = uiState.destinations
 
     val listState = rememberLazyListState()
     val scrollOffsetProvider: () -> Float = remember {
@@ -331,7 +95,7 @@ fun ExploreScreen(
                 Spacer(modifier = Modifier.height(68.dp))
 
                 // Search Bar + From Selector Row
-                val cities = listOf("New Delhi", "Mumbai", "Bangalore", "Chennai", "Kolkata", "Hyderabad")
+                val cities = uiState.departureCities
                 var showCityMenu by remember { mutableStateOf(false) }
 
                 Row(
@@ -392,7 +156,7 @@ fun ExploreScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
-                                            selectedCity = city
+                                            viewModel.onCitySelected(city)
                                             showCityMenu = false
                                         }
                                         .padding(horizontal = 20.dp, vertical = 15.dp)
@@ -438,7 +202,7 @@ fun ExploreScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             BasicTextField(
                                 value = searchQuery,
-                                onValueChange = { searchQuery = it },
+                                onValueChange = viewModel::onSearchQueryChange,
                                 singleLine = true,
                                 textStyle = TextStyle(
                                     color = MaterialTheme.colorScheme.onSurface,
@@ -464,7 +228,7 @@ fun ExploreScreen(
                             )
                             if (searchQuery.isNotEmpty()) {
                                 IconButton(
-                                    onClick = { searchQuery = "" },
+                                    onClick = { viewModel.onSearchQueryChange("") },
                                     modifier = Modifier.size(24.dp)
                                 ) {
                                     Icon(
@@ -492,7 +256,7 @@ fun ExploreScreen(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(if (isSelected) Amber else MaterialTheme.colorScheme.surface)
-                                .clickable { selectedCategory = cat.id }
+                                .clickable { viewModel.onCategorySelected(cat.id) }
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -522,8 +286,43 @@ fun ExploreScreen(
                 Spacer(modifier = Modifier.height(20.dp))
             }
 
-            // Empty Search Results State
-            if (filteredDestinations.isEmpty()) {
+            if (uiState.isLoading) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 48.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = Amber)
+                    }
+                }
+            } else if (uiState.errorMessage != null) {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 48.dp, horizontal = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = uiState.errorMessage ?: "",
+                            fontFamily = DmSansFontFamily,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = viewModel::loadDestinations,
+                            colors = ButtonDefaults.buttonColors(containerColor = Amber)
+                        ) {
+                            Text("Retry", color = Color(0xFF1A1A1A), fontFamily = DmSansFontFamily)
+                        }
+                    }
+                }
+            } else if (filteredDestinations.isEmpty()) {
+                // Empty Search Results State
                 item {
                     Column(
                         modifier = Modifier
@@ -553,13 +352,10 @@ fun ExploreScreen(
                             color = OnBackgroundGray,
                             textAlign = TextAlign.Center
                         )
-                        if (searchQuery.isNotEmpty() || selectedCategory != "all") {
+                        if (uiState.hasActiveFilters) {
                             Spacer(modifier = Modifier.height(16.dp))
                             Button(
-                                onClick = {
-                                    searchQuery = ""
-                                    selectedCategory = "all"
-                                },
+                                onClick = viewModel::clearFilters,
                                 shape = RoundedCornerShape(20.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = Color(0xFF1E2633),
