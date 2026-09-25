@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.SpanStyle
@@ -637,6 +638,9 @@ fun ExploreScreen(
                     )
                 }
 
+                val isLightMode = MaterialTheme.colorScheme.background.luminance() > 0.5f
+                val indiaColor = if (isLightMode) AmberDark else Amber
+
                 // Right-aligned "Explore India" title (always visible from top, styled with premium typography)
                 Text(
                     text = buildAnnotatedString {
@@ -644,7 +648,7 @@ fun ExploreScreen(
                             SpanStyle(
                                 fontFamily = PlayfairFontFamily,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 23.sp,
+                                fontSize = 28.sp,
                                 color = MaterialTheme.colorScheme.onBackground
                             )
                         ) {
@@ -655,8 +659,8 @@ fun ExploreScreen(
                                 fontFamily = PlayfairFontFamily,
                                 fontWeight = FontWeight.ExtraBold,
                                 fontStyle = FontStyle.Italic,
-                                fontSize = 23.sp,
-                                color = Amber
+                                fontSize = 28.sp,
+                                color = indiaColor
                             )
                         ) {
                             append("India")

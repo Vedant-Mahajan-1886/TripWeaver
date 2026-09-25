@@ -1,10 +1,12 @@
 package com.example.smarttravelplanner.ui.screens.mytrips
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
@@ -14,7 +16,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -35,95 +45,159 @@ fun MyTripsScreen(
     onMenuClick: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val listState = rememberLazyListState()
+    val scrollOffsetProvider: () -> Float = remember {
+        {
+            if (listState.firstVisibleItemIndex > 0) {
+                1000f
+            } else {
+                listState.firstVisibleItemScrollOffset.toFloat()
+            }
+        }
+    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            // ── Top Bar with Hamburger Menu ───────────────────────────────────
-            Box(
-                modifier = Modifier
-                    .padding(start = 20.dp, top = 16.dp, bottom = 8.dp)
-                    .size(42.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surface)
-                    .clickable { onMenuClick() },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Menu,
-                    contentDescription = "Menu",
-                    tint = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(22.dp)
-                )
+        when (val state = uiState) {
+            is MyTripsUiState.Loading -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = 64.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = Amber)
+                }
             }
+            is MyTripsUiState.Empty -> {
+                EmptyTripsState(modifier = Modifier.padding(top = 64.dp))
+            }
+            is MyTripsUiState.Success -> {
+                if (state.trips.isEmpty()) {
+                    EmptyTripsState(modifier = Modifier.padding(top = 64.dp))
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = 40.dp, start = 20.dp, end = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        item {
+                            Spacer(modifier = Modifier.height(68.dp))
+                        }
 
-            when (val state = uiState) {
-                is MyTripsUiState.Loading -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = Amber)
-                    }
-                }
-                is MyTripsUiState.Empty -> {
-                    EmptyTripsState()
-                }
-                is MyTripsUiState.Success -> {
-                    if (state.trips.isEmpty()) {
-                        EmptyTripsState()
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(top = 8.dp, bottom = 40.dp, start = 20.dp, end = 20.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            item {
-                                Column(modifier = Modifier.padding(bottom = 8.dp)) {
-                                    Text(
-                                        text = "My Trips",
-                                        fontFamily = PlayfairFontFamily,
-                                        fontSize = 28.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onBackground
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = "Manage your planned journeys and itineraries",
-                                        fontFamily = DmSansFontFamily,
-                                        fontSize = 14.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-
-                            items(state.trips, key = { it.id }) { trip ->
-                                DestinationTripCard(
-                                    trip = trip,
-                                    statusText = "Planning",
-                                    onClick = { onTripClick(trip.id) },
-                                    onDelete = { viewModel.deleteTrip(trip.id) }
-                                )
-                            }
+                        items(state.trips, key = { it.id }) { trip ->
+                            DestinationTripCard(
+                                trip = trip,
+                                statusText = "Planning",
+                                onClick = { onTripClick(trip.id) },
+                                onDelete = { viewModel.deleteTrip(trip.id) }
+                            )
                         }
                     }
                 }
-                is MyTripsUiState.Error -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(24.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Error: ${state.message}",
-                            color = MaterialTheme.colorScheme.error,
-                            fontFamily = DmSansFontFamily
-                        )
-                    }
+            }
+            is MyTripsUiState.Error -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = 64.dp, start = 24.dp, end = 24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Error: ${state.message}",
+                        color = MaterialTheme.colorScheme.error,
+                        fontFamily = DmSansFontFamily
+                    )
                 }
+            }
+        }
+
+        // ── Pinned TopBar with Hamburger & Right-Aligned "My Trips" Title ──
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(64.dp)
+        ) {
+            // Cloudy soft gradient backdrop (fades in smoothly as user scrolls)
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .graphicsLayer {
+                        val offset = scrollOffsetProvider()
+                        val topBarAlpha = (offset / 90f).coerceIn(0f, 1f)
+                        alpha = topBarAlpha
+                    }
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.95f),
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.82f),
+                                Color.Transparent
+                            )
+                        )
+                    )
+            )
+
+            // TopBar Controls
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Hamburger Menu Button (Top-Left, always pinned and clickable)
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f))
+                        .border(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), CircleShape)
+                        .clickable { onMenuClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Menu,
+                        contentDescription = "Menu",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
+                val isLightMode = MaterialTheme.colorScheme.background.luminance() > 0.5f
+                val tripsColor = if (isLightMode) AmberDark else Amber
+
+                // Right-aligned "My Trips" title (always visible from top, styled with premium typography)
+                Text(
+                    text = buildAnnotatedString {
+                        withStyle(
+                            SpanStyle(
+                                fontFamily = PlayfairFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 28.sp,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                        ) {
+                            append("My ")
+                        }
+                        withStyle(
+                            SpanStyle(
+                                fontFamily = PlayfairFontFamily,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontStyle = FontStyle.Italic,
+                                fontSize = 28.sp,
+                                color = tripsColor
+                            )
+                        ) {
+                            append("Trips")
+                        }
+                    }
+                )
             }
         }
     }
@@ -133,9 +207,9 @@ fun MyTripsScreen(
  * Placeholder displayed when the user has not planned or saved any trips yet.
  */
 @Composable
-private fun EmptyTripsState() {
+private fun EmptyTripsState(modifier: Modifier = Modifier) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .padding(32.dp),
         contentAlignment = Alignment.Center

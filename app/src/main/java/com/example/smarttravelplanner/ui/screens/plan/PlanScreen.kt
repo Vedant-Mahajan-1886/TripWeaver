@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -50,6 +51,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -258,6 +261,17 @@ fun PlanScreen(
         )
     }
 
+    val listState = rememberLazyListState()
+    val scrollOffsetProvider: () -> Float = remember {
+        {
+            if (listState.firstVisibleItemIndex > 0) {
+                1000f
+            } else {
+                listState.firstVisibleItemScrollOffset.toFloat()
+            }
+        }
+    }
+
     // ── Screen body ───────────────────────────────────────────────────────────
     Box(
         modifier = Modifier
@@ -266,19 +280,13 @@ fun PlanScreen(
             .imePadding()
     ) {
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 60.dp)
         ) {
 
             item {
-                Spacer(modifier = Modifier.height(16.dp))
-                PlanMenuButton(onClick = onMenuClick)
-                Spacer(modifier = Modifier.height(20.dp))
-            }
-
-            item {
-                PlanHeroHeader()
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(68.dp))
             }
 
             item {
@@ -506,6 +514,91 @@ fun PlanScreen(
                             startDate    = departureDate,
                             notes        = finalNotes
                         )
+                    }
+                )
+            }
+        }
+
+        // ── Pinned TopBar with Hamburger & Right-Aligned "Plan Trip" Title ──
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(64.dp)
+        ) {
+            // Cloudy soft gradient backdrop (fades in smoothly as user scrolls)
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .graphicsLayer {
+                        val offset = scrollOffsetProvider()
+                        val topBarAlpha = (offset / 90f).coerceIn(0f, 1f)
+                        alpha = topBarAlpha
+                    }
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.95f),
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.82f),
+                                Color.Transparent
+                            )
+                        )
+                    )
+            )
+
+            // TopBar Controls
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Hamburger Menu Button (Top-Left, always pinned and clickable)
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f))
+                        .border(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), CircleShape)
+                        .clickable { onMenuClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Menu,
+                        contentDescription = "Menu",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
+                val isLightMode = MaterialTheme.colorScheme.background.luminance() > 0.5f
+                val tripColor = if (isLightMode) AmberDark else Amber
+
+                // Right-aligned "Plan Trip" title (always visible from top, styled with premium typography)
+                Text(
+                    text = buildAnnotatedString {
+                        withStyle(
+                            SpanStyle(
+                                fontFamily = PlayfairFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 28.sp,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                        ) {
+                            append("Plan ")
+                        }
+                        withStyle(
+                            SpanStyle(
+                                fontFamily = PlayfairFontFamily,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontStyle = FontStyle.Italic,
+                                fontSize = 28.sp,
+                                color = tripColor
+                            )
+                        ) {
+                            append("Trip")
+                        }
                     }
                 )
             }
@@ -750,98 +843,6 @@ private fun DatePill(
                 )
             }
         }
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  Section: Hamburger menu button
-// ─────────────────────────────────────────────────────────────────────────────
-
-@Composable
-private fun PlanMenuButton(onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .padding(horizontal = 20.dp)
-            .size(42.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surface)
-            .clickable { onClick() },
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector        = Icons.Default.Menu,
-            contentDescription = "Menu",
-            tint               = MaterialTheme.colorScheme.onSurface,
-            modifier           = Modifier.size(22.dp)
-        )
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  Section: Hero header
-// ─────────────────────────────────────────────────────────────────────────────
-
-@Composable
-private fun PlanHeroHeader() {
-    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-
-        // AI Powered badge
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(20.dp))
-                .background(MaterialTheme.colorScheme.surface)
-                .border(1.dp, Amber.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
-                .padding(horizontal = 12.dp, vertical = 6.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector        = Icons.Filled.Star,
-                    contentDescription = null,
-                    tint               = Amber,
-                    modifier           = Modifier.size(14.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text          = "AI POWERED",
-                    fontFamily    = DmSansFontFamily,
-                    fontWeight    = FontWeight.ExtraBold,
-                    fontSize      = 11.sp,
-                    color         = Amber,
-                    letterSpacing = 1.5.sp
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // "Plan Your Trip" — mixed font
-        Text(
-            text = buildAnnotatedString {
-                withStyle(SpanStyle(
-                    fontFamily = PlayfairFontFamily,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize   = 32.sp,
-                    color      = MaterialTheme.colorScheme.onBackground
-                )) { append("Plan Your ") }
-                withStyle(SpanStyle(
-                    fontFamily = PlayfairFontFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontStyle  = FontStyle.Italic,
-                    fontSize   = 32.sp,
-                    color      = MaterialTheme.colorScheme.onBackground
-                )) { append("Trip") }
-            }
-        )
-
-        Spacer(modifier = Modifier.height(6.dp))
-
-        Text(
-            text       = "Tell us your dream — AI crafts the perfect itinerary",
-            fontFamily = DmSansFontFamily,
-            fontWeight = FontWeight.Normal,
-            fontSize   = 14.sp,
-            color      = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }
 
