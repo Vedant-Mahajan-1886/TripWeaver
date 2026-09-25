@@ -22,6 +22,7 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
     private val curatedDestinations = listOf(
         ExploreDestination(
             name = "Agra",
+            description = "Home of the Taj Mahal, Agra Fort and nearby Fatehpur Sikri — the heart of Mughal architecture.",
             stateCountry = "UTTAR PRADESH · INDIA",
             idealDuration = "2–3 days ideal",
             bestSeason = "Best: Oct – Mar",
@@ -31,6 +32,7 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
         ),
         ExploreDestination(
             name = "Varanasi",
+            description = "One of the world's oldest living cities, famous for its ghats on the Ganges and the evening Ganga Aarti.",
             stateCountry = "UTTAR PRADESH · INDIA",
             idealDuration = "3–4 days ideal",
             bestSeason = "Best: Nov – Feb",
@@ -40,6 +42,7 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
         ),
         ExploreDestination(
             name = "Jaipur",
+            description = "The Pink City — Amber Fort, Hawa Mahal, City Palace and bustling bazaars full of textiles and gems.",
             stateCountry = "RAJASTHAN · INDIA",
             idealDuration = "3–5 days ideal",
             bestSeason = "Best: Oct – Mar",
@@ -49,6 +52,7 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
         ),
         ExploreDestination(
             name = "Udaipur",
+            description = "The City of Lakes, with palaces rising from Lake Pichola and some of Rajasthan's most romantic sunsets.",
             stateCountry = "RAJASTHAN · INDIA",
             idealDuration = "3–4 days ideal",
             bestSeason = "Best: Sep – Mar",
@@ -58,6 +62,7 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
         ),
         ExploreDestination(
             name = "Rishikesh",
+            description = "Yoga capital of the world on the Ganges, with riverside ashrams, suspension bridges and white-water rafting.",
             stateCountry = "UTTARAKHAND · INDIA",
             idealDuration = "3–4 days ideal",
             bestSeason = "Best: Sep – Apr",
@@ -67,6 +72,7 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
         ),
         ExploreDestination(
             name = "Alleppey",
+            description = "Kerala's backwater hub — drift through palm-lined canals on a traditional houseboat.",
             stateCountry = "KERALA · INDIA",
             idealDuration = "4–6 days ideal",
             bestSeason = "Best: Sep – Mar",
@@ -76,6 +82,7 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
         ),
         ExploreDestination(
             name = "Mysore",
+            description = "A royal city known for the illuminated Mysore Palace, Chamundi Hills and its famous silk and sandalwood.",
             stateCountry = "KARNATAKA · INDIA",
             idealDuration = "2–3 days ideal",
             bestSeason = "Best: Oct – Mar",
@@ -85,6 +92,7 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
         ),
         ExploreDestination(
             name = "Manali",
+            description = "A Himalayan getaway for snow, apple orchards, Solang Valley adventures and the road to Rohtang Pass.",
             stateCountry = "HIMACHAL PRADESH · INDIA",
             idealDuration = "4–5 days ideal",
             bestSeason = "Best: Oct – Jun",
@@ -94,6 +102,7 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
         ),
         ExploreDestination(
             name = "Srinagar",
+            description = "Shikara rides and houseboats on Dal Lake, Mughal gardens and snow-capped mountain views.",
             stateCountry = "JAMMU & KASHMIR · INDIA",
             idealDuration = "5–7 days ideal",
             bestSeason = "Best: Apr – Oct",
@@ -103,6 +112,7 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
         ),
         ExploreDestination(
             name = "Goa",
+            description = "Beaches, Portuguese-era churches, spice plantations and a laid-back coastal food scene.",
             stateCountry = "GOA · INDIA",
             idealDuration = "3–5 days ideal",
             bestSeason = "Best: Nov – Feb",
@@ -112,6 +122,7 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
         ),
         ExploreDestination(
             name = "Leh",
+            description = "High-altitude Ladakh — monasteries, Pangong Lake, Khardung La and dramatic desert mountains.",
             stateCountry = "LADAKH · INDIA",
             idealDuration = "6–8 days ideal",
             bestSeason = "Best: Jun – Sep",
@@ -121,6 +132,7 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
         ),
         ExploreDestination(
             name = "Jodhpur",
+            description = "The Blue City, watched over by the massive Mehrangarh Fort on the edge of the Thar Desert.",
             stateCountry = "RAJASTHAN · INDIA",
             idealDuration = "2–3 days ideal",
             bestSeason = "Best: Oct – Mar",
@@ -130,6 +142,7 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
         ),
         ExploreDestination(
             name = "Amritsar",
+            description = "Home of the Golden Temple and its langar, plus the Wagah Border ceremony and legendary Punjabi food.",
             stateCountry = "PUNJAB · INDIA",
             idealDuration = "2–3 days ideal",
             bestSeason = "Best: Oct – Mar",
@@ -139,6 +152,7 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
         ),
         ExploreDestination(
             name = "Munnar",
+            description = "Rolling tea estates, misty hills and the Eravikulam National Park in the Western Ghats.",
             stateCountry = "KERALA · INDIA",
             idealDuration = "3–4 days ideal",
             bestSeason = "Best: Sep – Mar",
@@ -148,6 +162,7 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
         ),
         ExploreDestination(
             name = "Coorg",
+            description = "Coffee plantations, waterfalls and cool, green hills — often called the Scotland of India.",
             stateCountry = "KARNATAKA · INDIA",
             idealDuration = "3–4 days ideal",
             bestSeason = "Best: Oct – May",
@@ -157,6 +172,7 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
         ),
         ExploreDestination(
             name = "Darjeeling",
+            description = "Toy-train rides, tea gardens and sunrise views of Kanchenjunga from Tiger Hill.",
             stateCountry = "WEST BENGAL · INDIA",
             idealDuration = "3–4 days ideal",
             bestSeason = "Best: Mar – May",
@@ -166,6 +182,7 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
         ),
         ExploreDestination(
             name = "Gangtok",
+            description = "Sikkim's hillside capital, with monasteries, mountain views and trips to Tsomgo Lake and Nathula.",
             stateCountry = "SIKKIM · INDIA",
             idealDuration = "4–5 days ideal",
             bestSeason = "Best: Mar – May",
@@ -175,6 +192,7 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
         ),
         ExploreDestination(
             name = "Andaman",
+            description = "Turquoise water, coral reefs and white-sand beaches like Radhanagar — great for snorkelling and diving.",
             stateCountry = "ANDAMAN & NICOBAR · INDIA",
             idealDuration = "5–7 days ideal",
             bestSeason = "Best: Oct – May",
@@ -184,6 +202,7 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
         ),
         ExploreDestination(
             name = "Pondicherry",
+            description = "French-quarter streets, seaside promenades, cafés and the nearby community of Auroville.",
             stateCountry = "PUDUCHERRY · INDIA",
             idealDuration = "2–3 days ideal",
             bestSeason = "Best: Oct – Mar",
@@ -193,6 +212,7 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
         ),
         ExploreDestination(
             name = "Mussoorie",
+            description = "A classic hill station with Mall Road strolls, Kempty Falls and views over the Doon Valley.",
             stateCountry = "UTTARAKHAND · INDIA",
             idealDuration = "3–4 days ideal",
             bestSeason = "Best: Mar – Jun",
@@ -202,6 +222,7 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
         ),
         ExploreDestination(
             name = "Spiti Valley",
+            description = "A remote cold desert of ancient monasteries, tiny villages and stark high-altitude landscapes.",
             stateCountry = "HIMACHAL PRADESH · INDIA",
             idealDuration = "7–10 days ideal",
             bestSeason = "Best: Jun – Sep",
@@ -211,6 +232,7 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
         ),
         ExploreDestination(
             name = "Gokarna",
+            description = "A temple town with quieter beaches than Goa, including Om Beach and scenic coastal treks.",
             stateCountry = "KARNATAKA · INDIA",
             idealDuration = "2–3 days ideal",
             bestSeason = "Best: Oct – Mar",
@@ -220,6 +242,7 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
         ),
         ExploreDestination(
             name = "Shillong",
+            description = "Meghalaya's capital, gateway to living root bridges, waterfalls and some of the wettest places on Earth.",
             stateCountry = "MEGHALAYA · INDIA",
             idealDuration = "3–4 days ideal",
             bestSeason = "Best: Sep – May",

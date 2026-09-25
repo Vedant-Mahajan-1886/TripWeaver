@@ -156,7 +156,10 @@ private fun Long.toLocalDate(): LocalDate =
 fun PlanScreen(
     viewModel: PlanViewModel = hiltViewModel(),
     onMenuClick: () -> Unit = {},
-    onTripGenerated: (tripId: Long) -> Unit = {}
+    onTripGenerated: (tripId: Long) -> Unit = {},
+    /** Destination passed from Explore ("Plan a trip here"); null when opened normally. */
+    prefillDestination: String? = null,
+    onPrefillConsumed: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -183,6 +186,14 @@ fun PlanScreen(
 
     // ── Destination ───────────────────────────────────────────────────────────
     var destination        by remember { mutableStateOf("") }
+
+    // Apply a destination handed over from Explore, then clear it so it only applies once
+    LaunchedEffect(prefillDestination) {
+        if (!prefillDestination.isNullOrBlank()) {
+            destination = prefillDestination
+            onPrefillConsumed()
+        }
+    }
 
     // ── Date range ────────────────────────────────────────────────────────────
     val today              = remember { LocalDate.now() }

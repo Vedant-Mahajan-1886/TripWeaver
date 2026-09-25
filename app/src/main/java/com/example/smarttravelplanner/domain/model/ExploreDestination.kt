@@ -10,6 +10,8 @@ import androidx.annotation.DrawableRes
  */
 data class ExploreDestination(
     val name: String,
+    /** One or two sentences shown in the destination details sheet. */
+    val description: String = "",
     val stateCountry: String,
     val idealDuration: String,
     val bestSeason: String,

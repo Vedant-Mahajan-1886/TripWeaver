@@ -43,6 +43,10 @@ import com.example.smarttravelplanner.ui.screens.profile.ProfileViewModel
 import com.example.smarttravelplanner.ui.screens.tripdetail.TripDetailScreen
 import com.example.smarttravelplanner.ui.theme.Amber
 
+
+/** SavedStateHandle key used to pre-fill the Plan screen's destination from Explore. */
+private const val PLAN_PREFILL_DESTINATION_KEY = "plan_prefill_destination"
+
 @Composable
 fun AppNavigation(
     profileViewModel: ProfileViewModel,
@@ -259,8 +263,17 @@ fun AppNavigation(
                 )
             }
 
-            composable("plan") {
+            composable("plan") { planEntry ->
+                // Destination handed over from Explore → "Plan a trip here"
+                val prefillDestination by planEntry.savedStateHandle
+                    .getStateFlow<String?>(PLAN_PREFILL_DESTINATION_KEY, null)
+                    .collectAsStateWithLifecycle()
+
                 PlanScreen(
+                    prefillDestination = prefillDestination,
+                    onPrefillConsumed = {
+                        planEntry.savedStateHandle[PLAN_PREFILL_DESTINATION_KEY] = null
+                    },
                     onMenuClick = { navController.navigate("profile") },
                     onTripGenerated = { tripId ->
                         navController.navigate("trip_detail/$tripId") {
@@ -281,7 +294,18 @@ fun AppNavigation(
 
             composable("explore") {
                 ExploreScreen(
-                    onMenuClick = { navController.navigate("profile") }
+                    onMenuClick = { navController.navigate("profile") },
+                    onPlanTrip = { destinationName ->
+                        // Same options as the bottom-nav "Plan" tab so the tab stays highlighted
+                        navController.navigate("plan") {
+                            popUpTo("home") { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                        navController.currentBackStackEntry
+                            ?.savedStateHandle
+                            ?.set(PLAN_PREFILL_DESTINATION_KEY, destinationName)
+                    }
                 )
             }
 
