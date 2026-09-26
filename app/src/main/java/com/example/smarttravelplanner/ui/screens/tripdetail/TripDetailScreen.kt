@@ -61,6 +61,7 @@ import com.example.smarttravelplanner.domain.model.DayWeather
 import com.example.smarttravelplanner.domain.model.Itinerary
 import com.example.smarttravelplanner.domain.model.Trip
 import com.example.smarttravelplanner.ui.theme.*
+import com.example.smarttravelplanner.ui.screens.agentshare.SendToAgentButton
 import com.example.smarttravelplanner.util.DestinationImageHelper
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -90,6 +91,16 @@ fun TripDetailScreen(
                 onDaySelect      = { viewModel.selectDay(it) },
                 onViewModeSelect = { viewModel.setViewMode(it) },
                 onActivitySelect = { viewModel.selectActivity(it) }
+            )
+        }
+
+        // Travel-agent feature: send this trip to agents (hidden on the map view)
+        if (uiState.trip != null && uiState.viewMode != TripDetailViewMode.VISUALIZE) {
+            SendToAgentButton(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .navigationBarsPadding()
+                    .padding(end = 20.dp, bottom = 20.dp)
             )
         }
     }
