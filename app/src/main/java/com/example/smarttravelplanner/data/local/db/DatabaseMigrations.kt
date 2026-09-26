@@ -46,7 +46,10 @@ object DatabaseMigrations {
         }
     }
 
-    /** All migrations, oldest first. Registered in DatabaseModule. */
+    // v6 → v7 (agent_profiles, trip_shares, activity_feedback tables) is an
+    // AutoMigration declared on TravelDatabase, because it only adds new tables.
+
+    /** All manual migrations, oldest first. Registered in DatabaseModule. */
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_3_4,
         MIGRATION_4_5,

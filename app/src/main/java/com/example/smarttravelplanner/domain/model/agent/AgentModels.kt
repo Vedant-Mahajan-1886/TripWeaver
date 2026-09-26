@@ -1,0 +1,116 @@
+package com.example.smarttravelplanner.domain.model.agent
+
+/** A travel agent the traveller can send trips to. */
+data class AgentProfile(
+    val email: String,
+    val fullName: String,
+    val agencyName: String = "",
+    val city: String = "",
+    val specialities: List<String> = emptyList()
+) {
+    /** False until the agent has filled in their agency details. */
+    val hasProfile: Boolean get() = agencyName.isNotBlank()
+}
+
+/** Where a shared trip is in the review process. */
+enum class ShareStatus(val label: String) {
+    SENT("Sent"),
+    VIEWED("Viewed"),
+    RESPONDED("Feedback received"),
+    WITHDRAWN("Withdrawn");
+
+    companion object {
+        fun fromStorage(value: String?): ShareStatus =
+            entries.firstOrNull { it.name == value } ?: SENT
+    }
+}
+
+/** The agent's overall answer. */
+enum class ReviewDecision(val label: String) {
+    APPROVED("Approved"),
+    CHANGES_REQUESTED("Changes requested");
+
+    companion object {
+        fun fromStorage(value: String?): ReviewDecision? = entries.firstOrNull { it.name == value }
+    }
+}
+
+/** The agent's verdict on a single activity. */
+enum class ActivityVerdict(val label: String) {
+    AVAILABLE("Available"),
+    NOT_AVAILABLE("Not available"),
+    SUGGEST_CHANGE("Suggest change");
+
+    companion object {
+        fun fromStorage(value: String?): ActivityVerdict =
+            entries.firstOrNull { it.name == value } ?: AVAILABLE
+    }
+}
+
+/** What the traveller did with an agent's suggestion. */
+enum class SuggestionResponse(val label: String) {
+    PENDING("Pending"),
+    APPLIED("Applied"),
+    DECLINED("Declined");
+
+    companion object {
+        fun fromStorage(value: String?): SuggestionResponse =
+            entries.firstOrNull { it.name == value } ?: PENDING
+    }
+}
+
+/** One trip sent to one agent. */
+data class TripShare(
+    val id: Long,
+    val tripId: Long,
+    val travellerEmail: String,
+    val agentEmail: String,
+    val message: String,
+    val status: ShareStatus,
+    val decision: ReviewDecision?,
+    val overallComment: String,
+    val priceEstimate: Double?,
+    val sentAt: Long,
+    val updatedAt: Long
+)
+
+/** A share as the agent sees it on their dashboard. */
+data class IncomingShare(
+    val share: TripShare,
+    val tripTitle: String,
+    val tripDestination: String,
+    val tripStartDate: String,
+    val tripEndDate: String,
+    val travellerName: String
+)
+
+/** Stored feedback on one activity. */
+data class ActivityFeedback(
+    val id: Long,
+    val shareId: Long,
+    val dayNumber: Int,
+    val activityIndex: Int,
+    val activityTitle: String,
+    val verdict: ActivityVerdict,
+    val comment: String,
+    val suggestion: String,
+    val response: SuggestionResponse
+)
+
+/** What the agent fills in for one activity before submitting. */
+data class ActivityFeedbackInput(
+    val dayNumber: Int,
+    val activityIndex: Int,
+    val activityTitle: String,
+    val verdict: ActivityVerdict,
+    val comment: String = "",
+    val suggestion: String = ""
+)
+
+/** Everything the agent submits at the end of a review. */
+data class AgentReviewSubmission(
+    val decision: ReviewDecision,
+    val overallComment: String = "",
+    val priceEstimate: Double? = null,
+    val activities: List<ActivityFeedbackInput> = emptyList()
+)
