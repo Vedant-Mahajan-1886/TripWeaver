@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.example.smarttravelplanner.data.local.entity.UserEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface UserDao {
@@ -52,6 +53,13 @@ interface UserDao {
 
     @Query("UPDATE users SET profilePictureUrl = :profilePictureUrl WHERE LOWER(email) = LOWER(:email)")
     suspend fun updateProfilePicture(email: String, profilePictureUrl: String?)
+
+    /** Role of the user with [email]; emits again whenever it changes. Null if no such user. */
+    @Query("SELECT role FROM users WHERE LOWER(email) = LOWER(:email) LIMIT 1")
+    fun observeRole(email: String): Flow<String?>
+
+    @Query("UPDATE users SET role = :role WHERE LOWER(email) = LOWER(:email)")
+    suspend fun updateRole(email: String, role: String)
 
     @Query("DELETE FROM users WHERE id = :userId")
     suspend fun deleteUser(userId: Long)
