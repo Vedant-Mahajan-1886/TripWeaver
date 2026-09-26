@@ -23,5 +23,7 @@ data class UserEntity(
     val homeLocation: String = "",
     val dateOfBirth: String = "",
     val maritalStatus: String = "",
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    /** "TRAVELLER" or "AGENT" — see UserRole. Existing users are travellers. */
+    val role: String = "TRAVELLER"
 )

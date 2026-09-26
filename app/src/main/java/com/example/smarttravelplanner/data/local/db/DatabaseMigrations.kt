@@ -36,9 +36,20 @@ object DatabaseMigrations {
         }
     }
 
+    /**
+     * v5 → v6: users get a role (Traveller / Agent).
+     * Every existing account becomes a Traveller.
+     */
+    val MIGRATION_5_6 = object : Migration(5, 6) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'TRAVELLER'")
+        }
+    }
+
     /** All migrations, oldest first. Registered in DatabaseModule. */
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_3_4,
-        MIGRATION_4_5
+        MIGRATION_4_5,
+        MIGRATION_5_6
     )
 }
