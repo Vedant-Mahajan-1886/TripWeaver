@@ -8,8 +8,11 @@ import com.example.smarttravelplanner.data.repository.ItineraryRepository
 import com.example.smarttravelplanner.data.repository.TripRepository
 import com.example.smarttravelplanner.domain.model.Itinerary
 import com.example.smarttravelplanner.domain.model.Trip
+import com.example.smarttravelplanner.domain.model.agent.ActivityVerdict
 import com.example.smarttravelplanner.domain.model.agent.IncomingShare
+import com.example.smarttravelplanner.domain.model.agent.ReviewDecision
 import com.example.smarttravelplanner.domain.model.agent.ShareStatus
+import com.example.smarttravelplanner.domain.util.AgentReviewValidator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,11 +29,14 @@ sealed interface AgentTripUiState {
     data class Success(
         val incoming: IncomingShare,
         val trip: Trip,
-        val days: List<Itinerary>
+        val days: List<Itinerary>,
+        val draft: ReviewDraft = ReviewDraft(),
+        /** Set once the review is saved; the screen then goes back. */
+        val submittedDecision: ReviewDecision? = null
     ) : AgentTripUiState
 }
 
-/** A trip a traveller sent to the logged-in agent, opened from the dashboard. */
+/** A trip a traveller sent to the logged-in agent: view it and review it. */
 @HiltViewModel
 class AgentTripViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
@@ -60,6 +66,7 @@ class AgentTripViewModel @Inject constructor(
                 val trip = tripRepository.getTripById(incoming.share.tripId)
                     ?: error("The traveller deleted this trip.")
                 val days = itineraryRepository.getItinerariesForTrip(trip.id).sortedBy { it.dayNumber }
+                val existingFeedback = agentRepository.observeFeedback(shareId).first()
 
                 // Opening the trip tells the traveller it has been viewed
                 agentRepository.markViewed(shareId)
@@ -67,12 +74,84 @@ class AgentTripViewModel @Inject constructor(
                     incoming.copy(share = incoming.share.copy(status = ShareStatus.VIEWED))
                 } else incoming
 
-                AgentTripUiState.Success(shown, trip, days)
+                AgentTripUiState.Success(
+                    incoming = shown,
+                    trip = trip,
+                    days = days,
+                    draft = initialDraft(shown.share, existingFeedback)
+                )
             }.onSuccess { state ->
                 _uiState.value = state
             }.onFailure { e ->
-                _uiState.update { AgentTripUiState.Error(e.message ?: "Couldn't open this trip.") }
+                _uiState.value = AgentTripUiState.Error(e.message ?: "Couldn't open this trip.")
             }
         }
+    }
+
+    // ── Editing the review ───────────────────────────────────────────────────
+
+    fun setVerdict(key: ActivityKey, verdict: ActivityVerdict) = updateActivity(key) { it.copy(verdict = verdict) }
+
+    fun setActivityComment(key: ActivityKey, comment: String) =
+        updateActivity(key) { it.copy(comment = comment.take(MAX_TEXT)) }
+
+    fun setSuggestion(key: ActivityKey, suggestion: String) =
+        updateActivity(key) { it.copy(suggestion = suggestion.take(MAX_TEXT)) }
+
+    fun setOverallComment(comment: String) = updateDraft { it.copy(overallComment = comment.take(MAX_TEXT)) }
+
+    /** Keeps digits only, max 9 (up to ₹99,99,99,999). */
+    fun setPrice(text: String) = updateDraft { it.copy(priceText = text.filter(Char::isDigit).take(9)) }
+
+    // ── Submitting ───────────────────────────────────────────────────────────
+
+    fun submit(decision: ReviewDecision) {
+        val state = _uiState.value as? AgentTripUiState.Success ?: return
+        if (state.draft.isSubmitting) return
+
+        val submission = buildSubmission(state.days, state.draft, decision)
+        val problems = AgentReviewValidator.validate(submission)
+        if (problems.isNotEmpty()) {
+            updateDraft { it.copy(problems = problems) }
+            return
+        }
+
+        viewModelScope.launch {
+            updateDraft { it.copy(isSubmitting = true, problems = emptyList()) }
+            agentRepository.submitReview(shareId, submission)
+                .onSuccess {
+                    _uiState.update { current ->
+                        (current as? AgentTripUiState.Success)?.copy(
+                            draft = current.draft.copy(isSubmitting = false),
+                            submittedDecision = decision
+                        ) ?: current
+                    }
+                }
+                .onFailure { e ->
+                    updateDraft {
+                        it.copy(isSubmitting = false, problems = listOf(e.message ?: "Couldn't send the review."))
+                    }
+                }
+        }
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private fun updateActivity(key: ActivityKey, change: (ActivityDraft) -> ActivityDraft) =
+        updateDraft { draft ->
+            draft.copy(
+                activities = draft.activities + (key to change(draft.draftFor(key))),
+                problems = emptyList()
+            )
+        }
+
+    private fun updateDraft(change: (ReviewDraft) -> ReviewDraft) {
+        _uiState.update { current ->
+            (current as? AgentTripUiState.Success)?.copy(draft = change(current.draft)) ?: current
+        }
+    }
+
+    private companion object {
+        const val MAX_TEXT = 500
     }
 }
