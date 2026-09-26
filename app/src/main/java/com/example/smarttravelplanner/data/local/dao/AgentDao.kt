@@ -30,6 +30,13 @@ data class TripShareWithTripRow(
     val travellerName: String?
 )
 
+/** A feedback row joined with the share it belongs to. */
+data class TripFeedbackRow(
+    @Embedded val feedback: ActivityFeedbackEntity,
+    val agentEmail: String,
+    val tripId: Long
+)
+
 @Dao
 interface AgentDao {
 
@@ -94,6 +101,22 @@ interface AgentDao {
     @Query("UPDATE trip_shares SET status = :status, updatedAt = :now WHERE id = :shareId")
     suspend fun updateShareStatus(shareId: Long, status: String, now: Long)
 
+    /**
+     * Sets the status without touching updatedAt, so "reviewed at" stays the time
+     * of the agent's review (used for Chosen / Closed).
+     */
+    @Query("UPDATE trip_shares SET status = :status WHERE id = :shareId")
+    suspend fun setShareStatusKeepingReviewTime(shareId: Long, status: String)
+
+    /** Closes every other still-open share of the trip once the traveller has chosen an agent. */
+    @Query(
+        """
+        UPDATE trip_shares SET status = 'CLOSED'
+        WHERE tripId = :tripId AND id != :chosenShareId AND status NOT IN ('WITHDRAWN', 'CLOSED')
+        """
+    )
+    suspend fun closeOtherShares(tripId: Long, chosenShareId: Long)
+
     @Query(
         """
         UPDATE trip_shares
@@ -123,4 +146,31 @@ interface AgentDao {
 
     @Query("UPDATE activity_feedback SET response = :response, updatedAt = :now WHERE id = :feedbackId")
     suspend fun updateFeedbackResponse(feedbackId: Long, response: String, now: Long)
+
+    /** All agents' feedback on one trip (withdrawn shares excluded). */
+    @Query(
+        """
+        SELECT f.*, s.agentEmail AS agentEmail, s.tripId AS tripId
+        FROM activity_feedback f
+        INNER JOIN trip_shares s ON s.id = f.shareId
+        WHERE s.tripId = :tripId AND s.status != 'WITHDRAWN'
+        ORDER BY f.dayNumber, f.activityIndex
+        """
+    )
+    fun observeFeedbackForTrip(tripId: Long): Flow<List<TripFeedbackRow>>
+
+    /** Applied feedback on every trip that was shared with [agentEmail] (for "Trip changed" badges). */
+    @Query(
+        """
+        SELECT f.*, s.agentEmail AS agentEmail, s.tripId AS tripId
+        FROM activity_feedback f
+        INNER JOIN trip_shares s ON s.id = f.shareId
+        WHERE f.response = 'APPLIED'
+          AND s.tripId IN (SELECT tripId FROM trip_shares WHERE agentEmail = :agentEmail)
+        """
+    )
+    fun observeAppliedFeedbackOnAgentTrips(agentEmail: String): Flow<List<TripFeedbackRow>>
+
+    @Query("UPDATE activity_feedback SET response = 'SUPERSEDED', updatedAt = :now WHERE id IN (:feedbackIds)")
+    suspend fun markSuperseded(feedbackIds: List<Long>, now: Long)
 }

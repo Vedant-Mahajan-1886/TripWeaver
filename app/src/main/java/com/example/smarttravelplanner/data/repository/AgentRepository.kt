@@ -5,6 +5,7 @@ import com.example.smarttravelplanner.domain.model.agent.AgentProfile
 import com.example.smarttravelplanner.domain.model.agent.AgentReviewSubmission
 import com.example.smarttravelplanner.domain.model.agent.IncomingShare
 import com.example.smarttravelplanner.domain.model.agent.SuggestionResponse
+import com.example.smarttravelplanner.domain.model.agent.TripFeedbackItem
 import com.example.smarttravelplanner.domain.model.agent.TripShare
 import kotlinx.coroutines.flow.Flow
 
@@ -47,6 +48,12 @@ interface AgentRepository {
     /** Stops an agent from seeing the trip. */
     suspend fun withdrawShare(shareId: Long): Result<Unit>
 
+    /**
+     * The traveller goes ahead with one agent after comparing offers: that share
+     * becomes Chosen and every other open share of the trip becomes Closed.
+     */
+    suspend fun chooseAgent(tripId: Long, shareId: Long): Result<Unit>
+
     /** Marks one suggestion as applied or declined. */
     suspend fun respondToFeedback(feedbackId: Long, response: SuggestionResponse): Result<Unit>
 
@@ -64,4 +71,14 @@ interface AgentRepository {
     // ── Both sides ───────────────────────────────────────────────────────────
 
     fun observeFeedback(shareId: Long): Flow<List<ActivityFeedback>>
+
+    /** Every agent's feedback on one trip (to spot conflicts and changes). */
+    fun observeFeedbackForTrip(tripId: Long): Flow<List<TripFeedbackItem>>
+
+    /**
+     * After [applied] changed an activity, marks other agents' pending
+     * suggestions for that same activity as "Already changed".
+     * Returns how many were marked.
+     */
+    suspend fun supersedeConflicting(tripId: Long, applied: ActivityFeedback): Result<Int>
 }

@@ -17,7 +17,16 @@ enum class ShareStatus(val label: String) {
     SENT("Sent"),
     VIEWED("Viewed"),
     RESPONDED("Feedback received"),
-    WITHDRAWN("Withdrawn");
+    WITHDRAWN("Withdrawn"),
+
+    /** The traveller compared offers and chose this agent. */
+    CONFIRMED("Chosen"),
+
+    /** The traveller chose a different agent for this trip. */
+    CLOSED("Closed");
+
+    /** Finished: the agent can no longer change their review. */
+    val isLocked: Boolean get() = this == CONFIRMED || this == CLOSED || this == WITHDRAWN
 
     companion object {
         fun fromStorage(value: String?): ShareStatus =
@@ -51,7 +60,10 @@ enum class ActivityVerdict(val label: String) {
 enum class SuggestionResponse(val label: String) {
     PENDING("Pending"),
     APPLIED("Applied"),
-    DECLINED("Declined");
+    DECLINED("Declined"),
+
+    /** Another agent's suggestion for the same activity was applied first. */
+    SUPERSEDED("Already changed");
 
     companion object {
         fun fromStorage(value: String?): SuggestionResponse =
@@ -81,7 +93,9 @@ data class IncomingShare(
     val tripDestination: String,
     val tripStartDate: String,
     val tripEndDate: String,
-    val travellerName: String
+    val travellerName: String,
+    /** True if the traveller applied changes to the trip after this agent's review. */
+    val tripChangedSinceReview: Boolean = false
 )
 
 /** Stored feedback on one activity. */
@@ -94,7 +108,27 @@ data class ActivityFeedback(
     val verdict: ActivityVerdict,
     val comment: String,
     val suggestion: String,
-    val response: SuggestionResponse
+    val response: SuggestionResponse,
+    /** When the feedback was saved or last responded to (epoch millis). */
+    val updatedAt: Long = 0L
+)
+
+/** Feedback on a trip together with which share (agent) it came from. */
+data class TripFeedbackItem(
+    val feedback: ActivityFeedback,
+    val agentEmail: String,
+    val tripId: Long
+)
+
+/** A change the traveller applied to the trip, as shown to an agent. */
+data class AppliedTripChange(
+    val dayNumber: Int,
+    val activityTitle: String,
+    val verdict: ActivityVerdict,
+    val suggestion: String,
+    /** True if this agent suggested it; otherwise it came from another agent. */
+    val suggestedByMe: Boolean,
+    val appliedAt: Long
 )
 
 /** What the agent fills in for one activity before submitting. */

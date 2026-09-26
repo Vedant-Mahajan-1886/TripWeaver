@@ -7,10 +7,13 @@ import com.example.smarttravelplanner.data.repository.AgentRepository
 import com.example.smarttravelplanner.domain.model.agent.ActivityFeedback
 import com.example.smarttravelplanner.domain.model.agent.ActivityVerdict
 import com.example.smarttravelplanner.domain.model.agent.AgentProfile
+import com.example.smarttravelplanner.domain.model.agent.ReviewDecision
 import com.example.smarttravelplanner.domain.model.agent.SuggestionResponse
 import com.example.smarttravelplanner.domain.model.agent.ShareStatus
+import com.example.smarttravelplanner.domain.model.agent.TripFeedbackItem
 import com.example.smarttravelplanner.domain.model.agent.TripShare
 import com.example.smarttravelplanner.domain.usecase.ApplyAgentSuggestionUseCase
+import com.example.smarttravelplanner.domain.util.AgentConflicts
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,6 +36,20 @@ data class AgentShareRow(
     val isShared: Boolean get() = share != null && share.status != ShareStatus.WITHDRAWN
 }
 
+/** One agent's offer, summarised for side-by-side comparison. */
+data class AgentOffer(
+    val row: AgentShareRow,
+    val flaggedCount: Int,
+    val appliedCount: Int,
+    /** The traveller changed the trip after this agent reviewed it. */
+    val reviewedBeforeLatestChanges: Boolean,
+    val isLowestPrice: Boolean
+) {
+    val share: TripShare get() = row.share!!
+    /** The agent has sent a review (it may since have been chosen or closed). */
+    val hasResponded: Boolean get() = share.decision != null
+}
+
 data class SendToAgentUiState(
     val isLoading: Boolean = true,
     val rows: List<AgentShareRow> = emptyList(),
@@ -40,8 +57,24 @@ data class SendToAgentUiState(
     val message: String = "",
     val isSending: Boolean = false,
     /** One-off feedback shown as a snackbar/toast, then cleared. */
-    val notice: String? = null
+    val notice: String? = null,
+    /** Activities that more than one agent has an open suggestion for. */
+    val conflicts: Set<AgentConflicts.ActivityRef> = emptySet(),
+    /** Every agent that has (or had) this trip, for "Compare offers". */
+    val offers: List<AgentOffer> = emptyList()
 ) {
+    /** The agent the traveller chose, if any. */
+    val chosen: AgentShareRow? get() = rows.firstOrNull { it.share?.status == ShareStatus.CONFIRMED }
+
+    /** Agents who approved the plan and are still in the running. */
+    val approvedRows: List<AgentShareRow>
+        get() = rows.filter { row ->
+            val share = row.share
+            share != null && share.status == ShareStatus.RESPONDED && share.decision == ReviewDecision.APPROVED
+        }
+
+    val respondedOffers: List<AgentOffer> get() = offers.filter { it.hasResponded }
+
     /** Agents this trip is currently shared with (not withdrawn). */
     val activeShareCount: Int get() = rows.count { it.isShared }
 
@@ -55,8 +88,12 @@ data class AgentFeedbackUiState(
     val row: AgentShareRow,
     val feedback: List<ActivityFeedback>,
     /** Feedback ids currently being applied/declined (buttons disabled meanwhile). */
-    val busyIds: Set<Long> = emptySet()
+    val busyIds: Set<Long> = emptySet(),
+    val conflicts: Set<AgentConflicts.ActivityRef> = emptySet()
 ) {
+    fun hasConflict(feedback: ActivityFeedback): Boolean =
+        AgentConflicts.ActivityRef(feedback.dayNumber, feedback.activityTitle) in conflicts
+
     /** Activities the agent flagged (not simply "Available"). */
     val flagged: List<ActivityFeedback> get() = feedback.filter { it.verdict != ActivityVerdict.AVAILABLE }
     val confirmedCount: Int get() = feedback.count { it.verdict == ActivityVerdict.AVAILABLE }
@@ -88,8 +125,9 @@ class SendToAgentViewModel @Inject constructor(
     val uiState: StateFlow<SendToAgentUiState> = combine(
         agentRepository.observeAgents(),
         agentRepository.observeSharesForTrip(tripId),
+        agentRepository.observeFeedbackForTrip(tripId),
         selection
-    ) { agents, shares, sel ->
+    ) { agents, shares, tripFeedback, sel ->
         val latestByAgent = shares
             .groupBy { it.agentEmail }
             .mapValues { (_, list) -> list.maxByOrNull { it.updatedAt } }
@@ -103,7 +141,9 @@ class SendToAgentViewModel @Inject constructor(
             },
             message = sel.message,
             isSending = sel.isSending,
-            notice = sel.notice
+            notice = sel.notice,
+            conflicts = AgentConflicts.conflictingActivities(tripFeedback),
+            offers = buildOffers(agents.map { AgentShareRow(it, latestByAgent[it.email]) }, tripFeedback)
         )
     }.stateIn(
         scope = viewModelScope,
@@ -150,6 +190,22 @@ class SendToAgentViewModel @Inject constructor(
 
     fun noticeShown() = selection.update { it.copy(notice = null) }
 
+    // ── Choosing an agent ────────────────────────────────────────────────────
+
+    /** Goes ahead with one agent; the other agents' requests are closed. */
+    fun chooseAgent(shareId: Long) {
+        viewModelScope.launch {
+            agentRepository.chooseAgent(tripId, shareId)
+                .onSuccess {
+                    val name = uiState.value.rows.firstOrNull { it.share?.id == shareId }
+                        ?.agent?.let { it.agencyName.ifBlank { it.fullName } } ?: "this agent"
+                    selection.update { it.copy(notice = "Going ahead with $name") }
+                }
+                .onFailure { e -> selection.update { it.copy(notice = e.message ?: "Couldn't choose this agent.") } }
+        }
+    }
+
+
     // ── Reading an agent's feedback ──────────────────────────────────────────
 
     private val openFeedbackShareId = MutableStateFlow<Long?>(null)
@@ -162,7 +218,7 @@ class SendToAgentViewModel @Inject constructor(
             if (shareId == null) flowOf(null)
             else combine(uiState, agentRepository.observeFeedback(shareId), busyFeedbackIds) { state, feedback, busy ->
                 state.rows.firstOrNull { it.share?.id == shareId }
-                    ?.let { row -> AgentFeedbackUiState(row, feedback, busy) }
+                    ?.let { row -> AgentFeedbackUiState(row, feedback, busy, state.conflicts) }
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -202,4 +258,36 @@ class SendToAgentViewModel @Inject constructor(
     private companion object {
         const val MAX_MESSAGE = 500
     }
+}
+
+/**
+ * Summarises every agent that has this trip into comparable offers:
+ * chosen first, then responded (approved before changes-requested, cheaper first), then pending.
+ */
+internal fun buildOffers(
+    rows: List<AgentShareRow>,
+    tripFeedback: List<TripFeedbackItem>
+): List<AgentOffer> {
+    val active = rows.filter { it.isShared }
+    val prices = active.mapNotNull { row ->
+        row.share?.takeIf { it.decision != null }?.priceEstimate
+    }
+    val lowest = prices.minOrNull()
+    return active.map { row ->
+        val share = row.share!!
+        val mine = tripFeedback.filter { it.feedback.shareId == share.id }.map { it.feedback }
+        AgentOffer(
+            row = row,
+            flaggedCount = mine.count { it.verdict != ActivityVerdict.AVAILABLE },
+            appliedCount = mine.count { it.response == SuggestionResponse.APPLIED },
+            reviewedBeforeLatestChanges = share.decision != null &&
+                AgentConflicts.changesSince(share.updatedAt, share.id, tripFeedback).any { !it.suggestedByMe },
+            isLowestPrice = prices.size > 1 && share.priceEstimate != null && share.priceEstimate == lowest
+        )
+    }.sortedWith(
+        // Chosen first, then responded offers (approved before changes-requested), then pending
+        compareBy<AgentOffer> { if (it.share.status == ShareStatus.CONFIRMED) 0 else if (it.hasResponded) 1 else 2 }
+            .thenBy { if (it.share.decision == ReviewDecision.APPROVED) 0 else 1 }
+            .thenBy { it.share.priceEstimate ?: Double.MAX_VALUE }
+    )
 }

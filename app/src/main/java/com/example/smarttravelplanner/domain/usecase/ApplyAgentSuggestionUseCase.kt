@@ -8,8 +8,9 @@ import com.example.smarttravelplanner.domain.util.AgentSuggestionApplier
 import javax.inject.Inject
 
 /**
- * Traveller accepts an agent's suggestion: updates the itinerary, then marks
- * the feedback as Applied. Trip Detail refreshes automatically because it
+ * Traveller accepts an agent's suggestion: updates the itinerary, marks the
+ * feedback as Applied, and marks other agents' pending suggestions for the same
+ * activity as "Already changed". Trip Detail refreshes automatically because it
  * observes the itinerary.
  */
 class ApplyAgentSuggestionUseCase @Inject constructor(
@@ -21,5 +22,6 @@ class ApplyAgentSuggestionUseCase @Inject constructor(
         val changedDay = AgentSuggestionApplier.apply(days, feedback)
         itineraryRepository.saveItineraries(listOf(changedDay))
         agentRepository.respondToFeedback(feedback.id, SuggestionResponse.APPLIED).getOrThrow()
+        agentRepository.supersedeConflicting(tripId, feedback).getOrThrow()
     }
 }

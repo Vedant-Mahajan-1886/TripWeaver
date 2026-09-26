@@ -35,16 +35,35 @@ data class ReviewDraft(
 /**
  * Starts a draft from what the agent already submitted (if anything), so an
  * earlier review can be opened and updated. Activities default to Available.
+ *
+ * Earlier answers are matched to the CURRENT itinerary by activity title
+ * (position is only a hint), because the traveller may have removed or
+ * replaced activities since. Answers for activities that no longer exist are dropped.
  */
-internal fun initialDraft(share: TripShare, existing: List<ActivityFeedback>): ReviewDraft =
-    ReviewDraft(
-        activities = existing.associate { fb ->
-            ActivityKey(fb.dayNumber, fb.activityIndex) to
-                ActivityDraft(verdict = fb.verdict, comment = fb.comment, suggestion = fb.suggestion)
-        },
+internal fun initialDraft(
+    share: TripShare,
+    existing: List<ActivityFeedback>,
+    days: List<Itinerary>
+): ReviewDraft {
+    val matched = mutableMapOf<ActivityKey, ActivityDraft>()
+    existing.forEach { fb ->
+        val day = days.firstOrNull { it.dayNumber == fb.dayNumber } ?: return@forEach
+        val index = day.activities.getOrNull(fb.activityIndex)
+            ?.takeIf { it.title == fb.activityTitle }
+            ?.let { fb.activityIndex }
+            ?: day.activities.indexOfFirst { it.title == fb.activityTitle }.takeIf { it >= 0 }
+            ?: return@forEach
+        val key = ActivityKey(fb.dayNumber, index)
+        if (key !in matched) {
+            matched[key] = ActivityDraft(verdict = fb.verdict, comment = fb.comment, suggestion = fb.suggestion)
+        }
+    }
+    return ReviewDraft(
+        activities = matched,
         overallComment = share.overallComment,
         priceText = share.priceEstimate?.toLong()?.toString().orEmpty()
     )
+}
 
 /**
  * Turns the draft into what gets saved. Every activity in the itinerary is

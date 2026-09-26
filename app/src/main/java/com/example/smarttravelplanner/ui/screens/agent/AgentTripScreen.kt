@@ -1,5 +1,7 @@
 package com.example.smarttravelplanner.ui.screens.agent
 
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -56,7 +58,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.smarttravelplanner.domain.model.Activity
 import com.example.smarttravelplanner.domain.model.Itinerary
 import com.example.smarttravelplanner.domain.model.agent.ActivityVerdict
+import com.example.smarttravelplanner.domain.model.agent.AppliedTripChange
 import com.example.smarttravelplanner.domain.model.agent.ReviewDecision
+import com.example.smarttravelplanner.domain.model.agent.ShareStatus
 import com.example.smarttravelplanner.ui.screens.agentshare.StatusChip
 import com.example.smarttravelplanner.ui.theme.Amber
 import com.example.smarttravelplanner.ui.theme.DmSansFontFamily
@@ -242,6 +246,16 @@ private fun TripContent(
             }
         }
 
+        // ── Traveller's choice (after comparing offers) ─────────────────────
+        if (share.status == ShareStatus.CONFIRMED || share.status == ShareStatus.CLOSED) {
+            item { ChoiceBanner(state) }
+        }
+
+        // ── What the traveller changed since this agent's review ───────────
+        if (state.changesSinceReview.isNotEmpty()) {
+            item { ChangesSinceReviewCard(state.changesSinceReview) }
+        }
+
         // ── Itinerary ───────────────────────────────────────────────────────
         if (state.days.isEmpty()) {
             item {
@@ -257,6 +271,7 @@ private fun TripContent(
                 DayCard(
                     day = day,
                     draft = state.draft,
+                    locked = share.status.isLocked,
                     onVerdict = onVerdict,
                     onActivityComment = onActivityComment,
                     onSuggestion = onSuggestion
@@ -264,8 +279,8 @@ private fun TripContent(
             }
         }
 
-        // ── Review summary + decision ───────────────────────────────────────
-        item {
+        // ── Review summary + decision (not shown once the traveller has chosen) ──
+        if (!share.status.isLocked) item {
             ReviewSection(
                 draft = state.draft,
                 alreadyResponded = state.incoming.share.decision != null,
@@ -281,6 +296,7 @@ private fun TripContent(
 private fun DayCard(
     day: Itinerary,
     draft: ReviewDraft,
+    locked: Boolean,
     onVerdict: (ActivityKey, ActivityVerdict) -> Unit,
     onActivityComment: (ActivityKey, String) -> Unit,
     onSuggestion: (ActivityKey, String) -> Unit
@@ -314,6 +330,7 @@ private fun DayCard(
             ActivityRow(
                 activity = activity,
                 draft = draft.draftFor(key),
+                locked = locked,
                 onVerdict = { onVerdict(key, it) },
                 onComment = { onActivityComment(key, it) },
                 onSuggestion = { onSuggestion(key, it) }
@@ -327,6 +344,7 @@ private fun DayCard(
 private fun ActivityRow(
     activity: Activity,
     draft: ActivityDraft,
+    locked: Boolean,
     onVerdict: (ActivityVerdict) -> Unit,
     onComment: (String) -> Unit,
     onSuggestion: (String) -> Unit
@@ -371,6 +389,25 @@ private fun ActivityRow(
     }
 
     // ── Agent's verdict for this activity ───────────────────────────────
+    if (locked) {
+        // Read-only: only show what the agent flagged
+        if (draft.verdict != ActivityVerdict.AVAILABLE) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(modifier = Modifier.padding(start = 18.dp)) {
+                VerdictChip(verdict = draft.verdict, selected = true, onClick = {})
+            }
+            val note = listOf(draft.suggestion, draft.comment).filter { it.isNotBlank() }.joinToString(" · ")
+            if (note.isNotBlank()) {
+                Text(
+                    text = note,
+                    fontFamily = DmSansFontFamily,
+                    fontSize = 12.sp,
+                    color = OnBackgroundGray,
+                    modifier = Modifier.padding(start = 18.dp, top = 4.dp)
+                )
+            }
+        }
+    } else {
     Spacer(modifier = Modifier.height(8.dp))
     Row(
         modifier = Modifier.padding(start = 18.dp),
@@ -399,6 +436,7 @@ private fun ActivityRow(
             placeholder = if (draft.verdict == ActivityVerdict.NOT_AVAILABLE) "e.g. Closed on Mondays" else "Why this change?",
             modifier = Modifier.padding(start = 18.dp)
         )
+    }
     }
   }
 }
@@ -559,6 +597,110 @@ private fun ReviewSection(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ChoiceBanner(state: AgentTripUiState.Success) {
+    val share = state.incoming.share
+    val chosen = share.status == ShareStatus.CONFIRMED
+    val color = if (chosen) Color(0xFF4ADE80) else OnBackgroundGray
+    val context = LocalContext.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(color.copy(alpha = 0.12f))
+            .border(1.dp, color.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+            .padding(14.dp)
+    ) {
+        Text(
+            text = if (chosen) "\u2713 THE TRAVELLER CHOSE YOU" else "CLOSED",
+            fontFamily = DmSansFontFamily,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.sp,
+            color = color
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = if (chosen) {
+                "${state.incoming.travellerName} compared offers and went ahead with you. Please contact them to book."
+            } else {
+                "The traveller went ahead with another agent for this trip. Thanks for your review!"
+            },
+            fontFamily = DmSansFontFamily,
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        if (chosen) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Button(
+                onClick = {
+                    val trip = state.trip
+                    val intent = Intent(Intent.ACTION_SENDTO).apply {
+                        data = Uri.parse("mailto:")
+                        putExtra(Intent.EXTRA_EMAIL, arrayOf(share.travellerEmail))
+                        putExtra(Intent.EXTRA_SUBJECT, "Your trip to ${trip.destination}")
+                        putExtra(
+                            Intent.EXTRA_TEXT,
+                            "Hi ${state.incoming.travellerName},\n\nThanks for choosing us for your trip to " +
+                                "${trip.destination} (${formatTripDates(trip.startDate.toString(), trip.endDate.toString())}). " +
+                                "Let's confirm the bookings.\n"
+                        )
+                    }
+                    runCatching { context.startActivity(Intent.createChooser(intent, "Contact traveller")) }
+                        .onFailure { Toast.makeText(context, "No email app found", Toast.LENGTH_SHORT).show() }
+                },
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = color)
+            ) {
+                Text("Contact traveller", fontWeight = FontWeight.Bold, color = Color(0xFF0B111B))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChangesSinceReviewCard(changes: List<AppliedTripChange>) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Amber.copy(alpha = 0.12f))
+            .border(1.dp, Amber.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+            .padding(14.dp)
+    ) {
+        Text(
+            text = "TRIP CHANGED SINCE YOUR REVIEW",
+            fontFamily = DmSansFontFamily,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.sp,
+            color = Amber
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        changes.forEach { change ->
+            val what = when (change.verdict) {
+                ActivityVerdict.NOT_AVAILABLE -> "Removed \u201C${change.activityTitle}\u201D"
+                else -> "Replaced \u201C${change.activityTitle}\u201D → \u201C${change.suggestion}\u201D"
+            }
+            val who = if (change.suggestedByMe) "your suggestion" else "suggested by another agent"
+            Text(
+                text = "• Day ${change.dayNumber}: $what ($who)",
+                fontFamily = DmSansFontFamily,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "Check the updated plan below and update your review if needed.",
+            fontFamily = DmSansFontFamily,
+            fontSize = 12.sp,
+            color = OnBackgroundGray
+        )
     }
 }
 

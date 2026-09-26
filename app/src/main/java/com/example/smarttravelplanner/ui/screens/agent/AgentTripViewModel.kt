@@ -9,9 +9,11 @@ import com.example.smarttravelplanner.data.repository.TripRepository
 import com.example.smarttravelplanner.domain.model.Itinerary
 import com.example.smarttravelplanner.domain.model.Trip
 import com.example.smarttravelplanner.domain.model.agent.ActivityVerdict
+import com.example.smarttravelplanner.domain.model.agent.AppliedTripChange
 import com.example.smarttravelplanner.domain.model.agent.IncomingShare
 import com.example.smarttravelplanner.domain.model.agent.ReviewDecision
 import com.example.smarttravelplanner.domain.model.agent.ShareStatus
+import com.example.smarttravelplanner.domain.util.AgentConflicts
 import com.example.smarttravelplanner.domain.util.AgentReviewValidator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,6 +33,8 @@ sealed interface AgentTripUiState {
         val trip: Trip,
         val days: List<Itinerary>,
         val draft: ReviewDraft = ReviewDraft(),
+        /** What the traveller changed after this agent's last review (empty if not reviewed yet). */
+        val changesSinceReview: List<AppliedTripChange> = emptyList(),
         /** Set once the review is saved; the screen then goes back. */
         val submittedDecision: ReviewDecision? = null
     ) : AgentTripUiState
@@ -67,6 +71,13 @@ class AgentTripViewModel @Inject constructor(
                     ?: error("The traveller deleted this trip.")
                 val days = itineraryRepository.getItinerariesForTrip(trip.id).sortedBy { it.dayNumber }
                 val existingFeedback = agentRepository.observeFeedback(shareId).first()
+                val changes = if (incoming.share.decision != null) {
+                    AgentConflicts.changesSince(
+                        reviewedAt = incoming.share.updatedAt,
+                        myShareId = shareId,
+                        all = agentRepository.observeFeedbackForTrip(trip.id).first()
+                    )
+                } else emptyList()
 
                 // Opening the trip tells the traveller it has been viewed
                 agentRepository.markViewed(shareId)
@@ -78,7 +89,8 @@ class AgentTripViewModel @Inject constructor(
                     incoming = shown,
                     trip = trip,
                     days = days,
-                    draft = initialDraft(shown.share, existingFeedback)
+                    draft = initialDraft(shown.share, existingFeedback, days),
+                    changesSinceReview = changes
                 )
             }.onSuccess { state ->
                 _uiState.value = state
