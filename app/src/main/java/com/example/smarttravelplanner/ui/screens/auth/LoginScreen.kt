@@ -64,6 +64,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.smarttravelplanner.R
+import com.example.smarttravelplanner.domain.model.UserRole
 import com.example.smarttravelplanner.ui.theme.*
 
 private enum class AuthTab {
@@ -79,7 +80,9 @@ private const val TAJ_MAHAL_ONLINE_IMAGE =
 @Composable
 fun LoginScreen(
     viewModel: AuthViewModel = hiltViewModel(),
-    onLoginSuccess: () -> Unit
+    onLoginSuccess: () -> Unit,
+    /** Called instead of [onLoginSuccess] when a travel-agent account signs in. */
+    onAgentLoginSuccess: () -> Unit = onLoginSuccess
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val resendCountdown by viewModel.resendCountdown.collectAsState()
@@ -94,6 +97,15 @@ fun LoginScreen(
     var password by rememberSaveable { mutableStateOf("") }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var regOtpCode by rememberSaveable { mutableStateOf("") }
+
+    // Agent account states (opened from "Agent account" next to Forgot password)
+    var agentEmail by rememberSaveable { mutableStateOf("") }
+    var agentPassword by rememberSaveable { mutableStateOf("") }
+    var agentPasswordVisible by rememberSaveable { mutableStateOf(false) }
+    var agentFullName by rememberSaveable { mutableStateOf("") }
+    var agentAgencyName by rememberSaveable { mutableStateOf("") }
+    var agentCity by rememberSaveable { mutableStateOf("") }
+    var agentOtpCode by rememberSaveable { mutableStateOf("") }
 
     // Forgot Password states
     var resetEmail by rememberSaveable { mutableStateOf("") }
@@ -126,7 +138,7 @@ fun LoginScreen(
 
     LaunchedEffect(uiState.isSuccess) {
         if (uiState.isSuccess) {
-            onLoginSuccess()
+            if (uiState.sessionRole == UserRole.AGENT) onAgentLoginSuccess() else onLoginSuccess()
         }
     }
 
@@ -165,6 +177,21 @@ fun LoginScreen(
     val forgotPasswordColor = Amber
 
     val errorMessage = uiState.errorMessage
+
+    val agentFormColors = AgentFormColors(
+        textPrimary = textPrimary,
+        textMuted = textMuted,
+        labelColor = labelColor,
+        fieldBackground = fieldBackground,
+        fieldBorder = fieldBorder,
+        fieldPlaceholder = fieldPlaceholder,
+        fieldIcon = fieldIcon,
+        submitBtnBg = submitBtnBg,
+        submitBtnDisabledBg = submitBtnDisabledBg,
+        submitTextEnabled = Color.White,
+        submitTextDisabled = if (isDark) OnBackgroundMuted else OnBackgroundSubtle,
+        accent = forgotPasswordColor
+    )
 
     Box(
         modifier = Modifier
@@ -414,6 +441,117 @@ fun LoginScreen(
                                 )
                             }
 
+                            is AuthViewMode.AgentSignIn -> {
+                                AgentSignInView(
+                                    email = agentEmail,
+                                    onEmailChange = {
+                                        agentEmail = it
+                                        viewModel.clearError()
+                                    },
+                                    password = agentPassword,
+                                    onPasswordChange = {
+                                        agentPassword = it
+                                        viewModel.clearError()
+                                    },
+                                    passwordVisible = agentPasswordVisible,
+                                    onTogglePasswordVisibility = { agentPasswordVisible = !agentPasswordVisible },
+                                    isLoading = uiState.isLoading,
+                                    colors = agentFormColors,
+                                    onSignIn = {
+                                        focusManager.clearFocus()
+                                        viewModel.agentLogin(agentEmail, agentPassword)
+                                    },
+                                    onUseDemoAccount = { demoEmail, demoPassword ->
+                                        agentEmail = demoEmail
+                                        agentPassword = demoPassword
+                                        viewModel.clearError()
+                                    },
+                                    onCreateAgentAccount = { viewModel.startAgentSignUp() },
+                                    onBack = { viewModel.cancelAgent() }
+                                )
+                            }
+
+                            is AuthViewMode.AgentSignUp -> {
+                                AgentSignUpView(
+                                    fullName = agentFullName,
+                                    onFullNameChange = {
+                                        agentFullName = it
+                                        viewModel.clearError()
+                                    },
+                                    agencyName = agentAgencyName,
+                                    onAgencyNameChange = {
+                                        agentAgencyName = it
+                                        viewModel.clearError()
+                                    },
+                                    city = agentCity,
+                                    onCityChange = {
+                                        agentCity = it
+                                        viewModel.clearError()
+                                    },
+                                    email = agentEmail,
+                                    onEmailChange = {
+                                        agentEmail = it
+                                        viewModel.clearError()
+                                    },
+                                    password = agentPassword,
+                                    onPasswordChange = {
+                                        agentPassword = it
+                                        viewModel.clearError()
+                                    },
+                                    passwordVisible = agentPasswordVisible,
+                                    onTogglePasswordVisibility = { agentPasswordVisible = !agentPasswordVisible },
+                                    isLoading = uiState.isLoading,
+                                    colors = agentFormColors,
+                                    onSubmit = {
+                                        focusManager.clearFocus()
+                                        viewModel.requestAgentRegistrationOtp(
+                                            fullName = agentFullName,
+                                            email = agentEmail,
+                                            password = agentPassword,
+                                            agencyName = agentAgencyName
+                                        )
+                                    },
+                                    onBack = { viewModel.startAgentSignIn() }
+                                )
+                            }
+
+                            is AuthViewMode.AgentRegistrationOtp -> {
+                                OtpVerificationView(
+                                    email = mode.email,
+                                    otp = agentOtpCode,
+                                    onOtpChange = {
+                                        agentOtpCode = it
+                                        viewModel.clearError()
+                                    },
+                                    resendCountdown = resendCountdown,
+                                    isLoading = uiState.isLoading,
+                                    isDark = isDark,
+                                    textPrimary = textPrimary,
+                                    textMuted = textMuted,
+                                    submitBtnBg = submitBtnBg,
+                                    submitBtnDisabledBg = submitBtnDisabledBg,
+                                    submitBtnTextColor = if (agentOtpCode.length == 6) Color.White
+                                                         else agentFormColors.submitTextDisabled,
+                                    forgotPasswordColor = forgotPasswordColor,
+                                    onVerify = {
+                                        focusManager.clearFocus()
+                                        viewModel.verifyAgentOtpAndCreateAccount(
+                                            fullName = agentFullName,
+                                            email = mode.email,
+                                            password = agentPassword,
+                                            otp = agentOtpCode,
+                                            agencyName = agentAgencyName,
+                                            city = agentCity
+                                        )
+                                    },
+                                    onResend = { viewModel.resendOtp(mode.email) },
+                                    onCancel = {
+                                        agentOtpCode = ""
+                                        viewModel.backToAgentSignUp()
+                                    }
+                                )
+                            }
+
                             is AuthViewMode.StandardForm -> {
                                 StandardAuthForm(
                                     selectedTab = selectedTab,
@@ -471,6 +609,7 @@ fun LoginScreen(
                                     onForgotPasswordClick = {
                                         viewModel.startForgotPassword(email)
                                     },
+                                    onAgentAccountClick = { viewModel.startAgentSignIn() },
                                     onGoogleSignIn = {
                                         if (GoogleAuthHelper.isConfigured) {
                                             coroutineScope.launch {
@@ -856,7 +995,7 @@ private fun ForgotPasswordResetView(
 //  Registration OTP Verification View
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun OtpVerificationView(
+internal fun OtpVerificationView(
     email: String,
     otp: String,
     onOtpChange: (String) -> Unit,
@@ -1106,6 +1245,7 @@ private fun StandardAuthForm(
     focusManager: androidx.compose.ui.focus.FocusManager,
     onSubmit: () -> Unit,
     onForgotPasswordClick: () -> Unit,
+    onAgentAccountClick: () -> Unit,
     onGoogleSignIn: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -1257,12 +1397,24 @@ private fun StandardAuthForm(
             enter = expandVertically() + fadeIn(),
             exit = shrinkVertically() + fadeOut()
         ) {
-            Box(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 10.dp, bottom = 4.dp),
-                contentAlignment = Alignment.CenterEnd
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                // Opens the separate travel-agent sign-in (same pattern as Forgot password)
+                Text(
+                    text = "Agent account",
+                    fontFamily = DmSansFontFamily,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = forgotPasswordColor,
+                    modifier = Modifier
+                        .clickable(onClick = onAgentAccountClick)
+                        .padding(vertical = 4.dp)
+                )
                 Text(
                     text = "Forgot password?",
                     fontFamily = DmSansFontFamily,
@@ -1374,7 +1526,7 @@ private fun StandardAuthForm(
 
 // ── Reusable Form Field Component ────────────────────────────────────────────
 @Composable
-private fun AuthFormField(
+internal fun AuthFormField(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,

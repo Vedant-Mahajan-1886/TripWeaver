@@ -14,4 +14,7 @@ interface UserRoleRepository {
 
     /** Changes the logged-in user's role. Does nothing if nobody is logged in. */
     suspend fun setCurrentUserRole(role: UserRole)
+
+    /** Role of the account registered with [email], or null if there is no such account. */
+    suspend fun roleForEmail(email: String): UserRole?
 }

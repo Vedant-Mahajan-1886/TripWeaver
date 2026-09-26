@@ -2,7 +2,11 @@ package com.example.smarttravelplanner.ui.screens.auth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.smarttravelplanner.data.local.seed.DemoAgentSeeder
+import com.example.smarttravelplanner.data.repository.AgentRepository
 import com.example.smarttravelplanner.data.repository.AuthRepository
+import com.example.smarttravelplanner.data.repository.UserRoleRepository
+import com.example.smarttravelplanner.domain.model.UserRole
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -10,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -17,8 +22,16 @@ import javax.inject.Inject
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val userRoleRepository: UserRoleRepository,
+    private val agentRepository: AgentRepository,
+    private val demoAgentSeeder: DemoAgentSeeder
 ) : ViewModel() {
+
+    init {
+        // Ready-made agent accounts for demos (no-op if they already exist)
+        viewModelScope.launch { runCatching { demoAgentSeeder.seedIfNeeded() } }
+    }
 
     private val _uiState = MutableStateFlow(AuthUiState())
     val uiState = _uiState.asStateFlow()
@@ -28,6 +41,20 @@ class AuthViewModel @Inject constructor(
      * initialValue is null to distinguish cold-start loading from an actual false.
      */
     val isLoggedIn: StateFlow<Boolean?> = authRepository.isLoggedIn
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = null
+        )
+
+    /**
+     * Role of the logged-in account, or null while it's still loading / nobody is logged in.
+     * Used at app start to open Home (traveller) or the Agent Dashboard (agent).
+     */
+    val sessionRole: StateFlow<UserRole?> = combine(
+        authRepository.isLoggedIn,
+        userRoleRepository.currentUserRole
+    ) { loggedIn, role -> if (loggedIn) role else null }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.Eagerly,
@@ -47,9 +74,20 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             val normalizedEmail = email.trim().lowercase()
+            if (userRoleRepository.roleForEmail(normalizedEmail) == UserRole.AGENT) {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = "This is a travel agent account. Tap \"Agent account\" to sign in."
+                    )
+                }
+                return@launch
+            }
             authRepository.login(normalizedEmail, password)
                 .onSuccess {
-                    _uiState.update { it.copy(isLoading = false, isSuccess = true) }
+                    _uiState.update {
+                        it.copy(isLoading = false, isSuccess = true, sessionRole = UserRole.TRAVELLER)
+                    }
                 }
                 .onFailure { error ->
                     _uiState.update {
@@ -172,6 +210,15 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             val normalizedEmail = email.trim().lowercase()
+            if (userRoleRepository.roleForEmail(normalizedEmail) == UserRole.AGENT) {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = "This Google account is registered as a travel agent. Use \"Agent account\" to sign in."
+                    )
+                }
+                return@launch
+            }
             authRepository.loginWithGoogle(normalizedEmail, fullName, profilePictureUrl)
                 .onSuccess {
                     _uiState.update { it.copy(isLoading = false, isSuccess = true) }
@@ -312,7 +359,9 @@ class AuthViewModel @Inject constructor(
             val normalizedEmail = email.trim().lowercase()
             authRepository.resetPassword(normalizedEmail, otp, newPassword)
                 .onSuccess {
-                    _uiState.update { it.copy(isLoading = false, isSuccess = true) }
+                    // Resetting signs the user in: send agents to their dashboard
+                    val role = userRoleRepository.roleForEmail(normalizedEmail) ?: UserRole.TRAVELLER
+                    _uiState.update { it.copy(isLoading = false, isSuccess = true, sessionRole = role) }
                 }
                 .onFailure { error ->
                     _uiState.update {
@@ -337,6 +386,169 @@ class AuthViewModel @Inject constructor(
                 errorMessage = null,
                 isLoading = false
             )
+        }
+    }
+
+    // ── Travel-agent accounts ────────────────────────────────────────────────
+
+    /** Opens the agent sign-in view (from "Agent account" on the sign-in form). */
+    fun startAgentSignIn() {
+        countdownJob?.cancel()
+        _resendCountdown.value = 0
+        _uiState.update {
+            it.copy(viewMode = AuthViewMode.AgentSignIn, errorMessage = null, isLoading = false)
+        }
+    }
+
+    fun startAgentSignUp() {
+        _uiState.update {
+            it.copy(viewMode = AuthViewMode.AgentSignUp, errorMessage = null, isLoading = false)
+        }
+    }
+
+    /** Leaves the agent views and returns to the normal traveller sign-in. */
+    fun cancelAgent() {
+        countdownJob?.cancel()
+        _resendCountdown.value = 0
+        _uiState.update {
+            it.copy(viewMode = AuthViewMode.StandardForm, errorMessage = null, isLoading = false)
+        }
+    }
+
+    /** Signs in an agent. Traveller accounts are refused here. */
+    fun agentLogin(email: String, password: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            val normalizedEmail = email.trim().lowercase()
+            when (userRoleRepository.roleForEmail(normalizedEmail)) {
+                null -> {
+                    _uiState.update {
+                        it.copy(isLoading = false, errorMessage = "No agent account found for this email.")
+                    }
+                    return@launch
+                }
+                UserRole.TRAVELLER -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = "This is a traveller account. Go back and sign in normally."
+                        )
+                    }
+                    return@launch
+                }
+                UserRole.AGENT -> Unit
+            }
+            authRepository.login(normalizedEmail, password)
+                .onSuccess {
+                    _uiState.update {
+                        it.copy(isLoading = false, isSuccess = true, sessionRole = UserRole.AGENT)
+                    }
+                }
+                .onFailure { error ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = error.message ?: "Failed to sign in. Please check your credentials."
+                        )
+                    }
+                }
+        }
+    }
+
+    /** Validates the agent sign-up form and emails a verification code. */
+    fun requestAgentRegistrationOtp(
+        fullName: String,
+        email: String,
+        password: String,
+        agencyName: String
+    ) {
+        if (agencyName.isBlank()) {
+            _uiState.update { it.copy(errorMessage = "Please enter your agency name.") }
+            return
+        }
+        if (fullName.isBlank()) {
+            _uiState.update { it.copy(errorMessage = "Please enter your full name.") }
+            return
+        }
+        if (email.isBlank()) {
+            _uiState.update { it.copy(errorMessage = "Please enter your email.") }
+            return
+        }
+        if (password.length < 6) {
+            _uiState.update { it.copy(errorMessage = "Password must be at least 6 characters.") }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            val normalizedEmail = email.trim().lowercase()
+            authRepository.sendRegistrationOtp(normalizedEmail)
+                .onSuccess {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            viewMode = AuthViewMode.AgentRegistrationOtp(normalizedEmail),
+                            errorMessage = null
+                        )
+                    }
+                    startResendCooldown()
+                }
+                .onFailure { error ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = error.message ?: "Failed to send verification code. Please try again."
+                        )
+                    }
+                }
+        }
+    }
+
+    /** Verifies the code, creates the account as an AGENT and saves the agency profile. */
+    fun verifyAgentOtpAndCreateAccount(
+        fullName: String,
+        email: String,
+        password: String,
+        otp: String,
+        agencyName: String,
+        city: String
+    ) {
+        if (otp.length != 6) {
+            _uiState.update { it.copy(errorMessage = "Please enter the complete 6-digit verification code.") }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            val normalizedEmail = email.trim().lowercase()
+            val result = authRepository.verifyOtpAndCreateAccount(fullName, normalizedEmail, password, otp)
+                .mapCatching {
+                    userRoleRepository.setCurrentUserRole(UserRole.AGENT)
+                    agentRepository.saveMyAgentProfile(agencyName, city, emptyList()).getOrThrow()
+                }
+            result
+                .onSuccess {
+                    _uiState.update {
+                        it.copy(isLoading = false, isSuccess = true, sessionRole = UserRole.AGENT)
+                    }
+                }
+                .onFailure { error ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = error.message ?: "Verification failed. Please check the code."
+                        )
+                    }
+                }
+        }
+    }
+
+    /** From the agent OTP screen back to the agent sign-up form. */
+    fun backToAgentSignUp() {
+        countdownJob?.cancel()
+        _resendCountdown.value = 0
+        _uiState.update {
+            it.copy(viewMode = AuthViewMode.AgentSignUp, errorMessage = null, isLoading = false)
         }
     }
 

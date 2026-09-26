@@ -31,4 +31,7 @@ class UserRoleRepositoryImpl @Inject constructor(
         val email = authRepository.currentUserEmail.first()?.trim().orEmpty()
         if (email.isNotEmpty()) userDao.updateRole(email, role.name)
     }
+
+    override suspend fun roleForEmail(email: String): UserRole? =
+        userDao.getUserByEmail(email.trim())?.let { UserRole.fromStorage(it.role) }
 }
