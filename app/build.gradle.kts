@@ -88,6 +88,12 @@ android {
     }
 }
 
+// Room: export the database schema to app/schemas so every migration can be
+// reviewed in Git and tested. Commit the generated JSON files.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
     // Compose BOM
     implementation(platform(libs.androidx.compose.bom))

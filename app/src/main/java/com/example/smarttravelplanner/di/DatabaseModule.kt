@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.example.smarttravelplanner.data.local.dao.ItineraryDao
 import com.example.smarttravelplanner.data.local.dao.TripDao
 import com.example.smarttravelplanner.data.local.dao.UserDao
+import com.example.smarttravelplanner.data.local.db.DatabaseMigrations
 import com.example.smarttravelplanner.data.local.db.TravelDatabase
 import dagger.Module
 import dagger.Provides
@@ -25,7 +26,12 @@ object DatabaseModule {
             TravelDatabase::class.java,
             TravelDatabase.DATABASE_NAME
         )
-        .fallbackToDestructiveMigration(true)
+        // Real migrations keep users' accounts and trips across schema changes.
+        // (Previously fallbackToDestructiveMigration wiped the whole database.)
+        .addMigrations(*DatabaseMigrations.ALL)
+        // Only wipe if someone installs an OLDER build over a newer one
+        // (e.g. a teammate's outdated APK) — upgrades never lose data.
+        .fallbackToDestructiveMigrationOnDowngrade(true)
         .build()
 
     @Provides
