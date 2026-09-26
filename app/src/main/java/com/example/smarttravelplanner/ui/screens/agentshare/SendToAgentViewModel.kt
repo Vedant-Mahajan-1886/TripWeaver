@@ -4,14 +4,21 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.smarttravelplanner.data.repository.AgentRepository
+import com.example.smarttravelplanner.domain.model.agent.ActivityFeedback
+import com.example.smarttravelplanner.domain.model.agent.ActivityVerdict
 import com.example.smarttravelplanner.domain.model.agent.AgentProfile
+import com.example.smarttravelplanner.domain.model.agent.SuggestionResponse
 import com.example.smarttravelplanner.domain.model.agent.ShareStatus
 import com.example.smarttravelplanner.domain.model.agent.TripShare
+import com.example.smarttravelplanner.domain.usecase.ApplyAgentSuggestionUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -37,17 +44,34 @@ data class SendToAgentUiState(
 ) {
     /** Agents this trip is currently shared with (not withdrawn). */
     val activeShareCount: Int get() = rows.count { it.isShared }
+
+    /** Agents who have sent their review back. */
+    val respondedCount: Int get() = rows.count { it.share?.status == ShareStatus.RESPONDED }
     val canSend: Boolean get() = selectedEmails.isNotEmpty() && !isSending
+}
+
+/** One agent's review of this trip, as the traveller sees it. */
+data class AgentFeedbackUiState(
+    val row: AgentShareRow,
+    val feedback: List<ActivityFeedback>,
+    /** Feedback ids currently being applied/declined (buttons disabled meanwhile). */
+    val busyIds: Set<Long> = emptySet()
+) {
+    /** Activities the agent flagged (not simply "Available"). */
+    val flagged: List<ActivityFeedback> get() = feedback.filter { it.verdict != ActivityVerdict.AVAILABLE }
+    val confirmedCount: Int get() = feedback.count { it.verdict == ActivityVerdict.AVAILABLE }
 }
 
 /**
  * Traveller side of the agent feature for one trip: pick agents, add a message,
- * send, and see / withdraw existing shares. Scoped to the Trip Detail screen.
+ * send, see / withdraw existing shares, and read + apply agents' feedback.
+ * Scoped to the Trip Detail screen.
  */
 @HiltViewModel
 class SendToAgentViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val agentRepository: AgentRepository
+    private val agentRepository: AgentRepository,
+    private val applyAgentSuggestion: ApplyAgentSuggestionUseCase
 ) : ViewModel() {
 
     private val tripId: Long = checkNotNull(savedStateHandle["tripId"])
@@ -125,6 +149,55 @@ class SendToAgentViewModel @Inject constructor(
     }
 
     fun noticeShown() = selection.update { it.copy(notice = null) }
+
+    // ── Reading an agent's feedback ──────────────────────────────────────────
+
+    private val openFeedbackShareId = MutableStateFlow<Long?>(null)
+    private val busyFeedbackIds = MutableStateFlow<Set<Long>>(emptySet())
+
+    /** Feedback of the agent the traveller opened, or null when the feedback sheet is closed. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val feedbackState: StateFlow<AgentFeedbackUiState?> = openFeedbackShareId
+        .flatMapLatest { shareId ->
+            if (shareId == null) flowOf(null)
+            else combine(uiState, agentRepository.observeFeedback(shareId), busyFeedbackIds) { state, feedback, busy ->
+                state.rows.firstOrNull { it.share?.id == shareId }
+                    ?.let { row -> AgentFeedbackUiState(row, feedback, busy) }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun openFeedback(shareId: Long) {
+        openFeedbackShareId.value = shareId
+    }
+
+    fun closeFeedback() {
+        openFeedbackShareId.value = null
+    }
+
+    /** Applies the suggestion to the itinerary (replace or remove the activity). */
+    fun applySuggestion(feedback: ActivityFeedback) = respond(feedback) {
+        applyAgentSuggestion(tripId, feedback).map {
+            if (feedback.verdict == ActivityVerdict.NOT_AVAILABLE) "Removed \"${feedback.activityTitle}\" from Day ${feedback.dayNumber}"
+            else "Replaced with \"${feedback.suggestion}\""
+        }
+    }
+
+    /** Keeps the itinerary as it is and marks the suggestion declined. */
+    fun declineSuggestion(feedback: ActivityFeedback) = respond(feedback) {
+        agentRepository.respondToFeedback(feedback.id, SuggestionResponse.DECLINED).map { "Suggestion declined" }
+    }
+
+    private fun respond(feedback: ActivityFeedback, action: suspend () -> Result<String>) {
+        if (feedback.id in busyFeedbackIds.value) return
+        viewModelScope.launch {
+            busyFeedbackIds.update { it + feedback.id }
+            action()
+                .onSuccess { message -> selection.update { it.copy(notice = message) } }
+                .onFailure { e -> selection.update { it.copy(notice = e.message ?: "Something went wrong.") } }
+            busyFeedbackIds.update { it - feedback.id }
+        }
+    }
 
     private companion object {
         const val MAX_MESSAGE = 500
