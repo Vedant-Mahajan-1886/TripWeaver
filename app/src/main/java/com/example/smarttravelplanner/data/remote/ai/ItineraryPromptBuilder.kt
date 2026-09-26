@@ -93,6 +93,15 @@ object ItineraryPromptBuilder {
            - Align activities with the provided weather forecast (e.g., indoor galleries/cafes during rain, open-air viewpoints during clear skies).
            - ONLY populate "weather_note" when genuinely helpful (e.g. "Optimal visibility for sunset", "Carry light raincoat - afternoon shower likely", "Chilly morning breeze - light jacket advised").
            - For standard indoor dining, shopping, or neutral conditions, strictly set "weather_note": null.
+
+        8. DYNAMIC DAILY PACING & VARIABLE STOPS (NO STATIC 3-STOP TEMPLATES):
+           - NEVER generate a flat, uniform number of activities for every day (e.g. providing strictly 3 stops across all days is strictly prohibited).
+           - Daily activity counts must naturally vary to reflect realistic travel rhythm:
+             * First Day / Arrival: Typically 2 to 4 activities (e.g. hotel check-in, orientation walk, atmospheric welcome dinner).
+             * Full Exploration Days: Dynamic 4 to 6+ activities (e.g. morning heritage monument, mid-morning scenic viewpoint, authentic lunch, afternoon museum/landmark, golden-hour viewpoint, vibrant evening bazaar or dinner).
+             * Excursion / Day-Trip Days: Multi-stop regional exploration trail (4 to 6 stops).
+             * Final Day / Departure: Typically 2 to 4 activities (e.g. morning souvenir shopping, farewell brunch, airport transfer).
+           - USER INSTRUCTION SUPREMACY (CRITICAL): If the user's custom instructions or notes specify a desired number of stops, pace, or particular places to visit (e.g. "5-6 stops per day", "slow pace", "pack each day", "give me 5 places"), you MUST adapt and strictly obey the user's instructions over any default guidelines.
     """.trimIndent()
 
     val chatSystemPrompt: String = """
@@ -120,15 +129,15 @@ object ItineraryPromptBuilder {
         val (paceGuideline, activityCountGuideline) = when (travelStyle.lowercase()) {
             "relaxed" -> Pair(
                 "Relaxed & immersive pace with generous leisure, scenic strolls, and downtime.",
-                "Provide exactly 2 to 3 well-spaced activities per day."
+                "Dynamic 2 to 4 varied stops per day (e.g., 2 stops on arrival/rest days, 3-4 on sightseeing days)."
             )
             "packed"  -> Pair(
                 "High-energy schedule maximizing iconic sights, cultural walks, sunset spots, and night markets.",
-                "Provide 4 to 5 dynamic activities per day from morning to night."
+                "Dynamic 4 to 7 vibrant stops per day from morning to late night (e.g., 4 on arrival/travel days, 5-7 on peak sightseeing days)."
             )
             else      -> Pair(
                 "Balanced pace harmonizing must-see landmarks, authentic dining, and relaxed evening exploration.",
-                "Provide 3 to 4 activities per day."
+                "Dynamic 3 to 6 varied stops per day (e.g., 3-4 on arrival/travel days, 4-6 on full exploration days)."
             )
         }
 
@@ -200,7 +209,14 @@ object ItineraryPromptBuilder {
         }
 
         val notesContext = if (notes.isNotBlank()) {
-            "CRITICAL USER SPECIAL INSTRUCTIONS: \"$notes\"\n(Make sure these instructions are prominently reflected in the planned stops, meals, or schedule)."
+            """
+            
+            CRITICAL USER SPECIAL INSTRUCTIONS (HIGHEST PRIORITY - OVERRIDES DEFAULTS):
+            "$notes"
+            * The user's instructions above take absolute precedence over default activity counts, pacing, and category balance.
+            * If the user asks for more stops (e.g. 5-6 stops per day), a faster or slower pace, or specific places/activities, adapt the daily plan dynamically to honor their exact request.
+            * Ensure all requested places, themes, and preferences from these instructions are explicitly incorporated into the itinerary.
+            """.trimIndent()
         } else ""
 
         val weatherContext = weatherForecast?.takeIf { it.isNotEmpty() }?.let {
@@ -223,7 +239,7 @@ object ItineraryPromptBuilder {
             $passengerContext
             TOTAL TRIP BUDGET: ₹${budget.toInt()} INR
             TRAVEL STYLE: $travelStyle ($paceGuideline)
-            ACTIVITY TARGET: $activityCountGuideline
+            ACTIVITY TARGET: $activityCountGuideline (Vary dynamically each day; do NOT repeat the same number of stops every day. User special instructions override this target).
             CORE INTERESTS: $interestText
             
             $budgetTierDirectives
@@ -237,9 +253,11 @@ object ItineraryPromptBuilder {
             REQUIREMENTS FOR THIS ITINERARY:
             1. Geographic Logic: Anchor each day to a specific neighborhood or zone so travel between stops is effortless.
             2. Distinct Daily Theme: Give each day a captivating theme capturing its unique spirit.
-            3. Local Gems & Authentic Food: Recommend real, highly-rated local eateries and signature dishes that travelers rave about.
-            4. Insider Tips: Include actionable timing hacks, photo spots, or booking advice in each activity description.
-            5. ADEQUATE BUDGET UTILIZATION (MANDATORY & CRITICAL):
+            3. Dynamic Daily Stops: VARY activity count dynamically across days based on the day's flow (e.g. Day 1: 3 stops, Day 2: 5 stops, Day 3: 4 stops, etc.). Do NOT output a uniform 3 stops every day.
+            4. User Instruction Adherence: If user special instructions requested specific stop counts, places, or pace, follow them precisely.
+            5. Local Gems & Authentic Food: Recommend real, highly-rated local eateries and signature dishes that travelers rave about.
+            6. Insider Tips: Include actionable timing hacks, photo spots, or booking advice in each activity description.
+            7. ADEQUATE BUDGET UTILIZATION (MANDATORY & CRITICAL):
                * You MUST allocate between ₹$targetMinSpend and ₹$targetMaxSpend INR in total across the entire itinerary (85% to 95% of ₹${budget.toInt()}).
                * Do NOT drastically under-allocate (e.g. allocating only half the budget is strictly forbidden).
                * Always include real "ACCOMMODATION" entries with nightly stay costs (~₹$suggestedNightlyStay/night) matching the chosen tier (e.g. luxury heritage hotels / 5-star stays for luxury budgets).

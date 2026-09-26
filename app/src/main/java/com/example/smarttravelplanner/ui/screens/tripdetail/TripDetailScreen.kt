@@ -438,13 +438,11 @@ private fun TripDetailContent(
                             alpha = visualizeAlpha
                         }
                 ) {
-                    if (visualizeAlpha > 0.001f || isVisualizeActive) {
-                        VisualizeContent(
-                            trip = trip,
-                            uiState = uiState,
-                            onActivitySelect = onActivitySelect
-                        )
-                    }
+                    VisualizeContent(
+                        trip = trip,
+                        uiState = uiState,
+                        onActivitySelect = onActivitySelect
+                    )
                 }
             }
 

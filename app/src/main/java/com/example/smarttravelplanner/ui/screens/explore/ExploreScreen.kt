@@ -351,19 +351,6 @@ fun ExploreScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Text(
-                        text = if (uiState.inSeasonOnly) {
-                            "${filteredDestinations.size} destinations in season this month"
-                        } else {
-                            "${filteredDestinations.size} destinations"
-                        },
-                        fontFamily = DmSansFontFamily,
-                        fontSize = 12.sp,
-                        color = OnBackgroundGray,
-                        modifier = Modifier.padding(horizontal = 20.dp)
-                    )
                     Spacer(modifier = Modifier.height(14.dp))
                 }
             }
