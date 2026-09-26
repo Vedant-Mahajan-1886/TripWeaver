@@ -16,7 +16,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,7 +31,9 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.smarttravelplanner.domain.model.UserRole
 import com.example.smarttravelplanner.ui.components.BottomNavigationBar
+import com.example.smarttravelplanner.ui.screens.agent.AgentDashboardScreen
 import com.example.smarttravelplanner.ui.screens.auth.AuthViewModel
 import com.example.smarttravelplanner.ui.screens.auth.LoginScreen
 import com.example.smarttravelplanner.ui.screens.explore.ExploreScreen
@@ -44,6 +48,9 @@ import com.example.smarttravelplanner.ui.screens.tripdetail.TripDetailScreen
 import com.example.smarttravelplanner.ui.theme.Amber
 
 
+/** Landing screen for travel-agent accounts (no bottom navigation). */
+private const val AGENT_DASHBOARD_ROUTE = "agent_dashboard"
+
 /** SavedStateHandle key used to pre-fill the Plan screen's destination from Explore. */
 private const val PLAN_PREFILL_DESTINATION_KEY = "plan_prefill_destination"
 
@@ -55,8 +62,24 @@ fun AppNavigation(
 
     val navController = rememberNavController()
     val isLoggedIn by authViewModel.isLoggedIn.collectAsStateWithLifecycle(initialValue = null)
+    val sessionRole by authViewModel.sessionRole.collectAsStateWithLifecycle()
 
-    if (isLoggedIn == null) {
+    // Pick the start screen once, at app launch: login, Home (traveller) or Agent Dashboard.
+    // Kept in remembered state so later login/logout changes never rebuild the NavGraph.
+    val startDestinationState = remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(isLoggedIn, sessionRole) {
+        if (startDestinationState.value == null) {
+            startDestinationState.value = when {
+                isLoggedIn == false -> "login"
+                isLoggedIn == true && sessionRole == UserRole.AGENT -> AGENT_DASHBOARD_ROUTE
+                isLoggedIn == true && sessionRole != null -> "home"
+                else -> null // still loading
+            }
+        }
+    }
+
+    val startDestination = startDestinationState.value
+    if (startDestination == null) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -72,16 +95,13 @@ fun AppNavigation(
         return
     }
 
-    // Remember the initial startDestination so the NavGraph is not destroyed and recreated
-    // when isLoggedIn updates in DataStore upon successful login.
-    val startDestination = remember { if (isLoggedIn == true) "home" else "login" }
-
     val backStackEntry = navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry.value?.destination?.route ?: startDestination
 
     // Routes where the bottom nav should be hidden
     val hiddenNavRoutes = setOf(
-        "login", "profile", "my_profile", "manage_payments", "trip_detail/{tripId}"
+        "login", "profile", "my_profile", "manage_payments", "trip_detail/{tripId}",
+        AGENT_DASHBOARD_ROUTE
     )
     val isImeVisible = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
     val isNavRoute = hiddenNavRoutes.none { currentRoute.startsWith(it.substringBefore("{")) }
@@ -165,6 +185,23 @@ fun AppNavigation(
                     onLoginSuccess = {
                         navController.navigate("home") {
                             popUpTo("login") { inclusive = true }
+                        }
+                    },
+                    onAgentLoginSuccess = {
+                        navController.navigate(AGENT_DASHBOARD_ROUTE) {
+                            popUpTo("login") { inclusive = true }
+                        }
+                    }
+                )
+            }
+
+            // ── Travel agent ──────────────────────────────────────────────────
+            composable(AGENT_DASHBOARD_ROUTE) {
+                AgentDashboardScreen(
+                    onLogout = {
+                        authViewModel.logout()
+                        navController.navigate("login") {
+                            popUpTo(0) { inclusive = true }
                         }
                     }
                 )
