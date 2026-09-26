@@ -1,6 +1,7 @@
 package com.example.smarttravelplanner.ui.screens.explore
 
 import com.example.smarttravelplanner.domain.model.ExploreDestination
+import com.example.smarttravelplanner.domain.model.ExploreSortOrder
 import com.example.smarttravelplanner.domain.util.DestinationFilter
 
 /**
@@ -17,8 +18,11 @@ data class ExploreUiState(
     val selectedCategory: String = DestinationFilter.ALL,
     val departureCities: List<String> = emptyList(),
     val selectedCity: String = "New Delhi",
-    /** Destinations after search + category filters have been applied. */
+    val sortOrder: ExploreSortOrder = ExploreSortOrder.RECOMMENDED,
+    /** Destinations after search + category filters (and sorting) have been applied. */
     val destinations: List<ExploreDestination> = emptyList(),
+    /** Straight-line km from [selectedCity] to each destination, keyed by destination name. */
+    val distancesKm: Map<String, Int> = emptyMap(),
     /** Destination whose details sheet is open, or null when no sheet is shown. */
     val selectedDestination: ExploreDestination? = null
 ) {

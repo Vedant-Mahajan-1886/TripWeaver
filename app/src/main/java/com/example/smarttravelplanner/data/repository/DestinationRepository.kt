@@ -1,5 +1,6 @@
 package com.example.smarttravelplanner.data.repository
 
+import com.example.smarttravelplanner.domain.model.DepartureCity
 import com.example.smarttravelplanner.domain.model.ExploreDestination
 
 /**
@@ -13,6 +14,6 @@ interface DestinationRepository {
     /** All destinations available to explore. */
     suspend fun getDestinations(): Result<List<ExploreDestination>>
 
-    /** Cities the user can pick in the "From" selector. */
-    fun getDepartureCities(): List<String>
+    /** Cities the user can pick in the "From" selector, with their coordinates. */
+    fun getDepartureCities(): List<DepartureCity>
 }
