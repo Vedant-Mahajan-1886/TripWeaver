@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.example.smarttravelplanner.data.local.dao.AgentDao
 import com.example.smarttravelplanner.data.local.dao.AgentListRow
 import com.example.smarttravelplanner.data.local.dao.TripDao
+import com.example.smarttravelplanner.data.local.dao.TripFeedbackRow
 import com.example.smarttravelplanner.data.local.dao.TripShareWithTripRow
 import com.example.smarttravelplanner.data.local.db.Converters
 import com.example.smarttravelplanner.data.local.db.TravelDatabase
@@ -19,10 +20,13 @@ import com.example.smarttravelplanner.domain.model.agent.IncomingShare
 import com.example.smarttravelplanner.domain.model.agent.ReviewDecision
 import com.example.smarttravelplanner.domain.model.agent.ShareStatus
 import com.example.smarttravelplanner.domain.model.agent.SuggestionResponse
+import com.example.smarttravelplanner.domain.model.agent.TripFeedbackItem
 import com.example.smarttravelplanner.domain.model.agent.TripShare
+import com.example.smarttravelplanner.domain.util.AgentConflicts
 import com.example.smarttravelplanner.domain.util.AgentReviewValidator
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
@@ -93,6 +97,9 @@ class LocalAgentRepository @Inject constructor(
 
         val targets = agentEmails.map { it.normalized() }.filter { it.isNotEmpty() }.distinct()
         require(targets.isNotEmpty()) { "Choose at least one agent." }
+        val alreadyChosen = agentDao.observeSharesForTrip(tripId).first()
+            .any { ShareStatus.fromStorage(it.status) == ShareStatus.CONFIRMED }
+        require(!alreadyChosen) { "You've already chosen an agent for this trip." }
 
         val now = System.currentTimeMillis()
         database.withTransaction {
@@ -116,9 +123,23 @@ class LocalAgentRepository @Inject constructor(
     override fun observeSharesForTrip(tripId: Long): Flow<List<TripShare>> =
         agentDao.observeSharesForTrip(tripId).map { list -> list.map { it.toDomain() } }
 
+    override suspend fun chooseAgent(tripId: Long, shareId: Long): Result<Unit> = runCatching {
+        val share = requireShare(shareId)
+        require(share.tripId == tripId) { "This offer belongs to a different trip." }
+        require(share.travellerEmail == requireEmail()) { "Only the traveller can choose an agent." }
+        require(ShareStatus.fromStorage(share.status) == ShareStatus.RESPONDED) {
+            "You can choose an agent once they've sent their review."
+        }
+        database.withTransaction {
+            agentDao.setShareStatusKeepingReviewTime(shareId, ShareStatus.CONFIRMED.name)
+            agentDao.closeOtherShares(tripId, shareId)
+        }
+    }
+
     override suspend fun withdrawShare(shareId: Long): Result<Unit> = runCatching {
         val share = requireShare(shareId)
         require(share.travellerEmail == requireEmail()) { "Only the traveller can withdraw this." }
+        require(!ShareStatus.fromStorage(share.status).isLocked) { "This request is already closed." }
         agentDao.updateShareStatus(shareId, ShareStatus.WITHDRAWN.name, System.currentTimeMillis())
     }
 
@@ -134,7 +155,17 @@ class LocalAgentRepository @Inject constructor(
     override fun observeIncomingShares(): Flow<List<IncomingShare>> =
         currentEmailFlow().flatMapLatest { email ->
             if (email.isEmpty()) flowOf(emptyList())
-            else agentDao.observeSharesForAgent(email).map { rows -> rows.map { it.toDomain() } }
+            else combine(
+                agentDao.observeSharesForAgent(email),
+                agentDao.observeAppliedFeedbackOnAgentTrips(email)
+            ) { rows, applied ->
+                rows.map { row ->
+                    val reviewedAt = row.share.updatedAt
+                    val changed = row.share.decision != null &&
+                        applied.any { it.tripId == row.share.tripId && it.feedback.updatedAt > reviewedAt }
+                    row.toDomain().copy(tripChangedSinceReview = changed)
+                }
+            }
         }
 
     override suspend fun markViewed(shareId: Long): Result<Unit> = runCatching {
@@ -148,7 +179,10 @@ class LocalAgentRepository @Inject constructor(
         shareId: Long,
         review: AgentReviewSubmission
     ): Result<Unit> = runCatching {
-        requireShareForCurrentAgent(shareId)
+        val share = requireShareForCurrentAgent(shareId)
+        require(!ShareStatus.fromStorage(share.status).isLocked) {
+            "The traveller has already made their choice, so this review can't be changed."
+        }
         val problems = AgentReviewValidator.validate(review)
         require(problems.isEmpty()) { problems.joinToString("\n") }
 
@@ -183,6 +217,17 @@ class LocalAgentRepository @Inject constructor(
 
     override fun observeFeedback(shareId: Long): Flow<List<ActivityFeedback>> =
         agentDao.observeFeedbackForShare(shareId).map { list -> list.map { it.toDomain() } }
+
+    override fun observeFeedbackForTrip(tripId: Long): Flow<List<TripFeedbackItem>> =
+        agentDao.observeFeedbackForTrip(tripId).map { rows -> rows.map { it.toDomain() } }
+
+    override suspend fun supersedeConflicting(tripId: Long, applied: ActivityFeedback): Result<Int> =
+        runCatching {
+            val all = agentDao.observeFeedbackForTrip(tripId).first().map { it.toDomain() }
+            val ids = AgentConflicts.supersededBy(applied, all).map { it.id }
+            if (ids.isNotEmpty()) agentDao.markSuperseded(ids, System.currentTimeMillis())
+            ids.size
+        }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -252,6 +297,13 @@ class LocalAgentRepository @Inject constructor(
         verdict = ActivityVerdict.fromStorage(verdict),
         comment = comment,
         suggestion = suggestion,
-        response = SuggestionResponse.fromStorage(response)
+        response = SuggestionResponse.fromStorage(response),
+        updatedAt = updatedAt
+    )
+
+    private fun TripFeedbackRow.toDomain() = TripFeedbackItem(
+        feedback = feedback.toDomain(),
+        agentEmail = agentEmail,
+        tripId = tripId
     )
 }

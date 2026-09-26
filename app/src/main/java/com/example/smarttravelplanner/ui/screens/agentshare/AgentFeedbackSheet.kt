@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.example.smarttravelplanner.domain.model.agent.ActivityFeedback
 import com.example.smarttravelplanner.domain.model.agent.ActivityVerdict
 import com.example.smarttravelplanner.domain.model.agent.ReviewDecision
+import com.example.smarttravelplanner.domain.model.agent.ShareStatus
 import com.example.smarttravelplanner.domain.model.agent.SuggestionResponse
 import com.example.smarttravelplanner.ui.theme.Amber
 import com.example.smarttravelplanner.ui.theme.DmSansFontFamily
@@ -56,8 +57,10 @@ private val Red = Color(0xFFF87171)
 @Composable
 internal fun AgentFeedbackSheet(
     state: AgentFeedbackUiState,
+    canChoose: Boolean,
     onApply: (ActivityFeedback) -> Unit,
     onDecline: (ActivityFeedback) -> Unit,
+    onChoose: (shareId: Long) -> Unit,
     onDismiss: () -> Unit
 ) {
     val share = state.row.share ?: return
@@ -142,6 +145,43 @@ internal fun AgentFeedbackSheet(
                 }
             }
 
+            // ── Approval / choice banner ───────────────────────────────────
+            item {
+                when {
+                    share.status == ShareStatus.CONFIRMED -> Banner(
+                        text = "\u2713 You chose this agent. They'll contact you to book.",
+                        color = Green
+                    )
+                    share.status == ShareStatus.CLOSED -> Banner(
+                        text = "You went ahead with another agent for this trip.",
+                        color = OnBackgroundGray
+                    )
+                    share.decision == ReviewDecision.APPROVED -> Banner(
+                        text = "\u2713 This agent approved your plan.",
+                        color = Green
+                    )
+                }
+                if (canChoose && share.status == ShareStatus.RESPONDED) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Button(
+                        onClick = { onChoose(share.id) },
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Green),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(46.dp)
+                    ) {
+                        Text(
+                            text = "Go ahead with ${agent.agencyName.ifBlank { agent.fullName }}",
+                            fontFamily = DmSansFontFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = Color(0xFF0B111B)
+                        )
+                    }
+                }
+            }
+
             // ── Flagged activities ─────────────────────────────────────────
             if (state.flagged.isEmpty()) {
                 item {
@@ -158,6 +198,7 @@ internal fun AgentFeedbackSheet(
                     FlaggedActivityCard(
                         feedback = feedback,
                         isBusy = feedback.id in state.busyIds,
+                        hasConflict = state.hasConflict(feedback),
                         onApply = { onApply(feedback) },
                         onDecline = { onDecline(feedback) }
                     )
@@ -173,6 +214,7 @@ internal fun AgentFeedbackSheet(
 private fun FlaggedActivityCard(
     feedback: ActivityFeedback,
     isBusy: Boolean,
+    hasConflict: Boolean,
     onApply: () -> Unit,
     onDecline: () -> Unit
 ) {
@@ -222,11 +264,30 @@ private fun FlaggedActivityCard(
                 color = OnBackgroundGray
             )
         }
+        if (hasConflict && feedback.response == SuggestionResponse.PENDING) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "⚠ Another agent suggested something different for this activity. Compare before applying.",
+                fontFamily = DmSansFontFamily,
+                fontSize = 12.sp,
+                color = Amber
+            )
+        }
         Spacer(modifier = Modifier.height(10.dp))
 
         when (feedback.response) {
             SuggestionResponse.APPLIED -> Pill(text = "✓ Applied to your trip", color = Green)
             SuggestionResponse.DECLINED -> Pill(text = "Declined", color = OnBackgroundGray)
+            SuggestionResponse.SUPERSEDED -> Column {
+                Pill(text = "Already changed", color = OnBackgroundGray)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "You applied another agent's suggestion for this activity.",
+                    fontFamily = DmSansFontFamily,
+                    fontSize = 12.sp,
+                    color = OnBackgroundGray
+                )
+            }
             SuggestionResponse.PENDING -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(
                     onClick = onDecline,
@@ -261,6 +322,22 @@ private fun FlaggedActivityCard(
             }
         }
     }
+}
+
+@Composable
+private fun Banner(text: String, color: Color) {
+    Text(
+        text = text,
+        fontFamily = DmSansFontFamily,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = color,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(color.copy(alpha = 0.12f))
+            .padding(12.dp)
+    )
 }
 
 @Composable

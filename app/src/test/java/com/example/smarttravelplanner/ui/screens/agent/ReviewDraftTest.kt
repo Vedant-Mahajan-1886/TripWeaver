@@ -86,12 +86,40 @@ class ReviewDraftTest {
                 response = SuggestionResponse.PENDING
             )
         )
-        val draft = initialDraft(share(comment = "Book early", price = 30000.0), existing)
+        val draft = initialDraft(share(comment = "Book early", price = 30000.0), existing, days)
 
         assertEquals(ActivityVerdict.NOT_AVAILABLE, draft.draftFor(ActivityKey(2, 0)).verdict)
         assertEquals(ActivityVerdict.AVAILABLE, draft.draftFor(ActivityKey(1, 0)).verdict)
         assertEquals("Book early", draft.overallComment)
         assertEquals("30000", draft.priceText)
+        assertEquals(1, draft.issueCount)
+    }
+
+    @Test
+    fun earlierAnswersFollowTheActivityWhenPositionsShift() {
+        // Agent flagged "Hawa Mahal" when it was the 2nd activity of Day 1...
+        val existing = listOf(
+            ActivityFeedback(
+                id = 1, shareId = 5, dayNumber = 1, activityIndex = 1, activityTitle = "Hawa Mahal",
+                verdict = ActivityVerdict.SUGGEST_CHANGE, comment = "", suggestion = "Jal Mahal",
+                response = SuggestionResponse.PENDING
+            ),
+            // ...and Amber Fort, which the traveller has since removed
+            ActivityFeedback(
+                id = 2, shareId = 5, dayNumber = 1, activityIndex = 0, activityTitle = "Amber Fort",
+                verdict = ActivityVerdict.NOT_AVAILABLE, comment = "", suggestion = "",
+                response = SuggestionResponse.APPLIED
+            )
+        )
+        // Now Amber Fort is gone, so Hawa Mahal is the 1st activity
+        val currentDays = listOf(
+            days[0].copy(activities = listOf(Activity(itineraryId = 1, title = "Hawa Mahal"))),
+            days[1]
+        )
+        val draft = initialDraft(share(), existing, currentDays)
+
+        assertEquals(ActivityVerdict.SUGGEST_CHANGE, draft.draftFor(ActivityKey(1, 0)).verdict)
+        assertEquals("Jal Mahal", draft.draftFor(ActivityKey(1, 0)).suggestion)
         assertEquals(1, draft.issueCount)
     }
 }

@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.smarttravelplanner.domain.model.agent.AgentProfile
 import com.example.smarttravelplanner.domain.model.agent.ShareStatus
 import com.example.smarttravelplanner.ui.theme.Amber
 import com.example.smarttravelplanner.ui.theme.DmSansFontFamily
@@ -72,6 +73,7 @@ fun SendToAgentButton(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val feedbackState by viewModel.feedbackState.collectAsStateWithLifecycle()
     var showSheet by remember { mutableStateOf(false) }
+    var showCompare by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
     LaunchedEffect(uiState.notice) {
@@ -81,10 +83,14 @@ fun SendToAgentButton(
         }
     }
 
+    val chosen = uiState.chosen
+    val approved = uiState.approvedRows
+    val buttonColor = if (chosen != null || approved.isNotEmpty()) ApprovedGreen else Amber
+
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(24.dp))
-            .background(Amber)
+            .background(buttonColor)
             .clickable { showSheet = true }
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -98,6 +104,9 @@ fun SendToAgentButton(
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = when {
+                chosen != null -> "Going ahead with ${chosen.agent.displayName}"
+                approved.size == 1 -> "\u2713 Approved by ${approved.first().agent.displayName}"
+                approved.size > 1 -> "\u2713 Approved by ${approved.size} agents"
                 uiState.respondedCount == 1 -> "Feedback from 1 agent"
                 uiState.respondedCount > 1 -> "Feedback from ${uiState.respondedCount} agents"
                 uiState.activeShareCount == 0 -> "Send to agent"
@@ -116,9 +125,28 @@ fun SendToAgentButton(
         // Feedback sheet replaces the agent list while it's open
         AgentFeedbackSheet(
             state = openFeedback,
+            canChoose = chosen == null,
             onApply = viewModel::applySuggestion,
             onDecline = viewModel::declineSuggestion,
+            onChoose = { shareId ->
+                viewModel.chooseAgent(shareId)
+                viewModel.closeFeedback()
+            },
             onDismiss = viewModel::closeFeedback
+        )
+    } else if (showCompare) {
+        CompareOffersSheet(
+            offers = uiState.offers,
+            chosenShareId = chosen?.share?.id,
+            onViewDetails = { shareId ->
+                showCompare = false
+                viewModel.openFeedback(shareId)
+            },
+            onChoose = { shareId ->
+                viewModel.chooseAgent(shareId)
+                showCompare = false
+            },
+            onDismiss = { showCompare = false }
         )
     } else if (showSheet) {
         SendToAgentSheet(
@@ -128,6 +156,10 @@ fun SendToAgentButton(
             onSend = viewModel::send,
             onWithdraw = viewModel::withdraw,
             onViewFeedback = viewModel::openFeedback,
+            onCompare = {
+                showSheet = false
+                showCompare = true
+            },
             onDismiss = { showSheet = false }
         )
     }
@@ -142,6 +174,7 @@ private fun SendToAgentSheet(
     onSend: () -> Unit,
     onWithdraw: (Long) -> Unit,
     onViewFeedback: (Long) -> Unit,
+    onCompare: () -> Unit,
     onDismiss: () -> Unit
 ) {
     ModalBottomSheet(
@@ -170,6 +203,64 @@ private fun SendToAgentSheet(
                 fontSize = 13.sp,
                 color = OnBackgroundGray
             )
+            if (uiState.conflicts.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                val n = uiState.conflicts.size
+                Text(
+                    text = "⚠ $n ${if (n == 1) "activity has" else "activities have"} different suggestions " +
+                        "from more than one agent. Compare their feedback before applying.",
+                    fontFamily = DmSansFontFamily,
+                    fontSize = 12.sp,
+                    color = Amber,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Amber.copy(alpha = 0.12f))
+                        .padding(10.dp)
+                )
+            }
+
+            val chosenRow = uiState.chosen
+            if (chosenRow != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "\u2713 You're going ahead with ${chosenRow.agent.displayName}. They'll contact you to book.",
+                    fontFamily = DmSansFontFamily,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = ApprovedGreen,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(ApprovedGreen.copy(alpha = 0.12f))
+                        .padding(10.dp)
+                )
+            }
+
+            val offerCount = uiState.respondedOffers.size
+            if (offerCount > 0) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Button(
+                    onClick = onCompare,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = ApprovedGreen),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(46.dp)
+                ) {
+                    Text(
+                        text = when {
+                            chosenRow != null -> "View all offers"
+                            offerCount == 1 -> "View offer & choose"
+                            else -> "Compare $offerCount offers & choose"
+                        },
+                        fontFamily = DmSansFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = Color(0xFF0B111B)
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(16.dp))
 
             when {
@@ -209,7 +300,7 @@ private fun SendToAgentSheet(
                 }
             }
 
-            if (uiState.rows.any { !it.isShared }) {
+            if (uiState.chosen == null && uiState.rows.any { !it.isShared }) {
                 Spacer(modifier = Modifier.height(14.dp))
                 OutlinedTextField(
                     value = uiState.message,
@@ -329,7 +420,10 @@ private fun AgentRowItem(
         if (row.isShared) {
             Column(horizontalAlignment = Alignment.End) {
                 StatusChip(row.share!!.status)
-                if (row.share.status == ShareStatus.RESPONDED) {
+                if (row.share.status == ShareStatus.RESPONDED ||
+                    row.share.status == ShareStatus.CONFIRMED ||
+                    row.share.status == ShareStatus.CLOSED
+                ) {
                     TextButton(onClick = onViewFeedback) {
                         Text("View feedback", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Amber)
                     }
@@ -349,6 +443,12 @@ private fun AgentRowItem(
     }
 }
 
+/** Green used for approvals and the chosen agent. */
+internal val ApprovedGreen = Color(0xFF4ADE80)
+
+/** Agency name, or the agent's own name if they have no agency set. */
+internal val AgentProfile.displayName: String get() = agencyName.ifBlank { fullName }
+
 @Composable
 internal fun StatusChip(status: ShareStatus) {
     val color = when (status) {
@@ -356,6 +456,8 @@ internal fun StatusChip(status: ShareStatus) {
         ShareStatus.VIEWED -> Amber
         ShareStatus.RESPONDED -> Color(0xFF4ADE80)
         ShareStatus.WITHDRAWN -> OnBackgroundGray
+        ShareStatus.CONFIRMED -> ApprovedGreen
+        ShareStatus.CLOSED -> OnBackgroundGray
     }
     Text(
         text = status.label,

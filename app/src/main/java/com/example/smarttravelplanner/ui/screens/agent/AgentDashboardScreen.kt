@@ -203,9 +203,11 @@ fun AgentDashboardScreen(
                         )
                     }
                 } else {
+                    ShareSection("Chosen \u2013 go ahead with booking", state.incoming.filter { it.share.status == ShareStatus.CONFIRMED }, onOpenShare)
                     ShareSection("New", state.incoming.filter { it.share.status == ShareStatus.SENT }, onOpenShare)
                     ShareSection("In review", state.incoming.filter { it.share.status == ShareStatus.VIEWED }, onOpenShare)
                     ShareSection("Responded", state.incoming.filter { it.share.status == ShareStatus.RESPONDED }, onOpenShare)
+                    ShareSection("Closed", state.incoming.filter { it.share.status == ShareStatus.CLOSED }, onOpenShare)
                 }
             }
         }
@@ -261,7 +263,23 @@ private fun IncomingShareCard(item: IncomingShare, onClick: () -> Unit) {
                     color = OnBackgroundGray
                 )
             }
-            StatusChip(item.share.status)
+            Column(horizontalAlignment = Alignment.End) {
+                StatusChip(item.share.status)
+                if (item.tripChangedSinceReview) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Trip changed",
+                        fontFamily = DmSansFontFamily,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Amber,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Amber.copy(alpha = 0.15f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
         }
         Spacer(modifier = Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
