@@ -14,7 +14,9 @@ data class Trip(
     val interests: List<String> = emptyList(),
     val notes: String = "",
     val coverImageUrl: String = "",
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    /** Account that owns the trip; filled in automatically when the trip is saved. */
+    val ownerEmail: String = ""
 ) {
     val totalPassengers: Int
         get() = (adults + kids).coerceAtLeast(1)

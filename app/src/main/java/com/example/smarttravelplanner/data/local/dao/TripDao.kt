@@ -10,6 +10,17 @@ interface TripDao {
     @Query("SELECT * FROM trips ORDER BY createdAt DESC")
     fun getAllTrips(): Flow<List<TripEntity>>
 
+    /** Trips owned by one account, newest first. */
+    @Query("SELECT * FROM trips WHERE ownerEmail = :ownerEmail ORDER BY createdAt DESC")
+    fun getTripsForOwner(ownerEmail: String): Flow<List<TripEntity>>
+
+    /**
+     * Assigns trips created before ownership existed (ownerEmail = '')
+     * to [ownerEmail]. Returns how many trips were claimed.
+     */
+    @Query("UPDATE trips SET ownerEmail = :ownerEmail WHERE ownerEmail = ''")
+    suspend fun claimUnownedTrips(ownerEmail: String): Int
+
     @Query("SELECT * FROM trips WHERE id = :id")
     suspend fun getTripById(id: Long): TripEntity?
 
