@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -45,6 +46,7 @@ fun TripMapView(
     onMapLoaded: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val activities = itinerary?.activities.orEmpty()
     val validPoints = remember(activities) {
         MapUtils.getValidActivityPoints(activities)
@@ -125,6 +127,7 @@ fun TripMapView(
             GoogleMap(
                 modifier = Modifier.fillMaxSize(),
                 cameraPositionState = cameraPositionState,
+                mapColorScheme = if (isDark) ComposeMapColorScheme.DARK else ComposeMapColorScheme.LIGHT,
                 properties = remember(mapType) {
                     MapProperties(
                         mapType = mapType,
@@ -556,3 +559,4 @@ private fun EmptyCoordinatesView(destination: String) {
         }
     }
 }
+
