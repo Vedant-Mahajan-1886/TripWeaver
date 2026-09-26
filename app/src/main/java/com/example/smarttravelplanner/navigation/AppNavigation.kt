@@ -34,6 +34,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.smarttravelplanner.domain.model.UserRole
 import com.example.smarttravelplanner.ui.components.BottomNavigationBar
 import com.example.smarttravelplanner.ui.screens.agent.AgentDashboardScreen
+import com.example.smarttravelplanner.ui.screens.agent.AgentTripScreen
 import com.example.smarttravelplanner.ui.screens.auth.AuthViewModel
 import com.example.smarttravelplanner.ui.screens.auth.LoginScreen
 import com.example.smarttravelplanner.ui.screens.explore.ExploreScreen
@@ -50,6 +51,9 @@ import com.example.smarttravelplanner.ui.theme.Amber
 
 /** Landing screen for travel-agent accounts (no bottom navigation). */
 private const val AGENT_DASHBOARD_ROUTE = "agent_dashboard"
+
+/** A trip sent to the agent, opened from the dashboard. */
+private const val AGENT_TRIP_ROUTE = "agent_trip/{shareId}"
 
 /** SavedStateHandle key used to pre-fill the Plan screen's destination from Explore. */
 private const val PLAN_PREFILL_DESTINATION_KEY = "plan_prefill_destination"
@@ -101,7 +105,7 @@ fun AppNavigation(
     // Routes where the bottom nav should be hidden
     val hiddenNavRoutes = setOf(
         "login", "profile", "my_profile", "manage_payments", "trip_detail/{tripId}",
-        AGENT_DASHBOARD_ROUTE
+        AGENT_DASHBOARD_ROUTE, AGENT_TRIP_ROUTE
     )
     val isImeVisible = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
     val isNavRoute = hiddenNavRoutes.none { currentRoute.startsWith(it.substringBefore("{")) }
@@ -203,8 +207,16 @@ fun AppNavigation(
                         navController.navigate("login") {
                             popUpTo(0) { inclusive = true }
                         }
-                    }
+                    },
+                    onOpenShare = { shareId -> navController.navigate("agent_trip/$shareId") }
                 )
+            }
+
+            composable(
+                route = AGENT_TRIP_ROUTE,
+                arguments = listOf(navArgument("shareId") { type = NavType.LongType })
+            ) {
+                AgentTripScreen(onBack = { navController.popBackStack() })
             }
 
             // ── Main tabs ─────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 package com.example.smarttravelplanner.ui.screens.agent
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.Inbox
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.SupportAgent
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -30,12 +32,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+import com.example.smarttravelplanner.domain.model.agent.IncomingShare
+import com.example.smarttravelplanner.domain.model.agent.ShareStatus
+import com.example.smarttravelplanner.ui.screens.agentshare.StatusChip
 import com.example.smarttravelplanner.ui.theme.Amber
 import com.example.smarttravelplanner.ui.theme.DmSansFontFamily
 import com.example.smarttravelplanner.ui.theme.OnBackgroundGray
@@ -43,12 +53,13 @@ import com.example.smarttravelplanner.ui.theme.PlayfairFontFamily
 
 /**
  * Landing screen for travel-agent accounts.
- * Part 1.2: header, agency card and counters. The list of received trips
- * and opening a trip for review come in parts 1.4 and 1.5.
+ * Shows the agency card, counters and every trip travellers have sent,
+ * grouped by status. Tapping a trip opens it for review.
  */
 @Composable
 fun AgentDashboardScreen(
     onLogout: () -> Unit,
+    onOpenShare: (shareId: Long) -> Unit,
     viewModel: AgentDashboardViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -164,35 +175,150 @@ fun AgentDashboardScreen(
 
                 Spacer(modifier = Modifier.height(28.dp))
 
-                // ── Placeholder until part 1.4 ──────────────────────────────
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Inbox,
-                        contentDescription = null,
-                        tint = OnBackgroundGray,
-                        modifier = Modifier.size(40.dp)
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = if (state.incoming.isEmpty()) "No trips yet" else "${state.incoming.size} trip(s) received",
-                        fontFamily = DmSansFontFamily,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Text(
-                        text = "When travellers send you an itinerary, it will appear here for review.",
-                        fontFamily = DmSansFontFamily,
-                        fontSize = 13.sp,
-                        color = OnBackgroundGray,
-                        textAlign = TextAlign.Center
-                    )
+                if (state.incoming.isEmpty()) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Inbox,
+                            contentDescription = null,
+                            tint = OnBackgroundGray,
+                            modifier = Modifier.size(40.dp)
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "No trips yet",
+                            fontFamily = DmSansFontFamily,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            text = "When travellers send you an itinerary, it will appear here for review.",
+                            fontFamily = DmSansFontFamily,
+                            fontSize = 13.sp,
+                            color = OnBackgroundGray,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                } else {
+                    ShareSection("New", state.incoming.filter { it.share.status == ShareStatus.SENT }, onOpenShare)
+                    ShareSection("In review", state.incoming.filter { it.share.status == ShareStatus.VIEWED }, onOpenShare)
+                    ShareSection("Responded", state.incoming.filter { it.share.status == ShareStatus.RESPONDED }, onOpenShare)
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ShareSection(
+    title: String,
+    shares: List<IncomingShare>,
+    onOpenShare: (Long) -> Unit
+) {
+    if (shares.isEmpty()) return
+    Text(
+        text = "${title.uppercase()} · ${shares.size}",
+        fontFamily = DmSansFontFamily,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.2.sp,
+        color = OnBackgroundGray,
+        modifier = Modifier.padding(bottom = 8.dp)
+    )
+    shares.forEach { item ->
+        IncomingShareCard(item = item, onClick = { onOpenShare(item.share.id) })
+        Spacer(modifier = Modifier.height(10.dp))
+    }
+    Spacer(modifier = Modifier.height(12.dp))
+}
+
+@Composable
+private fun IncomingShareCard(item: IncomingShare, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .clickable(onClick = onClick)
+            .padding(16.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = item.tripDestination,
+                    fontFamily = PlayfairFontFamily,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = formatTripDates(item.tripStartDate, item.tripEndDate),
+                    fontFamily = DmSansFontFamily,
+                    fontSize = 12.sp,
+                    color = OnBackgroundGray
+                )
+            }
+            StatusChip(item.share.status)
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Outlined.Person,
+                contentDescription = null,
+                tint = Amber,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "From ${item.travellerName}",
+                fontFamily = DmSansFontFamily,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = timeAgo(item.share.sentAt),
+                fontFamily = DmSansFontFamily,
+                fontSize = 11.sp,
+                color = OnBackgroundGray
+            )
+        }
+        if (item.share.message.isNotBlank()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "\u201C${item.share.message}\u201D",
+                fontFamily = DmSansFontFamily,
+                fontSize = 13.sp,
+                fontStyle = FontStyle.Italic,
+                color = OnBackgroundGray,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+/** "12 Oct – 15 Oct 2026" from ISO dates; falls back to the raw text if parsing fails. */
+internal fun formatTripDates(start: String, end: String): String = runCatching {
+    val s = LocalDate.parse(start)
+    val e = LocalDate.parse(end)
+    val dayMonth = DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH)
+    val full = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH)
+    "${s.format(dayMonth)} \u2013 ${e.format(full)}"
+}.getOrDefault("$start \u2013 $end")
+
+/** "just now", "5 min ago", "3 h ago", "2 d ago". */
+internal fun timeAgo(epochMillis: Long): String {
+    val minutes = (System.currentTimeMillis() - epochMillis) / 60_000
+    return when {
+        minutes < 1 -> "just now"
+        minutes < 60 -> "$minutes min ago"
+        minutes < 60 * 24 -> "${minutes / 60} h ago"
+        else -> "${minutes / (60 * 24)} d ago"
     }
 }
 
