@@ -13,7 +13,8 @@ import com.example.smarttravelplanner.data.local.entity.UserEntity
 @Database(
     entities = [TripEntity::class, ItineraryEntity::class, UserEntity::class],
     version = 3,
-    exportSchema = false
+    // Schema JSON is written to app/schemas (see ksp block in app/build.gradle.kts)
+    exportSchema = true
 )
 @TypeConverters(Converters::class)
 abstract class TravelDatabase : RoomDatabase() {
