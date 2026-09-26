@@ -70,6 +70,7 @@ fun SendToAgentButton(
     viewModel: SendToAgentViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val feedbackState by viewModel.feedbackState.collectAsStateWithLifecycle()
     var showSheet by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
@@ -96,10 +97,12 @@ fun SendToAgentButton(
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = when (val n = uiState.activeShareCount) {
-                0 -> "Send to agent"
-                1 -> "Sent to 1 agent"
-                else -> "Sent to $n agents"
+            text = when {
+                uiState.respondedCount == 1 -> "Feedback from 1 agent"
+                uiState.respondedCount > 1 -> "Feedback from ${uiState.respondedCount} agents"
+                uiState.activeShareCount == 0 -> "Send to agent"
+                uiState.activeShareCount == 1 -> "Sent to 1 agent"
+                else -> "Sent to ${uiState.activeShareCount} agents"
             },
             fontFamily = DmSansFontFamily,
             fontWeight = FontWeight.Bold,
@@ -108,13 +111,23 @@ fun SendToAgentButton(
         )
     }
 
-    if (showSheet) {
+    val openFeedback = feedbackState
+    if (openFeedback != null) {
+        // Feedback sheet replaces the agent list while it's open
+        AgentFeedbackSheet(
+            state = openFeedback,
+            onApply = viewModel::applySuggestion,
+            onDecline = viewModel::declineSuggestion,
+            onDismiss = viewModel::closeFeedback
+        )
+    } else if (showSheet) {
         SendToAgentSheet(
             uiState = uiState,
             onToggleAgent = viewModel::toggleAgent,
             onMessageChange = viewModel::onMessageChange,
             onSend = viewModel::send,
             onWithdraw = viewModel::withdraw,
+            onViewFeedback = viewModel::openFeedback,
             onDismiss = { showSheet = false }
         )
     }
@@ -128,6 +141,7 @@ private fun SendToAgentSheet(
     onMessageChange: (String) -> Unit,
     onSend: () -> Unit,
     onWithdraw: (Long) -> Unit,
+    onViewFeedback: (Long) -> Unit,
     onDismiss: () -> Unit
 ) {
     ModalBottomSheet(
@@ -188,7 +202,8 @@ private fun SendToAgentSheet(
                             row = row,
                             isSelected = row.agent.email in uiState.selectedEmails,
                             onToggle = { onToggleAgent(row.agent.email) },
-                            onWithdraw = { row.share?.let { onWithdraw(it.id) } }
+                            onWithdraw = { row.share?.let { onWithdraw(it.id) } },
+                            onViewFeedback = { row.share?.let { onViewFeedback(it.id) } }
                         )
                     }
                 }
@@ -251,7 +266,8 @@ private fun AgentRowItem(
     row: AgentShareRow,
     isSelected: Boolean,
     onToggle: () -> Unit,
-    onWithdraw: () -> Unit
+    onWithdraw: () -> Unit,
+    onViewFeedback: () -> Unit
 ) {
     val agent = row.agent
     Row(
@@ -313,7 +329,11 @@ private fun AgentRowItem(
         if (row.isShared) {
             Column(horizontalAlignment = Alignment.End) {
                 StatusChip(row.share!!.status)
-                if (row.share.status != ShareStatus.RESPONDED) {
+                if (row.share.status == ShareStatus.RESPONDED) {
+                    TextButton(onClick = onViewFeedback) {
+                        Text("View feedback", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Amber)
+                    }
+                } else {
                     TextButton(onClick = onWithdraw) {
                         Text("Withdraw", fontSize = 12.sp, color = OnBackgroundGray)
                     }
