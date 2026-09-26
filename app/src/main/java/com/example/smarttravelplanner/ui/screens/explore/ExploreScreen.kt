@@ -42,6 +42,8 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.smarttravelplanner.domain.model.ExploreDestination
+import com.example.smarttravelplanner.domain.model.ExploreSortOrder
+import com.example.smarttravelplanner.domain.util.GeoDistance
 import com.example.smarttravelplanner.ui.theme.*
 import androidx.compose.material3.MaterialTheme
 
@@ -58,6 +60,10 @@ private val categories = listOf(
     CategoryChip("nature", "Nature", Icons.Outlined.Forest),
     CategoryChip("adventure", "Adventure", Icons.Outlined.Terrain)
 )
+
+
+/** Accent for "In season" badges and the in-season filter chip. */
+internal val InSeasonGreen = Color(0xFF4ADE80)
 
 @Composable
 fun ExploreScreen(
@@ -284,7 +290,82 @@ fun ExploreScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // In-season toggle + sort toggle, then result count
+                if (!uiState.isLoading && uiState.errorMessage == null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // "In season now" filter
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (uiState.inSeasonOnly) InSeasonGreen
+                                    else MaterialTheme.colorScheme.surface
+                                )
+                                .clickable { viewModel.onInSeasonToggled() }
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.WbSunny,
+                                contentDescription = null,
+                                tint = if (uiState.inSeasonOnly) Color(0xFF0B111B) else InSeasonGreen,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = "In season",
+                                fontFamily = DmSansFontFamily,
+                                fontSize = 12.sp,
+                                fontWeight = if (uiState.inSeasonOnly) FontWeight.Bold else FontWeight.Medium,
+                                color = if (uiState.inSeasonOnly) Color(0xFF0B111B) else Color(0xFF8E9BAE)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.weight(1f))
+
+                        ExploreSortOrder.entries.forEach { order ->
+                            val isSelected = uiState.sortOrder == order
+                            Box(
+                                modifier = Modifier
+                                    .padding(start = 8.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isSelected) Amber else MaterialTheme.colorScheme.surface)
+                                    .clickable { viewModel.onSortOrderSelected(order) }
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = order.label,
+                                    fontFamily = DmSansFontFamily,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) Color(0xFF1A1A1A) else Color(0xFF8E9BAE)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = if (uiState.inSeasonOnly) {
+                            "${filteredDestinations.size} destinations in season this month"
+                        } else {
+                            "${filteredDestinations.size} destinations"
+                        },
+                        fontFamily = DmSansFontFamily,
+                        fontSize = 12.sp,
+                        color = OnBackgroundGray,
+                        modifier = Modifier.padding(horizontal = 20.dp)
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
             }
 
             if (uiState.isLoading) {
@@ -378,6 +459,8 @@ fun ExploreScreen(
                 items(filteredDestinations, key = { it.name }) { dest ->
                     ExploreDestinationCard(
                         destination = dest,
+                        distanceLabel = uiState.distancesKm[dest.name]?.let(GeoDistance::formatKm),
+                        isInSeason = dest.name in uiState.inSeasonNames,
                         onClick = { viewModel.onDestinationClick(dest) }
                     )
                     Spacer(modifier = Modifier.height(16.dp))
@@ -475,6 +558,10 @@ fun ExploreScreen(
     uiState.selectedDestination?.let { selected ->
         DestinationDetailsSheet(
             destination = selected,
+            isInSeason = selected.name in uiState.inSeasonNames,
+            distanceFromLabel = uiState.distancesKm[selected.name]?.let { km ->
+                "~${GeoDistance.formatKm(km)} from ${uiState.selectedCity} (straight line)"
+            },
             onDismiss = viewModel::onDetailsDismissed,
             onPlanTrip = {
                 viewModel.onDetailsDismissed()
@@ -487,6 +574,8 @@ fun ExploreScreen(
 @Composable
 private fun ExploreDestinationCard(
     destination: ExploreDestination,
+    distanceLabel: String?,
+    isInSeason: Boolean,
     onClick: () -> Unit
 ) {
     Column(
@@ -531,6 +620,62 @@ private fun ExploreDestinationCard(
                         )
                     )
             )
+
+            // "In season" badge
+            if (isInSeason) {
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(10.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xB30B111B))
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.WbSunny,
+                        contentDescription = null,
+                        tint = InSeasonGreen,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "In season",
+                        fontFamily = DmSansFontFamily,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
+                    )
+                }
+            }
+
+            // Distance from the selected "From" city
+            if (distanceLabel != null) {
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(10.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xB30B111B))
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.NearMe,
+                        contentDescription = null,
+                        tint = Amber,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = distanceLabel,
+                        fontFamily = DmSansFontFamily,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
+                    )
+                }
+            }
 
             // Destination Name & Location overlaid on image
             Column(

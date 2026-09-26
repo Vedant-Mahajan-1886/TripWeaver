@@ -17,5 +17,7 @@ data class ExploreDestination(
     val bestSeason: String,
     val tag: String,
     val tagCategory: String,
-    @DrawableRes val imageRes: Int
+    @DrawableRes val imageRes: Int,
+    /** Approximate city/region centre, used for distance from the "From" city. */
+    val location: GeoPoint? = null
 )
