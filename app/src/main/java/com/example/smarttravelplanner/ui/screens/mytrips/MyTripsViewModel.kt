@@ -2,6 +2,7 @@ package com.example.smarttravelplanner.ui.screens.mytrips
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.smarttravelplanner.data.repository.AgentRepository
 import com.example.smarttravelplanner.data.repository.PhotoRepository
 import com.example.smarttravelplanner.data.repository.TripRepository
 import com.example.smarttravelplanner.domain.model.Trip
@@ -11,6 +12,7 @@ import com.example.smarttravelplanner.util.DestinationImageHelper
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -23,17 +25,20 @@ class MyTripsViewModel @Inject constructor(
     private val getTripsUseCase: GetTripsUseCase,
     private val deleteTripUseCase: DeleteTripUseCase,
     private val photoRepository: PhotoRepository,
-    private val tripRepository: TripRepository
+    private val tripRepository: TripRepository,
+    agentRepository: AgentRepository
 ) : ViewModel() {
 
     // Thread-safe set of already requested trip IDs
     private val resolvedTripIds = ConcurrentHashMap.newKeySet<Long>()
 
-    val uiState = getTripsUseCase()
-        .map { trips ->
-            if (trips.isEmpty()) MyTripsUiState.Empty
-            else MyTripsUiState.Success(trips)
-        }
+    val uiState = combine(
+        getTripsUseCase(),
+        agentRepository.observeMyTripAgentStatus()
+    ) { trips, agentStatus ->
+        if (trips.isEmpty()) MyTripsUiState.Empty
+        else MyTripsUiState.Success(trips, agentStatus)
+    }
         .flowOn(Dispatchers.Default)
         .stateIn(
             scope        = viewModelScope,

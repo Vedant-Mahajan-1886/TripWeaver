@@ -22,13 +22,26 @@ import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.SupportAgent
+import android.widget.Toast
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -63,6 +76,16 @@ fun AgentDashboardScreen(
     viewModel: AgentDashboardViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val notice by viewModel.notice.collectAsStateWithLifecycle()
+    var editingProfile by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    LaunchedEffect(notice) {
+        notice?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            viewModel.noticeShown()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -115,12 +138,13 @@ fun AgentDashboardScreen(
             }
 
             is AgentDashboardUiState.Success -> {
-                // ── Agency card ─────────────────────────────────────────────
+                // ── Agency card (tap to edit) ───────────────────────────────
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(18.dp))
                         .background(MaterialTheme.colorScheme.surface)
+                        .clickable { editingProfile = true }
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -138,7 +162,7 @@ fun AgentDashboardScreen(
                         )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = state.profile?.agencyName?.ifBlank { null } ?: "Your agency",
                             fontFamily = DmSansFontFamily,
@@ -159,6 +183,19 @@ fun AgentDashboardScreen(
                             )
                         }
                     }
+                }
+
+                if (editingProfile) {
+                    EditAgentProfileDialog(
+                        initialAgency = state.profile?.agencyName.orEmpty(),
+                        initialCity = state.profile?.city.orEmpty(),
+                        initialSpecialities = state.profile?.specialities.orEmpty().joinToString(", "),
+                        onSave = { agency, city, specialities ->
+                            viewModel.saveProfile(agency, city, specialities)
+                            editingProfile = false
+                        },
+                        onDismiss = { editingProfile = false }
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -212,6 +249,70 @@ fun AgentDashboardScreen(
             }
         }
     }
+}
+
+@Composable
+private fun EditAgentProfileDialog(
+    initialAgency: String,
+    initialCity: String,
+    initialSpecialities: String,
+    onSave: (agency: String, city: String, specialities: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var agency by remember { mutableStateOf(initialAgency) }
+    var city by remember { mutableStateOf(initialCity) }
+    var specialities by remember { mutableStateOf(initialSpecialities) }
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = Amber,
+        focusedLabelColor = Amber,
+        cursorColor = Amber
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Your agency profile", fontFamily = PlayfairFontFamily, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "Travellers see this when choosing an agent.",
+                    fontFamily = DmSansFontFamily,
+                    fontSize = 12.sp,
+                    color = OnBackgroundGray
+                )
+                OutlinedTextField(
+                    value = agency,
+                    onValueChange = { agency = it.take(60) },
+                    label = { Text("Agency name") },
+                    singleLine = true,
+                    colors = fieldColors
+                )
+                OutlinedTextField(
+                    value = city,
+                    onValueChange = { city = it.take(40) },
+                    label = { Text("City") },
+                    singleLine = true,
+                    colors = fieldColors
+                )
+                OutlinedTextField(
+                    value = specialities,
+                    onValueChange = { specialities = it.take(120) },
+                    label = { Text("Specialities (comma separated)") },
+                    placeholder = { Text("e.g. Rajasthan, Heritage, Luxury") },
+                    colors = fieldColors
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSave(agency, city, specialities) },
+                enabled = agency.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = Amber)
+            ) { Text("Save", color = Color(0xFF1A1A1A), fontWeight = FontWeight.Bold) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 @Composable

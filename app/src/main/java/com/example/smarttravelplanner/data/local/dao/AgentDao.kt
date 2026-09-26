@@ -30,6 +30,12 @@ data class TripShareWithTripRow(
     val travellerName: String?
 )
 
+/** A traveller's share joined with the agent's agency name. */
+data class TravellerShareRow(
+    @Embedded val share: TripShareEntity,
+    val agencyName: String?
+)
+
 /** A feedback row joined with the share it belongs to. */
 data class TripFeedbackRow(
     @Embedded val feedback: ActivityFeedbackEntity,
@@ -100,6 +106,17 @@ interface AgentDao {
 
     @Query("UPDATE trip_shares SET status = :status, updatedAt = :now WHERE id = :shareId")
     suspend fun updateShareStatus(shareId: Long, status: String, now: Long)
+
+    /** All open shares created by one traveller (for status badges on My Trips). */
+    @Query(
+        """
+        SELECT s.*, p.agencyName AS agencyName
+        FROM trip_shares s
+        LEFT JOIN agent_profiles p ON p.email = s.agentEmail
+        WHERE s.travellerEmail = :travellerEmail AND s.status != 'WITHDRAWN'
+        """
+    )
+    fun observeSharesForTraveller(travellerEmail: String): Flow<List<TravellerShareRow>>
 
     /**
      * Sets the status without touching updatedAt, so "reviewed at" stays the time

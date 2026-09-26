@@ -45,6 +45,13 @@ interface AgentRepository {
     /** Every share of one trip (one per agent), newest first. */
     fun observeSharesForTrip(tripId: Long): Flow<List<TripShare>>
 
+    /**
+     * Short agent status for each of the logged-in traveller's trips, keyed by trip id
+     * (e.g. "With agents", "Approved by agent", "Going ahead: Wanderlust Journeys").
+     * Trips never sent to an agent are absent.
+     */
+    fun observeMyTripAgentStatus(): Flow<Map<Long, String>>
+
     /** Stops an agent from seeing the trip. */
     suspend fun withdrawShare(shareId: Long): Result<Unit>
 

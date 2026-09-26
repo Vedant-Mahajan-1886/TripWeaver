@@ -24,6 +24,7 @@ import com.example.smarttravelplanner.domain.model.agent.TripFeedbackItem
 import com.example.smarttravelplanner.domain.model.agent.TripShare
 import com.example.smarttravelplanner.domain.util.AgentConflicts
 import com.example.smarttravelplanner.domain.util.AgentReviewValidator
+import com.example.smarttravelplanner.domain.util.tripAgentStatusLabel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -123,6 +124,21 @@ class LocalAgentRepository @Inject constructor(
     override fun observeSharesForTrip(tripId: Long): Flow<List<TripShare>> =
         agentDao.observeSharesForTrip(tripId).map { list -> list.map { it.toDomain() } }
 
+    override fun observeMyTripAgentStatus(): Flow<Map<Long, String>> =
+        currentEmailFlow().flatMapLatest { email ->
+            if (email.isEmpty()) flowOf(emptyMap())
+            else agentDao.observeSharesForTraveller(email).map { rows ->
+                rows.groupBy { it.share.tripId }.mapValues { (_, tripRows) ->
+                    tripAgentStatusLabel(
+                        statuses = tripRows.map { ShareStatus.fromStorage(it.share.status) to ReviewDecision.fromStorage(it.share.decision) },
+                        chosenAgency = tripRows.firstOrNull {
+                            ShareStatus.fromStorage(it.share.status) == ShareStatus.CONFIRMED
+                        }?.agencyName
+                    )
+                }.filterValues { it != null }.mapValues { it.value!! }
+            }
+        }
+
     override suspend fun chooseAgent(tripId: Long, shareId: Long): Result<Unit> = runCatching {
         val share = requireShare(shareId)
         require(share.tripId == tripId) { "This offer belongs to a different trip." }
@@ -188,21 +204,22 @@ class LocalAgentRepository @Inject constructor(
 
         val now = System.currentTimeMillis()
         database.withTransaction {
+            val previous = agentDao.observeFeedbackForShare(shareId).first()
+            val fresh = review.activities.map { input ->
+                ActivityFeedbackEntity(
+                    shareId = shareId,
+                    dayNumber = input.dayNumber,
+                    activityIndex = input.activityIndex,
+                    activityTitle = input.activityTitle,
+                    verdict = input.verdict.name,
+                    comment = input.comment.trim(),
+                    suggestion = input.suggestion.trim(),
+                    updatedAt = now
+                )
+            }
             agentDao.deleteFeedbackForShare(shareId)
-            agentDao.insertFeedback(
-                review.activities.map { input ->
-                    ActivityFeedbackEntity(
-                        shareId = shareId,
-                        dayNumber = input.dayNumber,
-                        activityIndex = input.activityIndex,
-                        activityTitle = input.activityTitle,
-                        verdict = input.verdict.name,
-                        comment = input.comment.trim(),
-                        suggestion = input.suggestion.trim(),
-                        updatedAt = now
-                    )
-                }
-            )
+            // Keep the traveller's earlier Applied/Declined answers (see FeedbackHistory.kt)
+            agentDao.insertFeedback(mergeWithHistory(previous, fresh))
             agentDao.saveReviewSummary(
                 shareId = shareId,
                 decision = review.decision.name,

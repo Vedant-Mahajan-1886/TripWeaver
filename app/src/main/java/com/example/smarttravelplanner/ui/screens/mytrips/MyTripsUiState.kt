@@ -7,6 +7,10 @@ import com.example.smarttravelplanner.domain.model.Trip
 sealed interface MyTripsUiState {
     data object Loading : MyTripsUiState
     data object Empty : MyTripsUiState
-    data class Success(val trips: List<Trip>) : MyTripsUiState
+    data class Success(
+        val trips: List<Trip>,
+        /** Agent badge text per trip id (e.g. "Approved by agent"); missing = not sent to agents. */
+        val agentStatus: Map<Long, String> = emptyMap()
+    ) : MyTripsUiState
     data class Error(val message: String) : MyTripsUiState
 }

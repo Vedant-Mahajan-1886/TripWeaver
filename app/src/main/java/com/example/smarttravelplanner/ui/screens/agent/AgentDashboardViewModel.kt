@@ -7,7 +7,10 @@ import com.example.smarttravelplanner.domain.model.agent.AgentProfile
 import com.example.smarttravelplanner.domain.model.agent.IncomingShare
 import com.example.smarttravelplanner.domain.model.agent.ShareStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
@@ -27,8 +30,26 @@ sealed interface AgentDashboardUiState {
 
 @HiltViewModel
 class AgentDashboardViewModel @Inject constructor(
-    agentRepository: AgentRepository
+    private val agentRepository: AgentRepository
 ) : ViewModel() {
+
+    private val _notice = MutableStateFlow<String?>(null)
+    /** One-off message after saving the profile. */
+    val notice: StateFlow<String?> = _notice.asStateFlow()
+
+    /** Saves agency name, city and comma-separated specialities. */
+    fun saveProfile(agencyName: String, city: String, specialitiesText: String) {
+        viewModelScope.launch {
+            val specialities = specialitiesText.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            agentRepository.saveMyAgentProfile(agencyName, city, specialities)
+                .onSuccess { _notice.value = "Profile updated" }
+                .onFailure { _notice.value = it.message ?: "Couldn't save your profile." }
+        }
+    }
+
+    fun noticeShown() {
+        _notice.value = null
+    }
 
     val uiState: StateFlow<AgentDashboardUiState> = combine(
         agentRepository.observeMyAgentProfile(),
