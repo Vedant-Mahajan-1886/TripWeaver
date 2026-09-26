@@ -5,10 +5,14 @@ import android.content.Intent
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -19,10 +23,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
@@ -30,15 +36,21 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.zIndex
-import kotlinx.coroutines.delay
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.CachePolicy
@@ -99,34 +111,296 @@ private fun TripDetailContent(
     val weather     = uiState.weather
     val context     = LocalContext.current
 
-    val isTimeline = uiState.viewMode == TripDetailViewMode.TIMELINE
-    val heroHeight = 195.dp
+    val density     = LocalDensity.current
 
-    Column(
+    // Hoist list states for Timeline, Budget, and DaySelector
+    val timelineListState = rememberLazyListState()
+    val budgetListState = rememberLazyListState()
+    val daySelectorListState = rememberLazyListState()
+
+    // Collapse range: 340dp (expanded) down to 200dp (collapsed) -> 140dp delta
+    val collapseRangeDp = 140.dp
+    val collapseRangePx = with(density) { collapseRangeDp.toPx() }
+
+    // Scroll collapse pixel offsets for Timeline and Budget
+    var timelineCollapsePx by rememberSaveable { mutableFloatStateOf(0f) }
+    var budgetCollapsePx by rememberSaveable { mutableFloatStateOf(0f) }
+
+    // Derive scroll progress without unnecessary recomposition
+    val timelineCollapseProgress by remember {
+        derivedStateOf {
+            if (timelineListState.firstVisibleItemIndex > 0 || timelineListState.firstVisibleItemScrollOffset > 0) {
+                1f
+            } else {
+                (timelineCollapsePx / collapseRangePx).coerceIn(0f, 1f)
+            }
+        }
+    }
+
+    val budgetCollapseProgress by remember {
+        derivedStateOf {
+            if (budgetListState.firstVisibleItemIndex > 0 || budgetListState.firstVisibleItemScrollOffset > 0) {
+                1f
+            } else {
+                (budgetCollapsePx / collapseRangePx).coerceIn(0f, 1f)
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  Coordinated Mode Transition (0f = Expanded/Timeline/Budget, 1f = Compact/Visualize)
+    // ─────────────────────────────────────────────────────────────────────────
+    val modeTransition = updateTransition(
+        targetState = uiState.viewMode,
+        label = "trip_detail_mode_transition"
+    )
+
+    val modeCollapseProgress by modeTransition.animateFloat(
+        transitionSpec = { tween(durationMillis = 450, easing = FastOutSlowInEasing) },
+        label = "mode_collapse_progress"
+    ) { mode ->
+        if (mode == TripDetailViewMode.VISUALIZE) 1f else 0f
+    }
+
+    // Preserve non-visualize scroll collapse progress when switching to/from Visualize
+    var lastNonVisualizeScrollProgress by rememberSaveable { mutableFloatStateOf(0f) }
+
+    val scrollCollapseProgress = when (uiState.viewMode) {
+        TripDetailViewMode.TIMELINE -> timelineCollapseProgress
+        TripDetailViewMode.BUDGET -> budgetCollapseProgress
+        TripDetailViewMode.VISUALIZE -> lastNonVisualizeScrollProgress
+    }
+
+    if (uiState.viewMode != TripDetailViewMode.VISUALIZE) {
+        lastNonVisualizeScrollProgress = scrollCollapseProgress
+    }
+
+    // Derive ONE final collapse progress value from mode and scroll:
+    val finalCollapseProgress = maxOf(modeCollapseProgress, scrollCollapseProgress).coerceIn(0f, 1f)
+    val headerSpacerHeight = lerpDp(10.dp, 6.dp, finalCollapseProgress)
+
+    // NestedScrollConnection to coordinate scroll collapse 1:1 with finger
+    val nestedScrollConnection = remember(uiState.viewMode, collapseRangePx) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (uiState.viewMode == TripDetailViewMode.VISUALIZE) return Offset.Zero
+
+                val dy = available.y
+                // Scrolling up (dy < 0): collapse header first before scrolling list content
+                if (dy < 0) {
+                    val currentCollapse = if (uiState.viewMode == TripDetailViewMode.TIMELINE) {
+                        timelineCollapsePx
+                    } else {
+                        budgetCollapsePx
+                    }
+
+                    if (currentCollapse < collapseRangePx) {
+                        val newCollapse = (currentCollapse - dy).coerceIn(0f, collapseRangePx)
+                        val consumedY = -(newCollapse - currentCollapse)
+                        if (uiState.viewMode == TripDetailViewMode.TIMELINE) {
+                            timelineCollapsePx = newCollapse
+                        } else {
+                            budgetCollapsePx = newCollapse
+                        }
+                        return Offset(0f, consumedY)
+                    }
+                }
+
+                // Scrolling down (dy > 0): expand header immediately if list is at the very top
+                if (dy > 0) {
+                    val listState = if (uiState.viewMode == TripDetailViewMode.TIMELINE) {
+                        timelineListState
+                    } else {
+                        budgetListState
+                    }
+
+                    val isAtTop = listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
+                    if (isAtTop) {
+                        val currentCollapse = if (uiState.viewMode == TripDetailViewMode.TIMELINE) {
+                            timelineCollapsePx
+                        } else {
+                            budgetCollapsePx
+                        }
+                        if (currentCollapse > 0f) {
+                            val newCollapse = (currentCollapse - dy).coerceIn(0f, collapseRangePx)
+                            val consumedY = -(newCollapse - currentCollapse)
+                            if (uiState.viewMode == TripDetailViewMode.TIMELINE) {
+                                timelineCollapsePx = newCollapse
+                            } else {
+                                budgetCollapsePx = newCollapse
+                            }
+                            return Offset(0f, consumedY)
+                        }
+                    }
+                }
+
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                if (uiState.viewMode == TripDetailViewMode.VISUALIZE) return Offset.Zero
+
+                val dy = available.y
+                if (dy > 0) {
+                    val currentCollapse = if (uiState.viewMode == TripDetailViewMode.TIMELINE) {
+                        timelineCollapsePx
+                    } else {
+                        budgetCollapsePx
+                    }
+
+                    if (currentCollapse > 0f) {
+                        val newCollapse = (currentCollapse - dy).coerceIn(0f, collapseRangePx)
+                        val consumedY = -(newCollapse - currentCollapse)
+                        if (uiState.viewMode == TripDetailViewMode.TIMELINE) {
+                            timelineCollapsePx = newCollapse
+                        } else {
+                            budgetCollapsePx = newCollapse
+                        }
+                        return Offset(0f, consumedY)
+                    }
+                }
+
+                return Offset.Zero
+            }
+        }
+    }
+
+    val sheetOverlap = 24.dp
+    val sheetCornerRadius = 24.dp
+    val sheetShape = RoundedCornerShape(topStart = sheetCornerRadius, topEnd = sheetCornerRadius)
+    val finalHeaderHeight = lerpDp(340.dp, 200.dp, finalCollapseProgress)
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+
+    val handleVerticalDrag: (Float) -> Unit = { dragAmount ->
+        if (uiState.viewMode != TripDetailViewMode.VISUALIZE) {
+            val currentCollapse = if (uiState.viewMode == TripDetailViewMode.TIMELINE) {
+                timelineCollapsePx
+            } else {
+                budgetCollapsePx
+            }
+            val newCollapse = (currentCollapse - dragAmount).coerceIn(0f, collapseRangePx)
+            val consumed = -(newCollapse - currentCollapse)
+            if (uiState.viewMode == TripDetailViewMode.TIMELINE) {
+                timelineCollapsePx = newCollapse
+            } else {
+                budgetCollapsePx = newCollapse
+            }
+            val unconsumed = dragAmount - consumed
+            if (unconsumed < 0) {
+                val listState = if (uiState.viewMode == TripDetailViewMode.TIMELINE) {
+                    timelineListState
+                } else {
+                    budgetListState
+                }
+                listState.dispatchRawDelta(-unconsumed)
+            }
+        }
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .nestedScroll(nestedScrollConnection)
     ) {
-        // 1. Anchored Hero Header (stable across modes, eliminating layout jerking & frame drops)
-        HeroSection(
+        // 1. One reusable collapsing destination header whose size and child properties morph based on mode & scroll
+        AnimatedDestinationHeader(
             trip = trip,
+            collapseProgress = finalCollapseProgress,
+            viewMode = uiState.viewMode,
             onBackClick = onBackClick,
             onShareClick = { shareTrip(context, trip, itineraries) },
-            height = heroHeight,
-            compact = !isTimeline
+            modifier = Modifier.align(Alignment.TopCenter),
+            onVerticalDrag = handleVerticalDrag
         )
 
-        Spacer(Modifier.height(10.dp))
+        // 2. Overlapping Tab-style Content Sheet
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = (finalHeaderHeight - sheetOverlap).coerceAtLeast(0.dp))
+                .shadow(
+                    elevation = if (isDark) 12.dp else 8.dp,
+                    shape = sheetShape,
+                    spotColor = Color.Black.copy(alpha = if (isDark) 0.60f else 0.25f),
+                    ambientColor = Color.Black.copy(alpha = if (isDark) 0.40f else 0.15f)
+                )
+                .clip(sheetShape)
+                .background(MaterialTheme.colorScheme.background)
+                .border(
+                    width = if (isDark) 1.dp else 0.8.dp,
+                    brush = if (isDark) {
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.18f),
+                                Color.White.copy(alpha = 0.04f)
+                            )
+                        )
+                    } else {
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.Black.copy(alpha = 0.08f),
+                                Color.Black.copy(alpha = 0.02f)
+                            )
+                        )
+                    },
+                    shape = sheetShape
+                )
+        ) {
+            // Decorative top handle pill (drag indicator)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp, bottom = 6.dp)
+                    .pointerInput(uiState.viewMode) {
+                        detectVerticalDragGestures { _, dragAmount ->
+                            handleVerticalDrag(dragAmount)
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(36.dp)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(
+                            if (isDark) Color.White.copy(alpha = 0.22f)
+                            else Color.Black.copy(alpha = 0.15f)
+                        )
+                )
+            }
 
-        // 2. Anchored View Mode Switcher (clean typography, no icons, prominent tabs)
-        ViewModeSelector(
+            // Anchored View Mode Switcher (Timeline | Visualize | Budget)
+            ViewModeSelector(
             selectedMode = uiState.viewMode,
             onModeSelect = onViewModeSelect
         )
 
-        Spacer(Modifier.height(10.dp))
+        // 3. One Shared Day Selector (Shown for Timeline & Visualize, removed from Budget)
+        AnimatedVisibility(
+            visible = uiState.viewMode != TripDetailViewMode.BUDGET && itineraries.isNotEmpty(),
+            enter = fadeIn(tween(250)) + expandVertically(tween(300, easing = FastOutSlowInEasing)),
+            exit = fadeOut(tween(200)) + shrinkVertically(tween(250, easing = FastOutSlowInEasing))
+        ) {
+            Column {
+                Spacer(Modifier.height(headerSpacerHeight))
+                DaySelector(
+                    itineraries = itineraries,
+                    selectedIndex = uiState.selectedDayIndex,
+                    onDaySelect = onDaySelect,
+                    lazyListState = daySelectorListState
+                )
+            }
+        }
 
-        // 3. Persistent & Cached View Architecture (Material 3 Expressive shared-axis motion)
+        Spacer(Modifier.height(headerSpacerHeight))
+
+        // 4. Mode Content (Timeline / Visualize / Budget)
         val modes = remember {
             listOf(
                 TripDetailViewMode.TIMELINE,
@@ -147,37 +421,13 @@ private fun TripDetailContent(
                 .fillMaxWidth()
                 .clipToBounds()
         ) {
-            // 1. Visualize (Map) Layer: Retained in memory once visited to preserve map GL state, camera position, and route
+            // Visualize (Map) Layer: Retained in memory once visited to preserve map GL state, camera position, and route
             if (hasVisitedVisualize) {
                 val isVisualizeActive = uiState.viewMode == TripDetailViewMode.VISUALIZE
                 val visualizeAlpha by animateFloatAsState(
                     targetValue = if (isVisualizeActive) 1f else 0f,
-                    animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+                    animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
                     label = "visualize_alpha"
-                )
-                val visualizeScale by animateFloatAsState(
-                    targetValue = if (isVisualizeActive) 1f else 0.97f,
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = Spring.StiffnessMedium
-                    ),
-                    label = "visualize_scale"
-                )
-
-                val currentIdx = modes.indexOf(uiState.viewMode)
-                val visualizeIdx = modes.indexOf(TripDetailViewMode.VISUALIZE)
-                val targetOffsetFraction = when {
-                    isVisualizeActive -> 0f
-                    currentIdx < visualizeIdx -> 0.12f
-                    else -> -0.12f
-                }
-                val animatedOffsetFraction by animateFloatAsState(
-                    targetValue = targetOffsetFraction,
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = Spring.StiffnessMedium
-                    ),
-                    label = "visualize_offset"
                 )
 
                 Box(
@@ -186,22 +436,19 @@ private fun TripDetailContent(
                         .zIndex(if (isVisualizeActive) 2f else 0f)
                         .graphicsLayer {
                             alpha = visualizeAlpha
-                            scaleX = visualizeScale
-                            scaleY = visualizeScale
-                            translationX = size.width * animatedOffsetFraction
                         }
                 ) {
-                    VisualizeModeView(
-                        trip = trip,
-                        uiState = uiState,
-                        itineraries = itineraries,
-                        onDaySelect = onDaySelect,
-                        onActivitySelect = onActivitySelect
-                    )
+                    if (visualizeAlpha > 0.001f || isVisualizeActive) {
+                        VisualizeContent(
+                            trip = trip,
+                            uiState = uiState,
+                            onActivitySelect = onActivitySelect
+                        )
+                    }
                 }
             }
 
-            // 2. Timeline & Budget Layers (Animated with M3 Expressive Shared Axis when active)
+            // Timeline & Budget Layers (Animated with M3 Expressive Shared Axis when active)
             val nonMapMode = when (uiState.viewMode) {
                 TripDetailViewMode.TIMELINE -> TripDetailViewMode.TIMELINE
                 TripDetailViewMode.BUDGET   -> TripDetailViewMode.BUDGET
@@ -218,64 +465,53 @@ private fun TripDetailContent(
                         val dir = if (initial == TripDetailViewMode.TIMELINE) -1 else 1
                         EnterTransition.None.togetherWith(
                             slideOutHorizontally(
-                                targetOffsetX = { (it * 0.12f * dir).toInt() },
-                                animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
-                            ) + fadeOut(tween(180, easing = FastOutLinearInEasing)) + scaleOut(
-                                targetScale = 0.97f,
-                                animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
-                            )
+                                targetOffsetX = { (it * 0.06f * dir).toInt() },
+                                animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing)
+                            ) + fadeOut(tween(180, easing = FastOutLinearInEasing))
                         )
                     } else if (initial == null) {
                         // Entering Timeline/Budget from Visualize
                         val dir = if (target == TripDetailViewMode.TIMELINE) -1 else 1
                         (slideInHorizontally(
-                            initialOffsetX = { (it * 0.12f * dir).toInt() },
-                            animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
-                        ) + fadeIn(tween(220, easing = LinearOutSlowInEasing)) + scaleIn(
-                            initialScale = 0.97f,
-                            animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
-                        )).togetherWith(ExitTransition.None)
+                            initialOffsetX = { (it * 0.06f * dir).toInt() },
+                            animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
+                        ) + fadeIn(tween(220, easing = LinearOutSlowInEasing))).togetherWith(ExitTransition.None)
                     } else {
                         // Between Timeline and Budget directly
                         val dir = if (target == TripDetailViewMode.BUDGET) 1 else -1
                         (slideInHorizontally(
-                            initialOffsetX = { (it * 0.12f * dir).toInt() },
-                            animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
-                        ) + fadeIn(tween(220, easing = LinearOutSlowInEasing)) + scaleIn(
-                            initialScale = 0.97f,
-                            animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
-                        )).togetherWith(
+                            initialOffsetX = { (it * 0.06f * dir).toInt() },
+                            animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing)
+                        ) + fadeIn(tween(200, easing = LinearOutSlowInEasing))).togetherWith(
                             slideOutHorizontally(
-                                targetOffsetX = { (-it * 0.12f * dir).toInt() },
-                                animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
-                            ) + fadeOut(tween(180, easing = FastOutLinearInEasing)) + scaleOut(
-                                targetScale = 0.97f,
-                                animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
-                            )
+                                targetOffsetX = { (-it * 0.06f * dir).toInt() },
+                                animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing)
+                            ) + fadeOut(tween(180, easing = FastOutLinearInEasing))
                         )
                     }
                 },
                 modifier = Modifier
                     .fillMaxSize()
                     .zIndex(if (uiState.viewMode != TripDetailViewMode.VISUALIZE) 1f else 0f),
-                label = "non_map_modes"
+                label = "timeline_budget_content"
             ) { mode ->
                 when (mode) {
                     TripDetailViewMode.TIMELINE -> {
-                        TimelineModeView(
+                        TimelineContent(
                             trip = trip,
                             uiState = uiState,
                             itineraries = itineraries,
                             weather = weather,
                             context = context,
-                            onDaySelect = onDaySelect,
                             onActivitySelect = onActivitySelect,
-                            onViewModeSelect = onViewModeSelect
+                            onViewModeSelect = onViewModeSelect,
+                            lazyListState = timelineListState
                         )
                     }
                     TripDetailViewMode.BUDGET -> {
-                        BudgetModeView(
-                            uiState = uiState
+                        BudgetContent(
+                            uiState = uiState,
+                            lazyListState = budgetListState
                         )
                     }
                     TripDetailViewMode.VISUALIZE, null -> {
@@ -286,54 +522,48 @@ private fun TripDetailContent(
         }
     }
 }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Timeline Mode View (Metrics + Weather + Day Tabs + Activities)
+//  Timeline Mode View / Content (Weather + Activities)
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun TimelineModeView(
+private fun TimelineContent(
     trip: Trip,
     uiState: TripDetailUiState,
     itineraries: List<Itinerary>,
     weather: List<DayWeather>,
     context: Context,
-    onDaySelect: (Int) -> Unit,
     onActivitySelect: (Long?) -> Unit,
-    onViewModeSelect: (TripDetailViewMode) -> Unit
+    onViewModeSelect: (TripDetailViewMode) -> Unit,
+    lazyListState: LazyListState = rememberLazyListState()
 ) {
     LazyColumn(
+        state = lazyListState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 36.dp)
     ) {
-        // 1. Day Navigation Tabs
         if (itineraries.isNotEmpty()) {
-            item {
-                DayTabs(
-                    itineraries = itineraries,
-                    selectedIndex = uiState.selectedDayIndex,
-                    onTabSelect = onDaySelect
-                )
-                Spacer(Modifier.height(12.dp))
-            }
-
-            // 3. Compact Weather Capsule for Selected Day (Matches user reference design)
+            // 1. Compact Weather Capsule for Selected Day (Matches user reference design)
             val currentDayWeather = uiState.selectedDayWeather
                 ?: weather.getOrNull(uiState.selectedDayIndex)
                 ?: weather.firstOrNull()
 
             if (currentDayWeather != null) {
                 item(key = "day_weather_capsule") {
+                    Spacer(Modifier.height(4.dp))
                     DayWeatherBar(dayWeather = currentDayWeather)
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(10.dp))
                 }
             } else if (uiState.isLoadingWeather) {
                 item(key = "day_weather_loading") {
+                    Spacer(Modifier.height(4.dp))
                     DayWeatherLoadingBar()
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(10.dp))
                 }
             }
 
-            // 4. Day Itinerary Activities with Material 3 Expressive Transition
+            // 2. Day Itinerary Activities with Material 3 Expressive Transition
             item(key = "day_activities_wrapper") {
                 AnimatedContent(
                     targetState = uiState.selectedDayIndex,
@@ -422,15 +652,35 @@ private fun TimelineModeView(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  Visualize (Map) Mode View (Cached State & Minimal First-Time Loader)
-// ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun VisualizeModeView(
+private fun TimelineModeView(
     trip: Trip,
     uiState: TripDetailUiState,
     itineraries: List<Itinerary>,
-    onDaySelect: (Int) -> Unit,
+    weather: List<DayWeather>,
+    context: Context,
+    onDaySelect: (Int) -> Unit = {},
+    onActivitySelect: (Long?) -> Unit,
+    onViewModeSelect: (TripDetailViewMode) -> Unit,
+    lazyListState: LazyListState = rememberLazyListState()
+) = TimelineContent(
+    trip = trip,
+    uiState = uiState,
+    itineraries = itineraries,
+    weather = weather,
+    context = context,
+    onActivitySelect = onActivitySelect,
+    onViewModeSelect = onViewModeSelect,
+    lazyListState = lazyListState
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Visualize (Map) Mode View / Content (Cached State & Minimal First-Time Loader)
+// ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun VisualizeContent(
+    trip: Trip,
+    uiState: TripDetailUiState,
     onActivitySelect: (Long?) -> Unit
 ) {
     // Cache map loaded state: only loads the very first time, never shows loader on return!
@@ -454,54 +704,52 @@ private fun VisualizeModeView(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        if (itineraries.isNotEmpty()) {
-            DayTabs(
-                itineraries = itineraries,
-                selectedIndex = uiState.selectedDayIndex,
-                onTabSelect = onDaySelect
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (isMapDeferredReady || hasMapEverLoaded) {
+            TripMapView(
+                trip = trip,
+                itinerary = uiState.selectedItinerary,
+                selectedActivityId = uiState.selectedActivityId,
+                hasMapsApiKey = uiState.hasMapsApiKey,
+                onActivitySelected = onActivitySelect,
+                onMapLoaded = { hasMapEverLoaded = true },
+                modifier = Modifier.fillMaxSize()
             )
-            Spacer(Modifier.height(8.dp))
         }
 
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-        ) {
-            if (isMapDeferredReady || hasMapEverLoaded) {
-                TripMapView(
-                    trip = trip,
-                    itinerary = uiState.selectedItinerary,
-                    selectedActivityId = uiState.selectedActivityId,
-                    hasMapsApiKey = uiState.hasMapsApiKey,
-                    onActivitySelected = onActivitySelect,
-                    onMapLoaded = { hasMapEverLoaded = true },
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
+        // Minimal Material 3 Loading Screen (Shown ONLY on first initial load, zero text)
+        if (!hasMapEverLoaded) {
+            val skeletonAlpha by animateFloatAsState(
+                targetValue = if (hasMapEverLoaded) 0f else 1f,
+                animationSpec = tween(300, easing = LinearOutSlowInEasing),
+                label = "map_skeleton_fade"
+            )
 
-            // Minimal Material 3 Loading Screen (Shown ONLY on first initial load, zero text)
-            if (!hasMapEverLoaded) {
-                val skeletonAlpha by animateFloatAsState(
-                    targetValue = if (hasMapEverLoaded) 0f else 1f,
-                    animationSpec = tween(300, easing = LinearOutSlowInEasing),
-                    label = "map_skeleton_fade"
-                )
-
-                if (skeletonAlpha > 0.01f) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer { alpha = skeletonAlpha }
-                    ) {
-                        MapLoadingSkeleton()
-                    }
+            if (skeletonAlpha > 0.01f) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { alpha = skeletonAlpha }
+                ) {
+                    MapLoadingSkeleton()
                 }
             }
         }
     }
 }
+
+@Composable
+private fun VisualizeModeView(
+    trip: Trip,
+    uiState: TripDetailUiState,
+    itineraries: List<Itinerary>,
+    onDaySelect: (Int) -> Unit = {},
+    onActivitySelect: (Long?) -> Unit
+) = VisualizeContent(
+    trip = trip,
+    uiState = uiState,
+    onActivitySelect = onActivitySelect
+)
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Minimal Material 3 Map Loading Element (Zero Text, Minimalist Design)
@@ -541,30 +789,56 @@ private fun MapLoadingSkeleton() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Budget Allocation Mode View
+//  Budget Allocation Mode View / Content
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun BudgetModeView(
-    uiState: TripDetailUiState
+private fun BudgetContent(
+    uiState: TripDetailUiState,
+    lazyListState: LazyListState = rememberLazyListState()
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         TripBudgetAllocationView(
             uiState = uiState,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            lazyListState = lazyListState
         )
     }
 }
 
+@Composable
+private fun BudgetModeView(
+    uiState: TripDetailUiState,
+    lazyListState: LazyListState = rememberLazyListState()
+) = BudgetContent(uiState = uiState, lazyListState = lazyListState)
+
 // ─────────────────────────────────────────────────────────────────────────────
-//  Hero Section (Clean, without awkward interests pill above destination)
+//  Interpolation Utilities for Header Collapse
+// ─────────────────────────────────────────────────────────────────────────────
+private fun lerpDp(start: Dp, stop: Dp, fraction: Float): Dp =
+    start + (stop - start) * fraction.coerceIn(0f, 1f)
+
+private fun lerpSp(start: Float, stop: Float, fraction: Float): Float =
+    start + (stop - start) * fraction.coerceIn(0f, 1f)
+
+private fun lerpFloat(start: Float, stop: Float, fraction: Float): Float =
+    start + (stop - start) * fraction.coerceIn(0f, 1f)
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Collapsing & Animated Destination Header (Single Reusable Hero)
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun HeroSection(
+fun CollapsingDestinationHeader(
     trip: Trip,
+    headerHeight: Dp,
+    titleFontSize: Float,
+    titleLineHeight: Float,
+    bottomPadding: Dp,
+    scrollProgress: Float,
+    viewMode: TripDetailViewMode,
     onBackClick: () -> Unit,
     onShareClick: () -> Unit,
-    height: Dp,
-    compact: Boolean = false
+    modifier: Modifier = Modifier,
+    onVerticalDrag: ((Float) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val imageModel = remember(trip.destination, trip.coverImageUrl) {
@@ -581,57 +855,79 @@ private fun HeroSection(
             .build()
     }
 
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+
+    // Clamp progress safely between 0f (expanded) and 1f (collapsed)
+    val progress = scrollProgress.coerceIn(0f, 1f)
+
+    // Subtitle visibility and scale: fully visible at 0f, fading away by ~0.55f, completely hidden at 1f
+    val subtitleAlpha = (1f - progress * 1.8f).coerceIn(0f, 1f)
+    val subtitleScale = lerpFloat(1f, 0.8f, (progress * 1.5f).coerceIn(0f, 1f))
+
+    // Preserve the houseboat subject in the Kerala image with adaptive vertical alignment
+    val imageAlignmentY = lerpFloat(-0.02f, 0.12f, progress)
+
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .height(height)
+            .height(headerHeight)
     ) {
-        // High-res Destination Image (Coil AsyncImage)
-        AsyncImage(
-            model = imageRequest,
-            contentDescription = trip.destination,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
-        )
-
-        val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-
-        // Multi-stop gradient overlay: In dark mode, provides deeper atmospheric contrast.
-        // In light mode, the dark tint/veil is completely removed from the image body so colors stay 100% natural and bright.
+        // Image & Adaptive Gradient layer with vertical drag detection forwarding
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    if (isDark) {
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Black.copy(alpha = 0.50f),
-                                Color.Black.copy(alpha = 0.15f),
-                                Color.Black.copy(alpha = 0.85f)
-                            ),
-                            startY = 0f,
-                            endY = Float.POSITIVE_INFINITY
-                        )
-                    } else {
-                        // Light mode: subtle tint across image + deep bottom contrast for effortless text readability
-                        Brush.verticalGradient(
-                            colorStops = arrayOf(
-                                0.0f to Color.Black.copy(alpha = 0.25f),
-                                0.35f to Color.Black.copy(alpha = 0.10f),
-                                0.60f to Color.Black.copy(alpha = 0.38f),
-                                1.0f to Color.Black.copy(alpha = 0.78f)
-                            )
-                        )
-                    }
+                .then(
+                    if (onVerticalDrag != null) {
+                        Modifier.pointerInput(Unit) {
+                            detectVerticalDragGestures { _, dragAmount ->
+                                onVerticalDrag(dragAmount)
+                            }
+                        }
+                    } else Modifier
                 )
-        )
+        ) {
+            AsyncImage(
+                model = imageRequest,
+                contentDescription = trip.destination,
+                contentScale = ContentScale.Crop,
+                alignment = BiasAlignment(0f, imageAlignmentY),
+                modifier = Modifier.fillMaxSize()
+            )
 
-        // Top Navigation & Action Row
+            // Adaptive Gradient Overlay for maximum text readability and button contrast
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        if (isDark) {
+                            Brush.verticalGradient(
+                                colorStops = arrayOf(
+                                    0.0f to Color.Black.copy(alpha = 0.52f),
+                                    0.28f to Color.Black.copy(alpha = 0.15f),
+                                    0.55f to Color.Black.copy(alpha = 0.40f),
+                                    1.0f to Color.Black.copy(alpha = lerpFloat(0.88f, 0.94f, progress))
+                                )
+                            )
+                        } else {
+                            Brush.verticalGradient(
+                                colorStops = arrayOf(
+                                    0.0f to Color.Black.copy(alpha = 0.35f),
+                                    0.28f to Color.Transparent,
+                                    0.55f to Color.Black.copy(alpha = 0.30f),
+                                    1.0f to Color.Black.copy(alpha = lerpFloat(0.80f, 0.88f, progress))
+                                )
+                            )
+                        }
+                    )
+            )
+        }
+
+        // Top Navigation & Action Row (Back and Share buttons)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+                .padding(horizontal = 14.dp, vertical = lerpDp(8.dp, 4.dp, progress)),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -670,19 +966,19 @@ private fun HeroSection(
             }
         }
 
-        // Trip info at the bottom (Clean, directly displaying the destination)
+        // Destination title & subtitle at the bottom of the hero
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(horizontal = 18.dp, vertical = if (compact) 10.dp else 16.dp)
+                .padding(horizontal = 18.dp, vertical = bottomPadding)
         ) {
             Text(
                 text = trip.destination,
                 fontFamily = PlayfairFontFamily,
                 color = Color.White,
-                fontSize = if (compact) 22.sp else 30.sp,
+                fontSize = titleFontSize.sp,
                 fontWeight = FontWeight.Bold,
-                lineHeight = if (compact) 26.sp else 36.sp,
+                lineHeight = titleLineHeight.sp,
                 style = LocalTextStyle.current.copy(
                     shadow = Shadow(
                         color = Color.Black.copy(alpha = 0.65f),
@@ -691,28 +987,90 @@ private fun HeroSection(
                 )
             )
 
-            if (!compact && trip.title.isNotBlank()) {
-                Spacer(Modifier.height(3.dp))
-                Text(
-                    text = trip.title,
-                    fontFamily = DmSansFontFamily,
-                    color = Color.White.copy(alpha = 0.92f),
-                    fontSize = 13.5.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    style = LocalTextStyle.current.copy(
-                        shadow = Shadow(
-                            color = Color.Black.copy(alpha = 0.65f),
-                            blurRadius = 6f
+            if (trip.title.isNotBlank()) {
+                AnimatedVisibility(
+                    visible = viewMode != TripDetailViewMode.VISUALIZE && progress < 0.65f,
+                    enter = fadeIn(tween(300, delayMillis = 100)) + expandVertically(tween(400, easing = FastOutSlowInEasing)),
+                    exit = fadeOut(tween(200)) + shrinkVertically(tween(350, easing = FastOutSlowInEasing))
+                ) {
+                    Column {
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            text = trip.title,
+                            fontFamily = DmSansFontFamily,
+                            color = Color.White.copy(alpha = 0.92f * subtitleAlpha),
+                            fontSize = (13.5f * subtitleScale).sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.graphicsLayer {
+                                alpha = subtitleAlpha
+                                scaleX = subtitleScale
+                                scaleY = subtitleScale
+                                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
+                            },
+                            style = LocalTextStyle.current.copy(
+                                shadow = Shadow(
+                                    color = Color.Black.copy(alpha = 0.65f * subtitleAlpha),
+                                    blurRadius = 6f
+                                )
+                            )
                         )
-                    )
-                )
+                    }
+                }
             }
         }
     }
 }
 
+@Composable
+fun AnimatedDestinationHeader(
+    trip: Trip,
+    collapseProgress: Float,
+    viewMode: TripDetailViewMode,
+    onBackClick: () -> Unit,
+    onShareClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    onVerticalDrag: ((Float) -> Unit)? = null
+) {
+    val progress = collapseProgress.coerceIn(0f, 1f)
+    val headerHeight = lerpDp(340.dp, 200.dp, progress)
+    val titleFontSize = lerpSp(36f, 24f, progress)
+    val titleLineHeight = lerpSp(42f, 28f, progress)
+    val bottomPadding = lerpDp(42.dp, 30.dp, progress)
 
+    CollapsingDestinationHeader(
+        trip = trip,
+        headerHeight = headerHeight,
+        titleFontSize = titleFontSize,
+        titleLineHeight = titleLineHeight,
+        bottomPadding = bottomPadding,
+        scrollProgress = progress,
+        viewMode = viewMode,
+        onBackClick = onBackClick,
+        onShareClick = onShareClick,
+        modifier = modifier,
+        onVerticalDrag = onVerticalDrag
+    )
+}
+
+@Composable
+fun CollapsingDestinationHeader(
+    trip: Trip,
+    collapseProgress: Float,
+    viewMode: TripDetailViewMode,
+    onBackClick: () -> Unit,
+    onShareClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    onVerticalDrag: ((Float) -> Unit)? = null
+) = AnimatedDestinationHeader(
+    trip = trip,
+    collapseProgress = collapseProgress,
+    viewMode = viewMode,
+    onBackClick = onBackClick,
+    onShareClick = onShareClick,
+    modifier = modifier,
+    onVerticalDrag = onVerticalDrag
+)
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  View Mode Selector (Segmented Control matching MyProfile Gender tab style)
@@ -733,9 +1091,9 @@ private fun ViewModeSelector(
     val selectedIndex = modes.indexOf(selectedMode).coerceAtLeast(0)
 
     val segmentedTrackColor = if (isDark) SurfaceElevated else SegmentedTrackLight
-    val segmentedPillColor = if (isDark) SegmentedPillDark else Color.White
-    val textPrimary = if (isDark) OnBackgroundWhite else OnBackgroundDark
-    val textMuted = if (isDark) OnBackgroundGray else OnBackgroundMedium
+    val segmentedPillColor = if (isDark) Color(0xFF262A36) else Color.White
+    val selectedTextColor = if (isDark) Amber else Color(0xFFB45309)
+    val unselectedTextColor = if (isDark) OnBackgroundGray else OnBackgroundMedium
 
     BoxWithConstraints(
         modifier = Modifier
@@ -750,14 +1108,14 @@ private fun ViewModeSelector(
         val targetOffset = tabWidth * selectedIndex
         val animatedOffset by animateDpAsState(
             targetValue = targetOffset,
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioLowBouncy,
-                stiffness = Spring.StiffnessMediumLow
+            animationSpec = tween(
+                durationMillis = 350,
+                easing = FastOutSlowInEasing
             ),
             label = "mode_pill_offset"
         )
 
-        // Sliding indicator pill matching MyProfile Gender Selector
+        // Sliding indicator pill with smooth transition, subtle elevation and border
         Box(
             modifier = Modifier
                 .width(tabWidth)
@@ -765,10 +1123,15 @@ private fun ViewModeSelector(
                 .offset(x = animatedOffset)
                 .then(
                     if (!isDark) Modifier.shadow(2.dp, RoundedCornerShape(20.dp))
-                    else Modifier
+                    else Modifier.shadow(1.dp, RoundedCornerShape(20.dp))
                 )
                 .clip(RoundedCornerShape(20.dp))
                 .background(segmentedPillColor)
+                .border(
+                    width = if (isDark) 1.dp else 0.5.dp,
+                    color = if (isDark) CardBorderDark else Color(0xFFE2E8F0),
+                    shape = RoundedCornerShape(20.dp)
+                )
         )
 
         Row(modifier = Modifier.fillMaxSize()) {
@@ -793,7 +1156,7 @@ private fun ViewModeSelector(
                         fontFamily = DmSansFontFamily,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
                         fontSize = 14.5.sp,
-                        color = if (isSelected) textPrimary else textMuted,
+                        color = if (isSelected) selectedTextColor else unselectedTextColor,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -901,7 +1264,7 @@ private fun DayWeatherBar(dayWeather: DayWeather) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 11.dp),
+                    .padding(horizontal = 16.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Left: Weather Condition Icon
@@ -909,28 +1272,28 @@ private fun DayWeatherBar(dayWeather: DayWeather) {
                     imageVector = meta.icon,
                     contentDescription = meta.conditionLabel,
                     tint = meta.iconColor,
-                    modifier = Modifier.size(26.dp)
+                    modifier = Modifier.size(24.dp)
                 )
 
                 Spacer(Modifier.width(10.dp))
 
-                // Max / Min Temp
+                // Max / Min Temp (Primary information)
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         text = "${weatherForDay.maxTempC.toInt()}°",
-                        fontSize = 18.sp,
+                        fontSize = 19.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = DmSansFontFamily,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
                         text = " / ${weatherForDay.minTempC.toInt()}°C",
-                        fontSize = 14.5.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Normal,
                         fontFamily = DmSansFontFamily,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
                     )
                 }
 
@@ -938,7 +1301,7 @@ private fun DayWeatherBar(dayWeather: DayWeather) {
 
                 // Right: 3 Metric Columns (Precipitation %, Wind Speed, UV Index)
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     WeatherMetricColumn(
@@ -966,20 +1329,20 @@ private fun WeatherMetricColumn(
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp)
+        verticalArrangement = Arrangement.spacedBy(1.dp)
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            modifier = Modifier.size(15.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+            modifier = Modifier.size(13.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.60f)
         )
         Text(
             text = value,
-            fontSize = 11.5.sp,
+            fontSize = 11.sp,
             fontWeight = FontWeight.Medium,
             fontFamily = DmSansFontFamily,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.95f)
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.80f)
         )
     }
 }
@@ -1001,26 +1364,26 @@ private fun DayWeatherLoadingBar() {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 14.dp),
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(24.dp)
+                    .size(22.dp)
                     .clip(CircleShape)
                     .background(if (isDark) SurfaceElevated else Color(0xFFE2E8F0))
             )
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(10.dp))
             Box(
                 modifier = Modifier
-                    .size(width = 110.dp, height = 16.dp)
+                    .size(width = 100.dp, height = 15.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(if (isDark) SurfaceElevated else Color(0xFFE2E8F0))
             )
             Spacer(Modifier.weight(1f))
             Box(
                 modifier = Modifier
-                    .size(width = 80.dp, height = 16.dp)
+                    .size(width = 75.dp, height = 15.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(if (isDark) SurfaceElevated else Color(0xFFE2E8F0))
             )
@@ -1029,41 +1392,49 @@ private fun DayWeatherLoadingBar() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Day Navigation Tabs (With Material 3 Expressive Animated Selection)
+//  Day Navigation Selector (Shared Persistent LazyRow across all modes)
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun DayTabs(
+private fun DaySelector(
     itineraries: List<Itinerary>,
     selectedIndex: Int,
-    onTabSelect: (Int) -> Unit
+    onDaySelect: (Int) -> Unit,
+    lazyListState: LazyListState = rememberLazyListState(),
+    modifier: Modifier = Modifier
 ) {
     val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
     LazyRow(
+        state = lazyListState,
         contentPadding = PaddingValues(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier.fillMaxWidth()
     ) {
-        itemsIndexed(itineraries) { idx, itinerary ->
+        items(
+            items = itineraries,
+            key = { if (it.id != 0L) it.id else it.dayNumber.toLong() }
+        ) { itinerary ->
+            val idx = itineraries.indexOf(itinerary)
             val isSelected = idx == selectedIndex
             val animatedBgColor by animateColorAsState(
                 targetValue = if (isSelected) Amber else MaterialTheme.colorScheme.surface,
                 animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                label = "day_tab_bg_$idx"
+                label = "day_tab_bg_${itinerary.dayNumber}"
             )
             val animatedTextColor by animateColorAsState(
                 targetValue = if (isSelected) BackgroundDark else MaterialTheme.colorScheme.onSurface,
                 animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                label = "day_tab_text_$idx"
+                label = "day_tab_text_${itinerary.dayNumber}"
             )
             Surface(
-                onClick = { onTabSelect(idx) },
-                shape = RoundedCornerShape(14.dp),
+                onClick = { onDaySelect(idx) },
+                shape = RoundedCornerShape(12.dp),
                 color = animatedBgColor,
                 border = if (isSelected) null else BorderStroke(0.8.dp, if (isDark) CardBorderDark else CardBorderLight),
                 shadowElevation = if (isSelected) 3.dp else if (isDark) 0.dp else 1.dp
             ) {
                 Column(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
@@ -1071,9 +1442,9 @@ private fun DayTabs(
                         fontWeight = FontWeight.Bold,
                         fontFamily = DmSansFontFamily,
                         color = animatedTextColor,
-                        fontSize = 14.sp
+                        fontSize = 13.5.sp
                     )
-                    Spacer(Modifier.height(2.dp))
+                    Spacer(Modifier.height(1.dp))
                     val dateFormatted = runCatching {
                         LocalDate.parse(itinerary.date).format(DateTimeFormatter.ofPattern("d MMM"))
                     }.getOrNull()
@@ -1083,7 +1454,7 @@ private fun DayTabs(
 
                     Text(
                         text = subText,
-                        fontSize = 11.5.sp,
+                        fontSize = 11.sp,
                         fontFamily = DmSansFontFamily,
                         color = if (isSelected) BackgroundDark.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1092,6 +1463,18 @@ private fun DayTabs(
         }
     }
 }
+
+@Composable
+private fun DayTabs(
+    itineraries: List<Itinerary>,
+    selectedIndex: Int,
+    onTabSelect: (Int) -> Unit,
+    compact: Boolean = false
+) = DaySelector(
+    itineraries = itineraries,
+    selectedIndex = selectedIndex,
+    onDaySelect = onTabSelect
+)
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Timeline Activity Card (Enhanced Readability & Spacing)
@@ -1115,17 +1498,20 @@ private fun ActivityCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .height(IntrinsicSize.Min)
             .padding(horizontal = 16.dp)
     ) {
         // Timeline Column (Node + Spine)
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.width(32.dp)
+            modifier = Modifier
+                .width(30.dp)
+                .fillMaxHeight()
         ) {
             // Circular Step Badge
             Box(
                 modifier = Modifier
-                    .size(28.dp)
+                    .size(26.dp)
                     .clip(CircleShape)
                     .background(if (isDark) SurfaceDark else SurfaceLight)
                     .border(2.dp, Amber, CircleShape),
@@ -1133,7 +1519,7 @@ private fun ActivityCard(
             ) {
                 Text(
                     text = "${activityIndex + 1}",
-                    fontSize = 12.sp,
+                    fontSize = 11.5.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = DmSansFontFamily,
                     color = accentText
@@ -1144,11 +1530,11 @@ private fun ActivityCard(
                 Box(
                     modifier = Modifier
                         .width(2.dp)
-                        .height(115.dp)
+                        .fillMaxHeight()
+                        .padding(vertical = 3.dp)
                         .background(
-                            Brush.verticalGradient(
-                                colors = listOf(Amber, Amber.copy(alpha = 0.15f))
-                            )
+                            if (isDark) CardBorderDark.copy(alpha = 0.55f) else CardBorderLight.copy(alpha = 0.85f),
+                            shape = RoundedCornerShape(1.dp)
                         )
                 )
             }
@@ -1160,13 +1546,13 @@ private fun ActivityCard(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 14.dp),
+                .padding(bottom = 12.dp),
             shape = RoundedCornerShape(18.dp),
             color = MaterialTheme.colorScheme.surface,
             border = BorderStroke(0.8.dp, if (isDark) CardBorderDark else CardBorderLight),
             shadowElevation = if (isDark) 0.dp else 2.dp
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.padding(14.dp)) {
                 // Time pill & Category Badge
                 Row(
                     modifier = Modifier.fillMaxWidth(),

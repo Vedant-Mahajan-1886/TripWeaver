@@ -8,6 +8,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -42,7 +44,8 @@ private data class BudgetCategoryItem(
 @Composable
 fun TripBudgetAllocationView(
     uiState: TripDetailUiState,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    lazyListState: LazyListState = rememberLazyListState()
 ) {
     val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val trip = uiState.trip
@@ -109,6 +112,7 @@ fun TripBudgetAllocationView(
     val subtextColor = if (isDark) Color(0xFF9CA3AF) else Color(0xFF64748B)
 
     LazyColumn(
+        state = lazyListState,
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
