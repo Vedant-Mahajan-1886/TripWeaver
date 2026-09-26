@@ -25,8 +25,20 @@ object DatabaseMigrations {
         }
     }
 
+    /**
+     * v4 → v5: trips get an owner.
+     * Existing trips get ownerEmail = '' and are claimed by the next user who logs in.
+     */
+    val MIGRATION_4_5 = object : Migration(4, 5) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE trips ADD COLUMN ownerEmail TEXT NOT NULL DEFAULT ''")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_trips_ownerEmail ON trips(ownerEmail)")
+        }
+    }
+
     /** All migrations, oldest first. Registered in DatabaseModule. */
     val ALL: Array<Migration> = arrayOf(
-        MIGRATION_3_4
+        MIGRATION_3_4,
+        MIGRATION_4_5
     )
 }
