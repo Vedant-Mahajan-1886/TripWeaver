@@ -3,8 +3,11 @@ package com.example.smarttravelplanner.ui.screens.explore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.smarttravelplanner.data.repository.DestinationRepository
+import com.example.smarttravelplanner.domain.model.DepartureCity
 import com.example.smarttravelplanner.domain.model.ExploreDestination
+import com.example.smarttravelplanner.domain.model.ExploreSortOrder
 import com.example.smarttravelplanner.domain.util.DestinationFilter
+import com.example.smarttravelplanner.domain.util.GeoDistance
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,6 +24,9 @@ class ExploreViewModel @Inject constructor(
     /** Unfiltered catalog; [ExploreUiState.destinations] is derived from this. */
     private var allDestinations: List<ExploreDestination> = emptyList()
 
+    /** "From" cities with coordinates; the UI only needs their names. */
+    private var departureCities: List<DepartureCity> = emptyList()
+
     private val _uiState = MutableStateFlow(ExploreUiState())
     val uiState: StateFlow<ExploreUiState> = _uiState.asStateFlow()
 
@@ -35,13 +41,14 @@ class ExploreViewModel @Inject constructor(
             destinationRepository.getDestinations()
                 .onSuccess { destinations ->
                     allDestinations = destinations
-                    val cities = destinationRepository.getDepartureCities()
+                    departureCities = destinationRepository.getDepartureCities()
+                    val cityNames = departureCities.map { it.name }
                     _uiState.update { state ->
                         state.copy(
                             isLoading = false,
-                            departureCities = cities,
+                            departureCities = cityNames,
                             selectedCity = state.selectedCity
-                                .takeIf { it in cities } ?: cities.firstOrNull().orEmpty()
+                                .takeIf { it in cityNames } ?: cityNames.firstOrNull().orEmpty()
                         ).withFilteredDestinations()
                     }
                 }
@@ -61,11 +68,9 @@ class ExploreViewModel @Inject constructor(
     fun onCategorySelected(categoryId: String) =
         updateFilters { it.copy(selectedCategory = categoryId) }
 
-    fun onCitySelected(city: String) {
-        // The departure city doesn't filter the list yet; it will drive
-        // distance/"nearest first" sorting in a later step.
-        _uiState.update { it.copy(selectedCity = city) }
-    }
+    fun onCitySelected(city: String) = updateFilters { it.copy(selectedCity = city) }
+
+    fun onSortOrderSelected(order: ExploreSortOrder) = updateFilters { it.copy(sortOrder = order) }
 
     fun onDestinationClick(destination: ExploreDestination) {
         _uiState.update { it.copy(selectedDestination = destination) }
@@ -85,12 +90,20 @@ class ExploreViewModel @Inject constructor(
         _uiState.update { transform(it).withFilteredDestinations() }
     }
 
-    private fun ExploreUiState.withFilteredDestinations(): ExploreUiState =
-        copy(
-            destinations = DestinationFilter.apply(
-                destinations = allDestinations,
-                query = searchQuery,
-                category = selectedCategory
-            )
+    /** Re-derives the visible list: filter → distances from the "From" city → optional sort. */
+    private fun ExploreUiState.withFilteredDestinations(): ExploreUiState {
+        val filtered = DestinationFilter.apply(
+            destinations = allDestinations,
+            query = searchQuery,
+            category = selectedCategory
         )
+        val origin = this@ExploreViewModel.departureCities.firstOrNull { it.name == selectedCity }?.location
+        val distances = origin?.let { GeoDistance.distancesFrom(it, allDestinations) }.orEmpty()
+
+        val ordered = when (sortOrder) {
+            ExploreSortOrder.RECOMMENDED -> filtered
+            ExploreSortOrder.NEAREST     -> GeoDistance.sortByDistance(filtered, distances)
+        }
+        return copy(destinations = ordered, distancesKm = distances)
+    }
 }

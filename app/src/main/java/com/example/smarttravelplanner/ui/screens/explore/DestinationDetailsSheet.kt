@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.FlightTakeoff
+import androidx.compose.material.icons.outlined.NearMe
 import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -54,6 +55,8 @@ import com.example.smarttravelplanner.ui.theme.PlayfairFontFamily
 @Composable
 fun DestinationDetailsSheet(
     destination: ExploreDestination,
+    /** e.g. "~1,050 km from Mumbai (straight line)"; null hides the row. */
+    distanceFromLabel: String? = null,
     onDismiss: () -> Unit,
     onPlanTrip: () -> Unit
 ) {
@@ -143,6 +146,26 @@ fun DestinationDetailsSheet(
                     fontWeight = FontWeight.Bold,
                     color = Amber
                 )
+            }
+
+            // ── Distance from the selected "From" city ───────────────────────
+            if (distanceFromLabel != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Outlined.NearMe,
+                        contentDescription = null,
+                        tint = Amber,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = distanceFromLabel,
+                        fontFamily = DmSansFontFamily,
+                        fontSize = 12.sp,
+                        color = OnBackgroundGray
+                    )
+                }
             }
 
             // ── Description ─────────────────────────────────────────────────

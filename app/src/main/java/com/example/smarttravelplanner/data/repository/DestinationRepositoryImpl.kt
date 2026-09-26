@@ -1,7 +1,9 @@
 package com.example.smarttravelplanner.data.repository
 
 import com.example.smarttravelplanner.R
+import com.example.smarttravelplanner.domain.model.DepartureCity
 import com.example.smarttravelplanner.domain.model.ExploreDestination
+import com.example.smarttravelplanner.domain.model.GeoPoint
 import javax.inject.Inject
 
 /**
@@ -13,10 +15,15 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
     override suspend fun getDestinations(): Result<List<ExploreDestination>> =
         Result.success(curatedDestinations)
 
-    override fun getDepartureCities(): List<String> = departureCities
+    override fun getDepartureCities(): List<DepartureCity> = departureCities
 
     private val departureCities = listOf(
-        "New Delhi", "Mumbai", "Bangalore", "Chennai", "Kolkata", "Hyderabad"
+        DepartureCity("New Delhi", GeoPoint(28.6139, 77.2090)),
+        DepartureCity("Mumbai",    GeoPoint(19.0760, 72.8777)),
+        DepartureCity("Bangalore", GeoPoint(12.9716, 77.5946)),
+        DepartureCity("Chennai",   GeoPoint(13.0827, 80.2707)),
+        DepartureCity("Kolkata",   GeoPoint(22.5726, 88.3639)),
+        DepartureCity("Hyderabad", GeoPoint(17.3850, 78.4867))
     )
 
     private val curatedDestinations = listOf(
@@ -28,7 +35,8 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
             bestSeason = "Best: Oct – Mar",
             tag = "Heritage",
             tagCategory = "cultural",
-            imageRes = R.drawable.dest_agra
+            imageRes = R.drawable.dest_agra,
+            location = GeoPoint(27.1767, 78.0081)
         ),
         ExploreDestination(
             name = "Varanasi",
@@ -38,7 +46,8 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
             bestSeason = "Best: Nov – Feb",
             tag = "Religious",
             tagCategory = "religious",
-            imageRes = R.drawable.dest_varanasi
+            imageRes = R.drawable.dest_varanasi,
+            location = GeoPoint(25.3176, 82.9739)
         ),
         ExploreDestination(
             name = "Jaipur",
@@ -48,7 +57,8 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
             bestSeason = "Best: Oct – Mar",
             tag = "Royalty",
             tagCategory = "cultural",
-            imageRes = R.drawable.dest_jaipur
+            imageRes = R.drawable.dest_jaipur,
+            location = GeoPoint(26.9124, 75.7873)
         ),
         ExploreDestination(
             name = "Udaipur",
@@ -58,7 +68,8 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
             bestSeason = "Best: Sep – Mar",
             tag = "Romantic",
             tagCategory = "nature",
-            imageRes = R.drawable.dest_udaipur
+            imageRes = R.drawable.dest_udaipur,
+            location = GeoPoint(24.5854, 73.7125)
         ),
         ExploreDestination(
             name = "Rishikesh",
@@ -68,7 +79,8 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
             bestSeason = "Best: Sep – Apr",
             tag = "Spiritual & Rafting",
             tagCategory = "adventure",
-            imageRes = R.drawable.dest_rishikesh
+            imageRes = R.drawable.dest_rishikesh,
+            location = GeoPoint(30.0869, 78.2676)
         ),
         ExploreDestination(
             name = "Alleppey",
@@ -78,7 +90,8 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
             bestSeason = "Best: Sep – Mar",
             tag = "Backwaters & Nature",
             tagCategory = "nature",
-            imageRes = R.drawable.dest_kerala
+            imageRes = R.drawable.dest_kerala,
+            location = GeoPoint(9.4981, 76.3388)
         ),
         ExploreDestination(
             name = "Mysore",
@@ -88,7 +101,8 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
             bestSeason = "Best: Oct – Mar",
             tag = "Royal Heritage",
             tagCategory = "cultural",
-            imageRes = R.drawable.dest_mysore
+            imageRes = R.drawable.dest_mysore,
+            location = GeoPoint(12.2958, 76.6394)
         ),
         ExploreDestination(
             name = "Manali",
@@ -98,7 +112,8 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
             bestSeason = "Best: Oct – Jun",
             tag = "Snow & Trek",
             tagCategory = "adventure",
-            imageRes = R.drawable.dest_manali
+            imageRes = R.drawable.dest_manali,
+            location = GeoPoint(32.2432, 77.1892)
         ),
         ExploreDestination(
             name = "Srinagar",
@@ -108,7 +123,8 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
             bestSeason = "Best: Apr – Oct",
             tag = "Paradise",
             tagCategory = "nature",
-            imageRes = R.drawable.dest_kashmir
+            imageRes = R.drawable.dest_kashmir,
+            location = GeoPoint(34.0837, 74.7973)
         ),
         ExploreDestination(
             name = "Goa",
@@ -118,7 +134,8 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
             bestSeason = "Best: Nov – Feb",
             tag = "Coastal & Beach",
             tagCategory = "adventure",
-            imageRes = R.drawable.dest_goa
+            imageRes = R.drawable.dest_goa,
+            location = GeoPoint(15.2993, 74.124)
         ),
         ExploreDestination(
             name = "Leh",
@@ -128,7 +145,8 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
             bestSeason = "Best: Jun – Sep",
             tag = "High Altitude",
             tagCategory = "adventure",
-            imageRes = R.drawable.dest_leh
+            imageRes = R.drawable.dest_leh,
+            location = GeoPoint(34.1526, 77.5771)
         ),
         ExploreDestination(
             name = "Jodhpur",
@@ -138,7 +156,8 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
             bestSeason = "Best: Oct – Mar",
             tag = "Blue City",
             tagCategory = "cultural",
-            imageRes = R.drawable.dest_jodhpur
+            imageRes = R.drawable.dest_jodhpur,
+            location = GeoPoint(26.2389, 73.0243)
         ),
         ExploreDestination(
             name = "Amritsar",
@@ -148,7 +167,8 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
             bestSeason = "Best: Oct – Mar",
             tag = "Spiritual",
             tagCategory = "religious",
-            imageRes = R.drawable.dest_amritsar
+            imageRes = R.drawable.dest_amritsar,
+            location = GeoPoint(31.634, 74.8723)
         ),
         ExploreDestination(
             name = "Munnar",
@@ -158,7 +178,8 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
             bestSeason = "Best: Sep – Mar",
             tag = "Tea Gardens",
             tagCategory = "nature",
-            imageRes = R.drawable.dest_munnar
+            imageRes = R.drawable.dest_munnar,
+            location = GeoPoint(10.0889, 77.0595)
         ),
         ExploreDestination(
             name = "Coorg",
@@ -168,7 +189,8 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
             bestSeason = "Best: Oct – May",
             tag = "Coffee Country",
             tagCategory = "nature",
-            imageRes = R.drawable.dest_coorg
+            imageRes = R.drawable.dest_coorg,
+            location = GeoPoint(12.4244, 75.7382)
         ),
         ExploreDestination(
             name = "Darjeeling",
@@ -178,7 +200,8 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
             bestSeason = "Best: Mar – May",
             tag = "Hill Station",
             tagCategory = "nature",
-            imageRes = R.drawable.dest_darjeeling
+            imageRes = R.drawable.dest_darjeeling,
+            location = GeoPoint(27.041, 88.2663)
         ),
         ExploreDestination(
             name = "Gangtok",
@@ -188,7 +211,8 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
             bestSeason = "Best: Mar – May",
             tag = "Mountain Town",
             tagCategory = "nature",
-            imageRes = R.drawable.dest_gangtok
+            imageRes = R.drawable.dest_gangtok,
+            location = GeoPoint(27.3389, 88.6065)
         ),
         ExploreDestination(
             name = "Andaman",
@@ -198,7 +222,8 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
             bestSeason = "Best: Oct – May",
             tag = "Island Paradise",
             tagCategory = "adventure",
-            imageRes = R.drawable.dest_andaman
+            imageRes = R.drawable.dest_andaman,
+            location = GeoPoint(11.6234, 92.7265)
         ),
         ExploreDestination(
             name = "Pondicherry",
@@ -208,7 +233,8 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
             bestSeason = "Best: Oct – Mar",
             tag = "French Colony",
             tagCategory = "cultural",
-            imageRes = R.drawable.dest_pondicherry
+            imageRes = R.drawable.dest_pondicherry,
+            location = GeoPoint(11.9416, 79.8083)
         ),
         ExploreDestination(
             name = "Mussoorie",
@@ -218,7 +244,8 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
             bestSeason = "Best: Mar – Jun",
             tag = "Queen of Hills",
             tagCategory = "nature",
-            imageRes = R.drawable.dest_mussoorie
+            imageRes = R.drawable.dest_mussoorie,
+            location = GeoPoint(30.4598, 78.0644)
         ),
         ExploreDestination(
             name = "Spiti Valley",
@@ -228,7 +255,8 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
             bestSeason = "Best: Jun – Sep",
             tag = "Cold Desert",
             tagCategory = "adventure",
-            imageRes = R.drawable.dest_spiti
+            imageRes = R.drawable.dest_spiti,
+            location = GeoPoint(32.2276, 78.071)
         ),
         ExploreDestination(
             name = "Gokarna",
@@ -238,7 +266,8 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
             bestSeason = "Best: Oct – Mar",
             tag = "Beach & Temple",
             tagCategory = "religious",
-            imageRes = R.drawable.dest_gokarna
+            imageRes = R.drawable.dest_gokarna,
+            location = GeoPoint(14.5479, 74.3188)
         ),
         ExploreDestination(
             name = "Shillong",
@@ -248,7 +277,8 @@ class DestinationRepositoryImpl @Inject constructor() : DestinationRepository {
             bestSeason = "Best: Sep – May",
             tag = "Scotland of East",
             tagCategory = "nature",
-            imageRes = R.drawable.dest_shillong
+            imageRes = R.drawable.dest_shillong,
+            location = GeoPoint(25.5788, 91.8933)
         )
     )
 }
