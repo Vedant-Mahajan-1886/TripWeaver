@@ -151,6 +151,10 @@ fun EditActivitiesScreen(
                 uiState.error != null -> Text(uiState.error!!, color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.padding(24.dp))
                 else -> {
+                    val agentNotice by viewModel.agentNotice.collectAsStateWithLifecycle()
+                    agentNotice?.let {
+                        AgentEditNoticeBanner(it, Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+                    }
                     DayTabs(
                         days = uiState.days,
                         selected = uiState.selectedDayNumber,

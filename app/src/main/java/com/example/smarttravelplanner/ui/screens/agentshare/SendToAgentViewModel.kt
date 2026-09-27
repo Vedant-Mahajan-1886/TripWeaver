@@ -4,6 +4,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.smarttravelplanner.data.repository.AgentRepository
+import com.example.smarttravelplanner.data.repository.TripEdit
+import com.example.smarttravelplanner.data.repository.TripEditRepository
 import com.example.smarttravelplanner.domain.model.agent.ActivityFeedback
 import com.example.smarttravelplanner.domain.model.agent.ActivityVerdict
 import com.example.smarttravelplanner.domain.model.agent.AgentProfile
@@ -108,7 +110,8 @@ data class AgentFeedbackUiState(
 class SendToAgentViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val agentRepository: AgentRepository,
-    private val applyAgentSuggestion: ApplyAgentSuggestionUseCase
+    private val applyAgentSuggestion: ApplyAgentSuggestionUseCase,
+    tripEditRepository: TripEditRepository
 ) : ViewModel() {
 
     private val tripId: Long = checkNotNull(savedStateHandle["tripId"])
@@ -126,8 +129,9 @@ class SendToAgentViewModel @Inject constructor(
         agentRepository.observeAgents(),
         agentRepository.observeSharesForTrip(tripId),
         agentRepository.observeFeedbackForTrip(tripId),
+        tripEditRepository.observeEdits(tripId),
         selection
-    ) { agents, shares, tripFeedback, sel ->
+    ) { agents, shares, tripFeedback, edits, sel ->
         val latestByAgent = shares
             .groupBy { it.agentEmail }
             .mapValues { (_, list) -> list.maxByOrNull { it.updatedAt } }
@@ -143,7 +147,7 @@ class SendToAgentViewModel @Inject constructor(
             isSending = sel.isSending,
             notice = sel.notice,
             conflicts = AgentConflicts.conflictingActivities(tripFeedback),
-            offers = buildOffers(agents.map { AgentShareRow(it, latestByAgent[it.email]) }, tripFeedback)
+            offers = buildOffers(agents.map { AgentShareRow(it, latestByAgent[it.email]) }, tripFeedback, edits)
         )
     }.stateIn(
         scope = viewModelScope,
@@ -266,7 +270,8 @@ class SendToAgentViewModel @Inject constructor(
  */
 internal fun buildOffers(
     rows: List<AgentShareRow>,
-    tripFeedback: List<TripFeedbackItem>
+    tripFeedback: List<TripFeedbackItem>,
+    edits: List<TripEdit> = emptyList()
 ): List<AgentOffer> {
     val active = rows.filter { it.isShared }
     val prices = active.mapNotNull { row ->
@@ -280,8 +285,10 @@ internal fun buildOffers(
             row = row,
             flaggedCount = mine.count { it.verdict != ActivityVerdict.AVAILABLE },
             appliedCount = mine.count { it.response == SuggestionResponse.APPLIED },
-            reviewedBeforeLatestChanges = share.decision != null &&
-                AgentConflicts.changesSince(share.updatedAt, share.id, tripFeedback).any { !it.suggestedByMe },
+            reviewedBeforeLatestChanges = share.decision != null && (
+                AgentConflicts.changesSince(share.updatedAt, share.id, tripFeedback).any { !it.suggestedByMe } ||
+                    edits.any { it.editedAt > share.updatedAt }
+                ),
             isLowestPrice = prices.size > 1 && share.priceEstimate != null && share.priceEstimate == lowest
         )
     }.sortedWith(

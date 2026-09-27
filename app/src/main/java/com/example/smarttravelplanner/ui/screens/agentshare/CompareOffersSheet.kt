@@ -212,7 +212,7 @@ private fun OfferCard(
             if (offer.reviewedBeforeLatestChanges) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Reviewed before changes you made from another agent's suggestions.",
+                    text = "Reviewed before your latest changes to the trip \u2014 their price or approval may be out of date.",
                     fontFamily = DmSansFontFamily,
                     fontSize = 12.sp,
                     color = Amber

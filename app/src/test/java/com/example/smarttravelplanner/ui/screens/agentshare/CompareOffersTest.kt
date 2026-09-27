@@ -103,4 +103,14 @@ class CompareOffersTest {
         assertEquals(listOf("Chosen", "Closed"), offers.map { it.row.agent.fullName })
         assertTrue(offers.all { it.hasResponded })
     }
+
+    @Test
+    fun manualEditsAfterAReviewMarkItOutdated() {
+        val offers = buildOffers(
+            rows = listOf(row(1, "A", ShareStatus.RESPONDED, ReviewDecision.APPROVED, reviewedAt = 1_000L)),
+            tripFeedback = emptyList(),
+            edits = listOf(com.example.smarttravelplanner.data.repository.TripEdit("Moved Amber Fort to Day 2", 2_000L))
+        )
+        assertTrue(offers.single().reviewedBeforeLatestChanges)
+    }
 }

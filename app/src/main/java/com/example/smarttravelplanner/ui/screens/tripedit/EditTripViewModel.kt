@@ -3,6 +3,7 @@ package com.example.smarttravelplanner.ui.screens.tripedit
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.smarttravelplanner.data.repository.AgentRepository
 import com.example.smarttravelplanner.data.repository.ItineraryRepository
 import com.example.smarttravelplanner.data.repository.TripEditRepository
 import com.example.smarttravelplanner.data.repository.TripRepository
@@ -12,6 +13,8 @@ import com.example.smarttravelplanner.domain.usecase.PlanEmptyDaysUseCase
 import com.example.smarttravelplanner.domain.util.TripEditor
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -79,10 +82,15 @@ class EditTripViewModel @Inject constructor(
     private val tripRepository: TripRepository,
     private val itineraryRepository: ItineraryRepository,
     private val tripEditRepository: TripEditRepository,
-    private val planEmptyDays: PlanEmptyDaysUseCase
+    private val planEmptyDays: PlanEmptyDaysUseCase,
+    agentRepository: AgentRepository
 ) : ViewModel() {
 
     private val tripId: Long = checkNotNull(savedStateHandle["tripId"])
+
+    /** "Agents reviewing this trip will see…" (null if never sent to an agent). */
+    val agentNotice: StateFlow<String?> = agentEditNotice(agentRepository, tripId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _uiState = MutableStateFlow<EditTripUiState>(EditTripUiState.Loading)
     val uiState: StateFlow<EditTripUiState> = _uiState.asStateFlow()

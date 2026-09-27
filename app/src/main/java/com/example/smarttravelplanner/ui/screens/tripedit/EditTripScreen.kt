@@ -158,7 +158,13 @@ fun EditTripScreen(
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.padding(24.dp)
             )
-            is EditTripUiState.Editing -> EditForm(state, viewModel, onEditActivities)
+            is EditTripUiState.Editing -> {
+                val agentNotice by viewModel.agentNotice.collectAsStateWithLifecycle()
+                agentNotice?.let {
+                    AgentEditNoticeBanner(it, Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+                }
+                EditForm(state, viewModel, onEditActivities)
+            }
         }
     }
 
