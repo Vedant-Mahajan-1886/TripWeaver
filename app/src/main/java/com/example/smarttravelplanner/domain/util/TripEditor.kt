@@ -94,6 +94,28 @@ object TripEditor {
 
     // ── Activities ───────────────────────────────────────────────────────────
 
+    private val timePattern = Regex("^([01]?\\d|2[0-3]):[0-5]\\d$")
+
+    /** "09:30" / "9:30" style times; blank is allowed (no time set). */
+    fun isValidTime(value: String): Boolean = value.isBlank() || timePattern.matches(value.trim())
+
+    /** Problems with an activity form; empty list = OK to save. */
+    fun validateActivity(title: String, startTime: String, endTime: String, cost: Double): List<String> = buildList {
+        if (title.isBlank()) add("Give the activity a title.")
+        if (!isValidTime(startTime)) add("Start time should look like 09:30.")
+        if (!isValidTime(endTime)) add("End time should look like 11:00.")
+        if (isValidTime(startTime) && isValidTime(endTime) && startTime.isNotBlank() && endTime.isNotBlank() &&
+            minutes(endTime) <= minutes(startTime)
+        ) add("End time should be after the start time.")
+        if (cost < 0 || cost.isNaN()) add("Cost can't be negative.")
+    }
+
+    private fun minutes(time: String): Int {
+        val (h, m) = time.trim().split(":").map { it.toInt() }
+        return h * 60 + m
+    }
+
+
     fun updateActivity(days: List<Itinerary>, dayNumber: Int, index: Int, updated: Activity): Result {
         require(updated.title.isNotBlank()) { "An activity needs a title." }
         val day = requireDay(days, dayNumber)

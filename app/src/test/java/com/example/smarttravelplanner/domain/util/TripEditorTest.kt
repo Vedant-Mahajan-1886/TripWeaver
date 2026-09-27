@@ -127,4 +127,24 @@ class TripEditorTest {
         assertThrows(IllegalStateException::class.java) { TripEditor.deleteActivity(days, 2, 5) }
         assertThrows(IllegalStateException::class.java) { TripEditor.deleteActivity(days, 7, 0) }
     }
+
+    // ── Activity form ───────────────────────────────────────────────────────
+
+    @Test
+    fun timesAreValidated() {
+        assertTrue(TripEditor.isValidTime("09:30"))
+        assertTrue(TripEditor.isValidTime("9:05"))
+        assertTrue(TripEditor.isValidTime(""))
+        assertTrue(!TripEditor.isValidTime("25:00"))
+        assertTrue(!TripEditor.isValidTime("9.30"))
+    }
+
+    @Test
+    fun activityFormProblems() {
+        assertTrue(TripEditor.validateActivity("Amber Fort", "09:00", "11:00", 500.0).isEmpty())
+        assertEquals(
+            listOf("Give the activity a title.", "End time should be after the start time.", "Cost can't be negative."),
+            TripEditor.validateActivity(" ", "11:00", "10:00", -1.0)
+        )
+    }
 }

@@ -187,12 +187,27 @@ class EditTripViewModel @Inject constructor(
             _uiState.update { (it as? EditTripUiState.Editing)?.copy(problems = problems) ?: it }
             return
         }
-        val reshape = TripEditor.reshapeDays(tripId, state.days, f.startDate, f.endDate)
-        if (reshape.removedActivityCount > 0) {
-            _uiState.update { (it as? EditTripUiState.Editing)?.copy(pendingDayRemoval = reshape) ?: it }
-            return
+        viewModelScope.launch {
+            // Re-read the days: they may have changed in the activity editor since this screen opened
+            val freshDays = itineraryRepository.getItinerariesForTrip(tripId).sortedBy { it.dayNumber }
+            val current = (_uiState.value as? EditTripUiState.Editing ?: return@launch).copy(days = freshDays)
+            _uiState.value = current
+
+            val reshape = TripEditor.reshapeDays(tripId, freshDays, f.startDate, f.endDate)
+            if (reshape.removedActivityCount > 0) {
+                _uiState.update { (it as? EditTripUiState.Editing)?.copy(pendingDayRemoval = reshape) ?: it }
+                return@launch
+            }
+            persist(current, reshape)
         }
-        persist(state, reshape)
+    }
+
+    /** Called when returning from the activity editor, so counts and empty-day hints are current. */
+    fun refreshDays() {
+        viewModelScope.launch {
+            val freshDays = itineraryRepository.getItinerariesForTrip(tripId).sortedBy { it.dayNumber }
+            _uiState.update { (it as? EditTripUiState.Editing)?.copy(days = freshDays) ?: it }
+        }
     }
 
     /** The traveller accepted that some days (and their activities) will be removed. */
