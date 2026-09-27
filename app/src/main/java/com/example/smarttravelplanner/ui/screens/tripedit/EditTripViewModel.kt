@@ -8,6 +8,7 @@ import com.example.smarttravelplanner.data.repository.TripEditRepository
 import com.example.smarttravelplanner.data.repository.TripRepository
 import com.example.smarttravelplanner.domain.model.Itinerary
 import com.example.smarttravelplanner.domain.model.Trip
+import com.example.smarttravelplanner.domain.usecase.PlanEmptyDaysUseCase
 import com.example.smarttravelplanner.domain.util.TripEditor
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,8 +45,19 @@ sealed interface EditTripUiState {
         /** Set when new dates would delete days that have activities; save needs confirmation. */
         val pendingDayRemoval: TripEditor.Reshape? = null,
         val isSaving: Boolean = false,
-        val saved: Boolean = false
+        val saved: Boolean = false,
+        /** Plan days added by longer dates with AI after saving (on by default). */
+        val planNewDaysWithAi: Boolean = true,
+        /** Non-null while the AI is planning; the text is shown to the traveller. */
+        val aiProgress: String? = null,
+        /** Set when saving worked but AI planning failed. */
+        val aiFailure: String? = null,
+        /** One-off message (e.g. "Planned 2 days with AI"). */
+        val notice: String? = null
     ) : EditTripUiState {
+        /** Days that exist but have no activities (can be filled with AI). */
+        val emptyDayNumbers: List<Int> get() = days.filter { it.activities.isEmpty() }.map { it.dayNumber }
+
         val hasChanges: Boolean get() = TripEditor.describeDetailChanges(original, form.toTrip(original)).isNotEmpty()
     }
 }
@@ -66,7 +78,8 @@ class EditTripViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val tripRepository: TripRepository,
     private val itineraryRepository: ItineraryRepository,
-    private val tripEditRepository: TripEditRepository
+    private val tripEditRepository: TripEditRepository,
+    private val planEmptyDays: PlanEmptyDaysUseCase
 ) : ViewModel() {
 
     private val tripId: Long = checkNotNull(savedStateHandle["tripId"])
@@ -116,6 +129,52 @@ class EditTripViewModel @Inject constructor(
 
     fun removeInterest(value: String) = updateForm { it.copy(interests = it.interests - value) }
 
+    fun setPlanNewDaysWithAi(enabled: Boolean) =
+        _uiState.update { (it as? EditTripUiState.Editing)?.copy(planNewDaysWithAi = enabled) ?: it }
+
+    // ── AI planning for empty days ───────────────────────────────────────────
+
+    /** Plans every existing day that has no activities (without changing anything else). */
+    fun planEmptyDaysNow() {
+        val state = _uiState.value as? EditTripUiState.Editing ?: return
+        val empty = state.emptyDayNumbers
+        if (empty.isEmpty() || state.aiProgress != null) return
+        viewModelScope.launch {
+            setAiProgress("Planning ${dayList(empty)} with AI\u2026")
+            planEmptyDays(tripId, empty.toSet())
+                .onSuccess { count ->
+                    val days = itineraryRepository.getItinerariesForTrip(tripId).sortedBy { it.dayNumber }
+                    _uiState.update {
+                        (it as? EditTripUiState.Editing)?.copy(
+                            days = days,
+                            aiProgress = null,
+                            notice = if (count == 0) "Nothing to plan" else "Planned $count day(s) with AI"
+                        ) ?: it
+                    }
+                }
+                .onFailure { e ->
+                    _uiState.update {
+                        (it as? EditTripUiState.Editing)?.copy(
+                            aiProgress = null,
+                            notice = "AI planning failed: ${e.message ?: "please try again"}"
+                        ) ?: it
+                    }
+                }
+        }
+    }
+
+    fun noticeShown() = _uiState.update { (it as? EditTripUiState.Editing)?.copy(notice = null) ?: it }
+
+    /** After an AI failure dialog: the edits are saved, so leave the screen. */
+    fun acknowledgeAiFailure() =
+        _uiState.update { (it as? EditTripUiState.Editing)?.copy(aiFailure = null, saved = true) ?: it }
+
+    private fun setAiProgress(text: String?) =
+        _uiState.update { (it as? EditTripUiState.Editing)?.copy(aiProgress = text) ?: it }
+
+    private fun dayList(days: List<Int>): String =
+        if (days.size == 1) "Day ${days.first()}" else "Days " + days.joinToString(", ")
+
     // ── Saving ───────────────────────────────────────────────────────────────
 
     /** Validates, then saves — or asks for confirmation first if days with activities would be removed. */
@@ -164,7 +223,31 @@ class EditTripViewModel @Inject constructor(
                 removedDayIds = reshape.removedDays.map { it.id }.filter { it != 0L },
                 summaries = summaries
             ).onSuccess {
-                _uiState.update { (it as? EditTripUiState.Editing)?.copy(isSaving = false, saved = true) ?: it }
+                // Days added by longer dates are empty — optionally let the AI plan just those
+                val oldNumbers = state.days.map { it.dayNumber }.toSet()
+                val addedDays = reshape.days.map { it.dayNumber }.filter { it !in oldNumbers }
+                if (state.planNewDaysWithAi && addedDays.isNotEmpty()) {
+                    _uiState.update {
+                        (it as? EditTripUiState.Editing)?.copy(
+                            isSaving = false,
+                            aiProgress = "Saved. Planning ${dayList(addedDays)} with AI\u2026"
+                        ) ?: it
+                    }
+                    planEmptyDays(tripId, addedDays.toSet())
+                        .onSuccess {
+                            _uiState.update { (it as? EditTripUiState.Editing)?.copy(aiProgress = null, saved = true) ?: it }
+                        }
+                        .onFailure { e ->
+                            _uiState.update {
+                                (it as? EditTripUiState.Editing)?.copy(
+                                    aiProgress = null,
+                                    aiFailure = e.message ?: "Unknown error"
+                                ) ?: it
+                            }
+                        }
+                } else {
+                    _uiState.update { (it as? EditTripUiState.Editing)?.copy(isSaving = false, saved = true) ?: it }
+                }
             }.onFailure { e ->
                 _uiState.update {
                     (it as? EditTripUiState.Editing)?.copy(

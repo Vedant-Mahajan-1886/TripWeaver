@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -42,6 +43,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDateRangePickerState
@@ -54,7 +57,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import android.widget.Toast
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -86,6 +91,15 @@ fun EditTripScreen(
 
     val saved = (uiState as? EditTripUiState.Editing)?.saved == true
     LaunchedEffect(saved) { if (saved) onBack() }
+
+    val context = LocalContext.current
+    val notice = (uiState as? EditTripUiState.Editing)?.notice
+    LaunchedEffect(notice) {
+        if (notice != null) {
+            Toast.makeText(context, notice, Toast.LENGTH_SHORT).show()
+            viewModel.noticeShown()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -138,6 +152,49 @@ fun EditTripScreen(
             )
             is EditTripUiState.Editing -> EditForm(state, viewModel)
         }
+    }
+
+    // ── AI is planning days ────────────────────────────────────────────────
+    val aiProgress = (uiState as? EditTripUiState.Editing)?.aiProgress
+    if (aiProgress != null) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.55f))
+                .clickable(enabled = true, onClick = {}),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(32.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                CircularProgressIndicator(color = Amber)
+                Spacer(Modifier.height(14.dp))
+                Text(aiProgress, fontFamily = DmSansFontFamily, fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurface)
+                Text("This can take a few seconds.", fontFamily = DmSansFontFamily, fontSize = 12.sp,
+                    color = OnBackgroundGray)
+            }
+        }
+    }
+
+    val aiFailure = (uiState as? EditTripUiState.Editing)?.aiFailure
+    if (aiFailure != null) {
+        AlertDialog(
+            onDismissRequest = viewModel::acknowledgeAiFailure,
+            title = { Text("Saved, but the AI couldn't plan the new days") },
+            text = {
+                Text(
+                    "Your changes are saved and the new days are there, just empty. " +
+                        "Open Edit trip again and tap \u201CPlan with AI\u201D to retry.\n\n($aiFailure)"
+                )
+            },
+            confirmButton = { TextButton(onClick = viewModel::acknowledgeAiFailure) { Text("OK") } }
+        )
     }
 
     // ── Confirm removing days that have activities ─────────────────────────
@@ -249,6 +306,56 @@ private fun EditForm(state: EditTripUiState.Editing, viewModel: EditTripViewMode
                 )
             }
             Text("Change", fontFamily = DmSansFontFamily, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Amber)
+        }
+
+        // New days → offer to plan them with AI (only those days, the rest stays as it is)
+        if (dayCount > originalDays) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Amber.copy(alpha = 0.10f))
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = Amber)
+                Spacer(Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Plan the new days with AI", fontFamily = DmSansFontFamily, fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                    Text("Only the ${dayCount - originalDays} added day(s). Your current plan isn't changed.",
+                        fontFamily = DmSansFontFamily, fontSize = 12.sp, color = OnBackgroundGray)
+                }
+                Switch(
+                    checked = state.planNewDaysWithAi,
+                    onCheckedChange = viewModel::setPlanNewDaysWithAi,
+                    colors = SwitchDefaults.colors(checkedTrackColor = Amber)
+                )
+            }
+        } else if (dayCount == originalDays && state.emptyDayNumbers.isNotEmpty()) {
+            // Empty days already in the trip (e.g. AI failed earlier) → plan them now
+            val empty = state.emptyDayNumbers
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Amber.copy(alpha = 0.10f))
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = Amber)
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = "${if (empty.size == 1) "Day ${empty.first()} has" else "Days ${empty.joinToString(", ")} have"} no activities yet",
+                    fontFamily = DmSansFontFamily,
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = viewModel::planEmptyDaysNow) {
+                    Text("Plan with AI", fontWeight = FontWeight.Bold, color = Amber)
+                }
+            }
         }
 
         OutlinedTextField(
