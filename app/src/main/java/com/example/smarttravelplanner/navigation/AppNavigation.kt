@@ -35,6 +35,7 @@ import com.example.smarttravelplanner.domain.model.UserRole
 import com.example.smarttravelplanner.ui.components.BottomNavigationBar
 import com.example.smarttravelplanner.ui.screens.agent.AgentDashboardScreen
 import com.example.smarttravelplanner.ui.screens.agent.AgentTripScreen
+import com.example.smarttravelplanner.ui.screens.tripedit.EditActivitiesScreen
 import com.example.smarttravelplanner.ui.screens.tripedit.EditTripScreen
 import com.example.smarttravelplanner.ui.screens.auth.AuthViewModel
 import com.example.smarttravelplanner.ui.screens.auth.LoginScreen
@@ -55,6 +56,9 @@ private const val AGENT_DASHBOARD_ROUTE = "agent_dashboard"
 
 /** Edit a trip's details (opened from the pencil in Trip Detail's header). */
 private const val EDIT_TRIP_ROUTE = "edit_trip/{tripId}"
+
+/** Day-by-day activity editor (opened from Edit trip). */
+private const val EDIT_ACTIVITIES_ROUTE = "edit_activities/{tripId}"
 
 /** A trip sent to the agent, opened from the dashboard. */
 private const val AGENT_TRIP_ROUTE = "agent_trip/{shareId}"
@@ -109,7 +113,7 @@ fun AppNavigation(
     // Routes where the bottom nav should be hidden
     val hiddenNavRoutes = setOf(
         "login", "profile", "my_profile", "manage_payments", "trip_detail/{tripId}",
-        AGENT_DASHBOARD_ROUTE, AGENT_TRIP_ROUTE, EDIT_TRIP_ROUTE
+        AGENT_DASHBOARD_ROUTE, AGENT_TRIP_ROUTE, EDIT_TRIP_ROUTE, EDIT_ACTIVITIES_ROUTE
     )
     val isImeVisible = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
     val isNavRoute = hiddenNavRoutes.none { currentRoute.startsWith(it.substringBefore("{")) }
@@ -381,7 +385,18 @@ fun AppNavigation(
                 route = EDIT_TRIP_ROUTE,
                 arguments = listOf(navArgument("tripId") { type = NavType.LongType })
             ) {
-                EditTripScreen(onBack = { navController.popBackStack() })
+                val tripId = it.arguments?.getLong("tripId") ?: 0L
+                EditTripScreen(
+                    onBack = { navController.popBackStack() },
+                    onEditActivities = { navController.navigate("edit_activities/$tripId") }
+                )
+            }
+
+            composable(
+                route = EDIT_ACTIVITIES_ROUTE,
+                arguments = listOf(navArgument("tripId") { type = NavType.LongType })
+            ) {
+                EditActivitiesScreen(onBack = { navController.popBackStack() })
             }
 
             // ── Profile stack ─────────────────────────────────────────────────

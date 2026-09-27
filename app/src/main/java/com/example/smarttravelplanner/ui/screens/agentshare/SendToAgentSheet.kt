@@ -1,6 +1,9 @@
 package com.example.smarttravelplanner.ui.screens.agentshare
 
 import android.widget.Toast
+import androidx.compose.animation.animateContentSize
+import androidx.compose.ui.draw.shadow
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -87,37 +90,64 @@ fun SendToAgentButton(
     val approved = uiState.approvedRows
     val buttonColor = if (chosen != null || approved.isNotEmpty()) ApprovedGreen else Amber
 
+    val label = when {
+        chosen != null -> "Going ahead with ${chosen.agent.displayName}"
+        approved.size == 1 -> "\u2713 Approved by ${approved.first().agent.displayName}"
+        approved.size > 1 -> "\u2713 Approved by ${approved.size} agents"
+        uiState.respondedCount == 1 -> "Feedback from 1 agent"
+        uiState.respondedCount > 1 -> "Feedback from ${uiState.respondedCount} agents"
+        uiState.activeShareCount == 0 -> "Send to agent"
+        uiState.activeShareCount == 1 -> "Sent to 1 agent"
+        else -> "Sent to ${uiState.activeShareCount} agents"
+    }
+
+    // Show the full label briefly (and whenever the status changes), then shrink to a
+    // round icon so it doesn't cover the activity cards' buttons.
+    var expanded by remember { mutableStateOf(true) }
+    LaunchedEffect(label) {
+        expanded = true
+        delay(3_500)
+        expanded = false
+    }
+
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(24.dp))
+            .shadow(6.dp, RoundedCornerShape(28.dp))
+            .clip(RoundedCornerShape(28.dp))
             .background(buttonColor)
             .clickable { showSheet = true }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .animateContentSize()
+            .padding(horizontal = if (expanded) 16.dp else 13.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = Icons.Outlined.SupportAgent,
-            contentDescription = null,
-            tint = Color(0xFF1A1A1A),
-            modifier = Modifier.size(18.dp)
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = when {
-                chosen != null -> "Going ahead with ${chosen.agent.displayName}"
-                approved.size == 1 -> "\u2713 Approved by ${approved.first().agent.displayName}"
-                approved.size > 1 -> "\u2713 Approved by ${approved.size} agents"
-                uiState.respondedCount == 1 -> "Feedback from 1 agent"
-                uiState.respondedCount > 1 -> "Feedback from ${uiState.respondedCount} agents"
-                uiState.activeShareCount == 0 -> "Send to agent"
-                uiState.activeShareCount == 1 -> "Sent to 1 agent"
-                else -> "Sent to ${uiState.activeShareCount} agents"
-            },
-            fontFamily = DmSansFontFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = 14.sp,
-            color = Color(0xFF1A1A1A)
-        )
+        Box {
+            Icon(
+                imageVector = Icons.Outlined.SupportAgent,
+                contentDescription = label,
+                tint = Color(0xFF1A1A1A),
+                modifier = Modifier.size(20.dp)
+            )
+            // Small dot = something new from agents (feedback / approval)
+            if (!expanded && uiState.respondedCount > 0 && chosen == null) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFE53935))
+                )
+            }
+        }
+        if (expanded) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = label,
+                fontFamily = DmSansFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                color = Color(0xFF1A1A1A)
+            )
+        }
     }
 
     val openFeedback = feedbackState

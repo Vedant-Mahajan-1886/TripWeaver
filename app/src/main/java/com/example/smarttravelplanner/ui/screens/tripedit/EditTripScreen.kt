@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material3.AlertDialog
@@ -66,6 +67,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.smarttravelplanner.domain.util.TripEditor
 import com.example.smarttravelplanner.ui.theme.Amber
@@ -85,12 +88,17 @@ import java.util.Locale
 @Composable
 fun EditTripScreen(
     onBack: () -> Unit,
+    /** Opens the day-by-day activity editor. */
+    onEditActivities: () -> Unit = {},
     viewModel: EditTripViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     val saved = (uiState as? EditTripUiState.Editing)?.saved == true
     LaunchedEffect(saved) { if (saved) onBack() }
+
+    // Back from the activity editor → refresh activity counts / empty-day hints
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refreshDays() }
 
     val context = LocalContext.current
     val notice = (uiState as? EditTripUiState.Editing)?.notice
@@ -150,7 +158,7 @@ fun EditTripScreen(
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.padding(24.dp)
             )
-            is EditTripUiState.Editing -> EditForm(state, viewModel)
+            is EditTripUiState.Editing -> EditForm(state, viewModel, onEditActivities)
         }
     }
 
@@ -225,7 +233,11 @@ fun EditTripScreen(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun EditForm(state: EditTripUiState.Editing, viewModel: EditTripViewModel) {
+private fun EditForm(
+    state: EditTripUiState.Editing,
+    viewModel: EditTripViewModel,
+    onEditActivities: () -> Unit
+) {
     val form = state.form
     var showDatePicker by remember { mutableStateOf(false) }
     var newInterest by remember { mutableStateOf("") }
@@ -356,6 +368,29 @@ private fun EditForm(state: EditTripUiState.Editing, viewModel: EditTripViewMode
                     Text("Plan with AI", fontWeight = FontWeight.Bold, color = Amber)
                 }
             }
+        }
+
+        // ── Activities (separate day-by-day editor) ─────────────────────────
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .clickable(onClick = onEditActivities)
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Outlined.EditNote, contentDescription = null, tint = Amber)
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Activities", fontFamily = DmSansFontFamily, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface)
+                Text(
+                    "${state.days.sumOf { it.activities.size }} planned · add, edit, reorder or move between days",
+                    fontFamily = DmSansFontFamily, fontSize = 12.sp, color = OnBackgroundGray
+                )
+            }
+            Text("Edit", fontFamily = DmSansFontFamily, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Amber)
         }
 
         OutlinedTextField(
