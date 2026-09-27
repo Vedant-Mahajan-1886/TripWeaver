@@ -52,6 +52,8 @@ import androidx.compose.ui.zIndex
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.Lifecycle
 import coil.compose.AsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
@@ -70,9 +72,14 @@ import java.util.Locale
 @Composable
 fun TripDetailScreen(
     viewModel: TripDetailViewModel = hiltViewModel(),
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    /** Opens the Edit trip screen (pencil in the header). */
+    onEditClick: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+
+    // Coming back from Edit trip: reload the trip's details (name, dates, budget…)
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refreshTrip() }
 
     Box(
         modifier = Modifier
@@ -88,6 +95,7 @@ fun TripDetailScreen(
             uiState.trip != null -> TripDetailContent(
                 uiState          = uiState,
                 onBackClick      = onBackClick,
+                onEditClick      = onEditClick,
                 onDaySelect      = { viewModel.selectDay(it) },
                 onViewModeSelect = { viewModel.setViewMode(it) },
                 onActivitySelect = { viewModel.selectActivity(it) }
@@ -113,6 +121,7 @@ fun TripDetailScreen(
 private fun TripDetailContent(
     uiState: TripDetailUiState,
     onBackClick: () -> Unit,
+    onEditClick: () -> Unit,
     onDaySelect: (Int) -> Unit,
     onViewModeSelect: (TripDetailViewMode) -> Unit,
     onActivitySelect: (Long?) -> Unit
@@ -325,6 +334,7 @@ private fun TripDetailContent(
             viewMode = uiState.viewMode,
             onBackClick = onBackClick,
             onShareClick = { shareTrip(context, trip, itineraries) },
+            onEditClick = onEditClick,
             modifier = Modifier.align(Alignment.TopCenter),
             onVerticalDrag = handleVerticalDrag
         )
@@ -847,7 +857,8 @@ fun CollapsingDestinationHeader(
     onBackClick: () -> Unit,
     onShareClick: () -> Unit,
     modifier: Modifier = Modifier,
-    onVerticalDrag: ((Float) -> Unit)? = null
+    onVerticalDrag: ((Float) -> Unit)? = null,
+    onEditClick: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val imageModel = remember(trip.destination, trip.coverImageUrl) {
@@ -957,21 +968,43 @@ fun CollapsingDestinationHeader(
                 )
             }
 
-            // Share button with frosted glass container
-            IconButton(
-                onClick = onShareClick,
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = if (isDark) 0.45f else 0.35f))
-                    .border(1.dp, Color.White.copy(alpha = 0.25f), CircleShape)
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Share,
-                    contentDescription = "Share Itinerary",
-                    tint = Color.White,
-                    modifier = Modifier.size(19.dp)
-                )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Edit button (trip editing) — same frosted style as Share
+                if (onEditClick != null) {
+                    IconButton(
+                        onClick = onEditClick,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = if (isDark) 0.45f else 0.35f))
+                            .border(1.dp, Color.White.copy(alpha = 0.25f), CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Edit,
+                            contentDescription = "Edit trip",
+                            tint = Color.White,
+                            modifier = Modifier.size(19.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
+                }
+
+                // Share button with frosted glass container
+                IconButton(
+                    onClick = onShareClick,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = if (isDark) 0.45f else 0.35f))
+                        .border(1.dp, Color.White.copy(alpha = 0.25f), CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Share,
+                        contentDescription = "Share Itinerary",
+                        tint = Color.White,
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
             }
         }
 
@@ -1039,7 +1072,8 @@ fun AnimatedDestinationHeader(
     onBackClick: () -> Unit,
     onShareClick: () -> Unit,
     modifier: Modifier = Modifier,
-    onVerticalDrag: ((Float) -> Unit)? = null
+    onVerticalDrag: ((Float) -> Unit)? = null,
+    onEditClick: (() -> Unit)? = null
 ) {
     val progress = collapseProgress.coerceIn(0f, 1f)
     val headerHeight = lerpDp(340.dp, 200.dp, progress)
@@ -1058,7 +1092,8 @@ fun AnimatedDestinationHeader(
         onBackClick = onBackClick,
         onShareClick = onShareClick,
         modifier = modifier,
-        onVerticalDrag = onVerticalDrag
+        onVerticalDrag = onVerticalDrag,
+        onEditClick = onEditClick
     )
 }
 
