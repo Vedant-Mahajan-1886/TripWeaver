@@ -69,7 +69,14 @@ class TripDetailViewModel @Inject constructor(
             // Collect itineraries reactively
             launch(Dispatchers.IO) {
                 getTripDetailUseCase.getItineraries(tripId).collect { itineraries ->
-                    _uiState.update { it.copy(itineraries = itineraries) }
+                    _uiState.update {
+                        it.copy(
+                            itineraries = itineraries,
+                            // The trip may have fewer days after an edit
+                            selectedDayIndex = it.selectedDayIndex
+                                .coerceAtMost((itineraries.size - 1).coerceAtLeast(0))
+                        )
+                    }
                 }
             }
 
@@ -93,6 +100,22 @@ class TripDetailViewModel @Inject constructor(
                     // Weather is non-critical — silently fail
                     _uiState.update { it.copy(isLoadingWeather = false) }
                 }
+        }
+    }
+
+    /**
+     * Re-reads the trip's details (after returning from Edit trip).
+     * Weather is reloaded only if the dates changed.
+     */
+    fun refreshTrip() {
+        val current = _uiState.value.trip ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val fresh = getTripDetailUseCase.getTrip(tripId) ?: return@launch
+            if (fresh == current) return@launch
+            _uiState.update { it.copy(trip = fresh) }
+            if (fresh.startDate != current.startDate || fresh.endDate != current.endDate) {
+                loadWeather(fresh.destination, fresh.startDate, fresh.endDate)
+            }
         }
     }
 
