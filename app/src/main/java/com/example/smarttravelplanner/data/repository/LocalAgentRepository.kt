@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.example.smarttravelplanner.data.local.dao.AgentDao
 import com.example.smarttravelplanner.data.local.dao.AgentListRow
 import com.example.smarttravelplanner.data.local.dao.TripDao
+import com.example.smarttravelplanner.data.local.dao.TripEditDao
 import com.example.smarttravelplanner.data.local.dao.TripFeedbackRow
 import com.example.smarttravelplanner.data.local.dao.TripShareWithTripRow
 import com.example.smarttravelplanner.data.local.db.Converters
@@ -42,7 +43,8 @@ class LocalAgentRepository @Inject constructor(
     private val agentDao: AgentDao,
     private val tripDao: TripDao,
     private val authRepository: AuthRepository,
-    private val userRoleRepository: UserRoleRepository
+    private val userRoleRepository: UserRoleRepository,
+    private val tripEditDao: TripEditDao
 ) : AgentRepository {
 
     private val converters = Converters()
@@ -173,12 +175,16 @@ class LocalAgentRepository @Inject constructor(
             if (email.isEmpty()) flowOf(emptyList())
             else combine(
                 agentDao.observeSharesForAgent(email),
-                agentDao.observeAppliedFeedbackOnAgentTrips(email)
-            ) { rows, applied ->
+                agentDao.observeAppliedFeedbackOnAgentTrips(email),
+                tripEditDao.observeEditsOnAgentTrips(email)
+            ) { rows, applied, edits ->
                 rows.map { row ->
                     val reviewedAt = row.share.updatedAt
-                    val changed = row.share.decision != null &&
-                        applied.any { it.tripId == row.share.tripId && it.feedback.updatedAt > reviewedAt }
+                    // Changed = an agent suggestion was applied OR the traveller edited the trip by hand
+                    val changed = row.share.decision != null && (
+                        applied.any { it.tripId == row.share.tripId && it.feedback.updatedAt > reviewedAt } ||
+                            edits.any { it.tripId == row.share.tripId && it.editedAt > reviewedAt }
+                        )
                     row.toDomain().copy(tripChangedSinceReview = changed)
                 }
             }

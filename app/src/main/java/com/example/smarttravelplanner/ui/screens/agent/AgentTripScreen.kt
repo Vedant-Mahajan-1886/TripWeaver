@@ -252,8 +252,8 @@ private fun TripContent(
         }
 
         // ── What the traveller changed since this agent's review ───────────
-        if (state.changesSinceReview.isNotEmpty()) {
-            item { ChangesSinceReviewCard(state.changesSinceReview) }
+        if (state.changesSinceReview.isNotEmpty() || state.editsSinceReview.isNotEmpty()) {
+            item { ChangesSinceReviewCard(state.changesSinceReview, state.editsSinceReview.map { it.summary }) }
         }
 
         // ── Itinerary ───────────────────────────────────────────────────────
@@ -663,7 +663,7 @@ private fun ChoiceBanner(state: AgentTripUiState.Success) {
 }
 
 @Composable
-private fun ChangesSinceReviewCard(changes: List<AppliedTripChange>) {
+private fun ChangesSinceReviewCard(changes: List<AppliedTripChange>, manualEdits: List<String> = emptyList()) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -689,6 +689,14 @@ private fun ChangesSinceReviewCard(changes: List<AppliedTripChange>) {
             val who = if (change.suggestedByMe) "your suggestion" else "suggested by another agent"
             Text(
                 text = "• Day ${change.dayNumber}: $what ($who)",
+                fontFamily = DmSansFontFamily,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        manualEdits.forEach { summary ->
+            Text(
+                text = "\u2022 $summary (edited by the traveller)",
                 fontFamily = DmSansFontFamily,
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurface
