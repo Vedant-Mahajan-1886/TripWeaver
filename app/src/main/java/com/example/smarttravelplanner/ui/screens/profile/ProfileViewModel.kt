@@ -6,6 +6,7 @@ import com.example.smarttravelplanner.data.local.dao.UserDao
 import com.example.smarttravelplanner.data.remote.service.GoogleAuthHelper
 import com.example.smarttravelplanner.data.repository.AuthRepository
 import com.example.smarttravelplanner.data.repository.UserPreferencesRepository
+import com.example.smarttravelplanner.data.repository.WishlistRepository
 import com.example.smarttravelplanner.domain.model.UserPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -20,8 +21,18 @@ import javax.inject.Inject
 class ProfileViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val userDao: UserDao,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val wishlistRepository: WishlistRepository
 ) : ViewModel() {
+
+    /** Number of destinations saved in the wishlist database */
+    val savedCount: StateFlow<Int> = wishlistRepository.savedDestinations
+        .map { it.size }
+        .stateIn(
+            scope        = viewModelScope,
+            started      = SharingStarted.Eagerly,
+            initialValue = 0
+        )
 
     /** Reactive preferences — persisted across app kills via DataStore. Eagerly shared to prevent state loss. */
     val preferences: StateFlow<UserPreferences> = userPreferencesRepository.userPreferences

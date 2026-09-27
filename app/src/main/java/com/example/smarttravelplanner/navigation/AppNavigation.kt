@@ -40,6 +40,7 @@ import com.example.smarttravelplanner.ui.screens.tripedit.EditTripScreen
 import com.example.smarttravelplanner.ui.screens.auth.AuthViewModel
 import com.example.smarttravelplanner.ui.screens.auth.LoginScreen
 import com.example.smarttravelplanner.ui.screens.explore.ExploreScreen
+import com.example.smarttravelplanner.ui.screens.explore.ExploreViewModel
 import com.example.smarttravelplanner.ui.screens.home.HomeScreen
 import com.example.smarttravelplanner.ui.screens.mytrips.MyTripsScreen
 import com.example.smarttravelplanner.ui.screens.payment.ManagePaymentsScreen
@@ -69,7 +70,8 @@ private const val PLAN_PREFILL_DESTINATION_KEY = "plan_prefill_destination"
 @Composable
 fun AppNavigation(
     profileViewModel: ProfileViewModel,
-    authViewModel: AuthViewModel = hiltViewModel()
+    authViewModel: AuthViewModel = hiltViewModel(),
+    exploreViewModel: ExploreViewModel = hiltViewModel()
 ) {
 
     val navController = rememberNavController()
@@ -353,6 +355,7 @@ fun AppNavigation(
 
             composable("explore") {
                 ExploreScreen(
+                    viewModel = exploreViewModel,
                     onMenuClick = { navController.navigate("profile") },
                     onPlanTrip = { destinationName ->
                         // Same options as the bottom-nav "Plan" tab so the tab stays highlighted
@@ -406,6 +409,17 @@ fun AppNavigation(
                     onCloseClick           = { navController.popBackStack() },
                     onNavigateToMyProfile  = { navController.navigate("my_profile") },
                     onNavigateToManagePayments = { navController.navigate("manage_payments") },
+                    onNavigateToWishlist   = {
+                        exploreViewModel.filterBySavedOnly()
+                        val popped = navController.popBackStack("explore", inclusive = false)
+                        if (!popped) {
+                            navController.navigate("explore") {
+                                popUpTo("home") { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                    },
                     onLogoutClick          = {
                         authViewModel.logout()
                         navController.navigate("login") {

@@ -108,6 +108,12 @@ fun ExploreScreen(
     val filteredDestinations = uiState.destinations
 
     val listState = rememberLazyListState()
+
+    LaunchedEffect(viewModel) {
+        viewModel.scrollToTopEvent.collect {
+            listState.scrollToItem(0)
+        }
+    }
     val scrollOffsetProvider: () -> Float = remember {
         {
             if (listState.firstVisibleItemIndex > 0) {

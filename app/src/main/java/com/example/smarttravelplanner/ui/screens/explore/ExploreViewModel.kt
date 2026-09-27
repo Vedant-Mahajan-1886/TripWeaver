@@ -11,8 +11,11 @@ import com.example.smarttravelplanner.domain.util.DestinationFilter
 import com.example.smarttravelplanner.domain.util.DestinationSeason
 import com.example.smarttravelplanner.domain.util.GeoDistance
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -36,6 +39,9 @@ class ExploreViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(ExploreUiState())
     val uiState: StateFlow<ExploreUiState> = _uiState.asStateFlow()
+
+    private val _scrollToTopEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val scrollToTopEvent: SharedFlow<Unit> = _scrollToTopEvent.asSharedFlow()
 
     init {
         loadDestinations()
@@ -112,6 +118,18 @@ class ExploreViewModel @Inject constructor(
             inSeasonOnly = false,
             savedOnly = false
         )
+    }
+
+    fun filterBySavedOnly() {
+        updateFilters {
+            it.copy(
+                searchQuery = "",
+                selectedCategory = DestinationFilter.ALL,
+                inSeasonOnly = false,
+                savedOnly = true
+            )
+        }
+        _scrollToTopEvent.tryEmit(Unit)
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
