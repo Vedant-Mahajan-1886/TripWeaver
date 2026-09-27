@@ -43,6 +43,8 @@ class ExploreViewModel @Inject constructor(
     private val _scrollToTopEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val scrollToTopEvent: SharedFlow<Unit> = _scrollToTopEvent.asSharedFlow()
 
+    private var pendingSelectedDestinationName: String? = null
+
     init {
         loadDestinations()
         observeWishlist()
@@ -66,13 +68,24 @@ class ExploreViewModel @Inject constructor(
                     allDestinations = destinations
                     departureCities = destinationRepository.getDepartureCities()
                     val cityNames = departureCities.map { it.name }
+                    val pending = pendingSelectedDestinationName
+                    val pendingDest = if (pending != null) {
+                        pendingSelectedDestinationName = null
+                        destinations.firstOrNull { it.name.equals(pending, ignoreCase = true) }
+                    } else null
+
                     _uiState.update { state ->
                         state.copy(
                             isLoading = false,
                             departureCities = cityNames,
                             selectedCity = state.selectedCity
-                                .takeIf { it in cityNames } ?: cityNames.firstOrNull().orEmpty()
+                                .takeIf { it in cityNames } ?: cityNames.firstOrNull().orEmpty(),
+                            selectedCategory = if (pendingDest != null) DestinationFilter.ALL else state.selectedCategory,
+                            selectedDestination = pendingDest ?: state.selectedDestination
                         ).withFilteredDestinations()
+                    }
+                    if (pendingDest != null) {
+                        _scrollToTopEvent.tryEmit(Unit)
                     }
                 }
                 .onFailure { e ->
@@ -130,6 +143,32 @@ class ExploreViewModel @Inject constructor(
             )
         }
         _scrollToTopEvent.tryEmit(Unit)
+    }
+
+    /**
+     * Selects a destination by name (e.g. tapped from the Explore India section on Home),
+     * keeps category as All, opens its details sheet, and scrolls to top.
+     */
+    fun selectDestinationByName(name: String) {
+        val dest = allDestinations.firstOrNull { it.name.equals(name, ignoreCase = true) }
+        if (dest != null) {
+            _uiState.update {
+                it.copy(
+                    searchQuery = "",
+                    selectedCategory = DestinationFilter.ALL,
+                    inSeasonOnly = false,
+                    savedOnly = false,
+                    selectedDestination = dest
+                ).withFilteredDestinations()
+            }
+            _scrollToTopEvent.tryEmit(Unit)
+        } else {
+            pendingSelectedDestinationName = name
+        }
+    }
+
+    fun clearSelectedDestination() {
+        _uiState.update { it.copy(selectedDestination = null) }
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

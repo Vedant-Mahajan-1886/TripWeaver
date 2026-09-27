@@ -90,6 +90,7 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
     onPlanWithAiClick: () -> Unit = {},
     onExploreClick: () -> Unit = {},
+    onDestinationClick: (String) -> Unit = {},
     onMyTripsClick: () -> Unit = {},
     onTripClick: (Long) -> Unit = {},
     onMenuClick: () -> Unit = {}
@@ -221,7 +222,7 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     DestinationCarousel(
                         destinations = destinations,
-                        onDestinationClick = onExploreClick
+                        onDestinationClick = onDestinationClick
                     )
 
                     // ── Recent Trips Section ─────────────────────────────────
@@ -506,7 +507,7 @@ private fun SectionHeader(
 @Composable
 private fun DestinationCarousel(
     destinations: List<DestinationItem>,
-    onDestinationClick: () -> Unit = {}
+    onDestinationClick: (String) -> Unit = {}
 ) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 20.dp),
@@ -515,7 +516,7 @@ private fun DestinationCarousel(
         items(destinations, key = { it.name }) { dest ->
             DestinationCard(
                 dest = dest,
-                onClick = onDestinationClick
+                onClick = { onDestinationClick(dest.name) }
             )
         }
     }

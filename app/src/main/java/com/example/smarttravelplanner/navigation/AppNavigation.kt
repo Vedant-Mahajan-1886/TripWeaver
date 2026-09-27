@@ -304,6 +304,15 @@ fun AppNavigation(
                         }
                     },
                     onExploreClick = {
+                        exploreViewModel.clearSelectedDestination()
+                        navController.navigate("explore") {
+                            popUpTo("home") { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    onDestinationClick = { destinationName ->
+                        exploreViewModel.selectDestinationByName(destinationName)
                         navController.navigate("explore") {
                             popUpTo("home") { saveState = true }
                             launchSingleTop = true
