@@ -35,6 +35,8 @@ import com.example.smarttravelplanner.domain.model.UserRole
 import com.example.smarttravelplanner.ui.components.BottomNavigationBar
 import com.example.smarttravelplanner.ui.screens.agent.AgentDashboardScreen
 import com.example.smarttravelplanner.ui.screens.agent.AgentTripScreen
+import com.example.smarttravelplanner.ui.screens.agentpackages.AgentPackagesScreen
+import com.example.smarttravelplanner.ui.screens.agentpackages.PackageEditorScreen
 import com.example.smarttravelplanner.ui.screens.tripedit.EditActivitiesScreen
 import com.example.smarttravelplanner.ui.screens.tripedit.EditTripScreen
 import com.example.smarttravelplanner.ui.screens.auth.AuthViewModel
@@ -60,6 +62,10 @@ private const val EDIT_TRIP_ROUTE = "edit_trip/{tripId}"
 
 /** Day-by-day activity editor (opened from Edit trip). */
 private const val EDIT_ACTIVITIES_ROUTE = "edit_activities/{tripId}"
+
+/** Agent's own ready-made packages, and the editor (packageId 0 = new). */
+private const val AGENT_PACKAGES_ROUTE = "agent_packages"
+private const val AGENT_PACKAGE_EDIT_ROUTE = "agent_package_edit/{packageId}"
 
 /** A trip sent to the agent, opened from the dashboard. */
 private const val AGENT_TRIP_ROUTE = "agent_trip/{shareId}"
@@ -115,7 +121,8 @@ fun AppNavigation(
     // Routes where the bottom nav should be hidden
     val hiddenNavRoutes = setOf(
         "login", "profile", "my_profile", "manage_payments", "trip_detail/{tripId}",
-        AGENT_DASHBOARD_ROUTE, AGENT_TRIP_ROUTE, EDIT_TRIP_ROUTE, EDIT_ACTIVITIES_ROUTE
+        AGENT_DASHBOARD_ROUTE, AGENT_TRIP_ROUTE, EDIT_TRIP_ROUTE, EDIT_ACTIVITIES_ROUTE,
+        AGENT_PACKAGES_ROUTE, AGENT_PACKAGE_EDIT_ROUTE
     )
     val isImeVisible = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
     val isNavRoute = hiddenNavRoutes.none { currentRoute.startsWith(it.substringBefore("{")) }
@@ -218,7 +225,8 @@ fun AppNavigation(
                             popUpTo(0) { inclusive = true }
                         }
                     },
-                    onOpenShare = { shareId -> navController.navigate("agent_trip/$shareId") }
+                    onOpenShare = { shareId -> navController.navigate("agent_trip/$shareId") },
+                    onOpenPackages = { navController.navigate("agent_packages") }
                 )
             }
 
@@ -227,6 +235,20 @@ fun AppNavigation(
                 arguments = listOf(navArgument("shareId") { type = NavType.LongType })
             ) {
                 AgentTripScreen(onBack = { navController.popBackStack() })
+            }
+
+            // ── Agent packages ────────────────────────────────────────────────
+            composable(AGENT_PACKAGES_ROUTE) {
+                AgentPackagesScreen(
+                    onBack = { navController.popBackStack() },
+                    onEdit = { packageId -> navController.navigate("agent_package_edit/$packageId") }
+                )
+            }
+            composable(
+                route = AGENT_PACKAGE_EDIT_ROUTE,
+                arguments = listOf(navArgument("packageId") { type = NavType.LongType })
+            ) {
+                PackageEditorScreen(onBack = { navController.popBackStack() })
             }
 
             // ── Main tabs ─────────────────────────────────────────────────────
