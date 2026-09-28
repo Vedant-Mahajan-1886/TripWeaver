@@ -66,7 +66,7 @@ data class SendToAgentUiState(
     val offers: List<AgentOffer> = emptyList()
 ) {
     /** The agent the traveller chose, if any. */
-    val chosen: AgentShareRow? get() = rows.firstOrNull { it.share?.status == ShareStatus.CONFIRMED }
+    val chosen: AgentShareRow? get() = rows.firstOrNull { it.share?.status?.isChosen == true }
 
     /** Agents who approved the plan and are still in the running. */
     val approvedRows: List<AgentShareRow>
@@ -293,7 +293,7 @@ internal fun buildOffers(
         )
     }.sortedWith(
         // Chosen first, then responded offers (approved before changes-requested), then pending
-        compareBy<AgentOffer> { if (it.share.status == ShareStatus.CONFIRMED) 0 else if (it.hasResponded) 1 else 2 }
+        compareBy<AgentOffer> { if (it.share.status.isChosen) 0 else if (it.hasResponded) 1 else 2 }
             .thenBy { if (it.share.decision == ReviewDecision.APPROVED) 0 else 1 }
             .thenBy { it.share.priceEstimate ?: Double.MAX_VALUE }
     )

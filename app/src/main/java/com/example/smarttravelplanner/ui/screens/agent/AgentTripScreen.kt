@@ -247,7 +247,7 @@ private fun TripContent(
         }
 
         // ── Traveller's choice (after comparing offers) ─────────────────────
-        if (share.status == ShareStatus.CONFIRMED || share.status == ShareStatus.CLOSED) {
+        if (share.status.isChosen || share.status == ShareStatus.CLOSED || share.status == ShareStatus.CANCELLED) {
             item { ChoiceBanner(state) }
         }
 
@@ -603,7 +603,7 @@ private fun ReviewSection(
 @Composable
 private fun ChoiceBanner(state: AgentTripUiState.Success) {
     val share = state.incoming.share
-    val chosen = share.status == ShareStatus.CONFIRMED
+    val chosen = share.status.isChosen
     val color = if (chosen) Color(0xFF4ADE80) else OnBackgroundGray
     val context = LocalContext.current
 

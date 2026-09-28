@@ -101,7 +101,7 @@ class LocalAgentRepository @Inject constructor(
         val targets = agentEmails.map { it.normalized() }.filter { it.isNotEmpty() }.distinct()
         require(targets.isNotEmpty()) { "Choose at least one agent." }
         val alreadyChosen = agentDao.observeSharesForTrip(tripId).first()
-            .any { ShareStatus.fromStorage(it.status) == ShareStatus.CONFIRMED }
+            .any { ShareStatus.fromStorage(it.status).isChosen }
         require(!alreadyChosen) { "You've already chosen an agent for this trip." }
 
         val now = System.currentTimeMillis()
@@ -134,7 +134,7 @@ class LocalAgentRepository @Inject constructor(
                     tripAgentStatusLabel(
                         statuses = tripRows.map { ShareStatus.fromStorage(it.share.status) to ReviewDecision.fromStorage(it.share.decision) },
                         chosenAgency = tripRows.firstOrNull {
-                            ShareStatus.fromStorage(it.share.status) == ShareStatus.CONFIRMED
+                            ShareStatus.fromStorage(it.share.status).isChosen
                         }?.agencyName
                     )
                 }.filterValues { it != null }.mapValues { it.value!! }

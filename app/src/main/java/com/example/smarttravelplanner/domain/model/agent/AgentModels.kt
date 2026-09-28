@@ -23,10 +23,34 @@ enum class ShareStatus(val label: String) {
     CONFIRMED("Chosen"),
 
     /** The traveller chose a different agent for this trip. */
-    CLOSED("Closed");
+    CLOSED("Closed"),
 
-    /** Finished: the agent can no longer change their review. */
-    val isLocked: Boolean get() = this == CONFIRMED || this == CLOSED || this == WITHDRAWN
+    // ── Booking (after the traveller chose this agent) ──────────────────────
+    /** The agent sent a final quote (price, inclusions, how to pay). */
+    QUOTE_SENT("Quote sent"),
+
+    /** The traveller accepted the quote; the agent can now book. */
+    QUOTE_ACCEPTED("Quote accepted"),
+
+    /** The agent booked everything (booking reference given). */
+    BOOKED("Booked"),
+
+    /** The trip's end date has passed. */
+    COMPLETED("Completed"),
+
+    /** Cancelled by the traveller or the agent before it was booked. */
+    CANCELLED("Cancelled");
+
+    /** Finished reviewing: the agent can no longer change their review. */
+    val isLocked: Boolean get() = this != SENT && this != VIEWED && this != RESPONDED
+
+    /** This agent is the one the traveller is going ahead with (any booking stage). */
+    val isChosen: Boolean
+        get() = this == CONFIRMED || this == QUOTE_SENT || this == QUOTE_ACCEPTED ||
+            this == BOOKED || this == COMPLETED
+
+    /** No longer active for this trip. */
+    val isEnded: Boolean get() = this == CLOSED || this == CANCELLED || this == WITHDRAWN
 
     companion object {
         fun fromStorage(value: String?): ShareStatus =

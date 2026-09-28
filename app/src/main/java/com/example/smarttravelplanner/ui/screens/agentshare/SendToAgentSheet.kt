@@ -451,8 +451,9 @@ private fun AgentRowItem(
             Column(horizontalAlignment = Alignment.End) {
                 StatusChip(row.share!!.status)
                 if (row.share.status == ShareStatus.RESPONDED ||
-                    row.share.status == ShareStatus.CONFIRMED ||
-                    row.share.status == ShareStatus.CLOSED
+                    row.share.status.isChosen ||
+                    row.share.status == ShareStatus.CLOSED ||
+                    row.share.status == ShareStatus.CANCELLED
                 ) {
                     TextButton(onClick = onViewFeedback) {
                         Text("View feedback", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Amber)
@@ -488,6 +489,11 @@ internal fun StatusChip(status: ShareStatus) {
         ShareStatus.WITHDRAWN -> OnBackgroundGray
         ShareStatus.CONFIRMED -> ApprovedGreen
         ShareStatus.CLOSED -> OnBackgroundGray
+        ShareStatus.QUOTE_SENT -> Amber
+        ShareStatus.QUOTE_ACCEPTED -> ApprovedGreen
+        ShareStatus.BOOKED -> ApprovedGreen
+        ShareStatus.COMPLETED -> Color(0xFF60A5FA)
+        ShareStatus.CANCELLED -> Color(0xFFF87171)
     }
     Text(
         text = status.label,

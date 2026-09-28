@@ -148,7 +148,7 @@ internal fun AgentFeedbackSheet(
             // ── Approval / choice banner ───────────────────────────────────
             item {
                 when {
-                    share.status == ShareStatus.CONFIRMED -> Banner(
+                    share.status.isChosen -> Banner(
                         text = "\u2713 You chose this agent. They'll contact you to book.",
                         color = Green
                     )

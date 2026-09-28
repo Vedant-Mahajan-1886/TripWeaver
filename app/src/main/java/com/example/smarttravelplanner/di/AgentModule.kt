@@ -1,8 +1,11 @@
 package com.example.smarttravelplanner.di
 
 import com.example.smarttravelplanner.data.local.dao.AgentDao
+import com.example.smarttravelplanner.data.local.dao.BookingDao
 import com.example.smarttravelplanner.data.local.db.TravelDatabase
 import com.example.smarttravelplanner.data.repository.AgentRepository
+import com.example.smarttravelplanner.data.repository.BookingRepository
+import com.example.smarttravelplanner.data.repository.LocalBookingRepository
 import com.example.smarttravelplanner.data.repository.LocalAgentRepository
 import com.example.smarttravelplanner.data.repository.UserRoleRepository
 import com.example.smarttravelplanner.data.repository.UserRoleRepositoryImpl
@@ -27,6 +30,9 @@ abstract class AgentModule {
     /** Phase 1: local (Room). Phase 2 can bind a Firebase implementation here instead. */
     @Binds @Singleton
     abstract fun bindAgentRepository(impl: LocalAgentRepository): AgentRepository
+
+    @Binds @Singleton
+    abstract fun bindBookingRepository(impl: LocalBookingRepository): BookingRepository
 }
 
 @Module
@@ -35,4 +41,7 @@ object AgentDatabaseModule {
 
     @Provides
     fun provideAgentDao(database: TravelDatabase): AgentDao = database.agentDao()
+
+    @Provides
+    fun provideBookingDao(database: TravelDatabase): BookingDao = database.bookingDao()
 }
