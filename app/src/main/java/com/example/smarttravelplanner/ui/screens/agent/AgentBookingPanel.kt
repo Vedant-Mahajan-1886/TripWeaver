@@ -137,6 +137,16 @@ internal fun AgentBookingPanel(state: AgentTripUiState.Success, actions: AgentBo
             }
         }
 
+        // ── Traveller's rating (after the trip) ─────────────────────────────
+        state.review?.let { review ->
+            Text("The traveller rated you:", fontFamily = DmSansFontFamily, fontSize = 12.sp, color = OnBackgroundGray)
+            com.example.smarttravelplanner.ui.screens.agentshare.Stars(review.stars, size = 18.dp)
+            if (review.comment.isNotBlank()) {
+                Text("\u201C${review.comment}\u201D", fontFamily = DmSansFontFamily, fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurface)
+            }
+        }
+
         // ── Actions ─────────────────────────────────────────────────────────
         val busy = state.isBookingBusy
         when (share.status) {

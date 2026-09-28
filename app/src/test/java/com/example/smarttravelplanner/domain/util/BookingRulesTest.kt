@@ -77,4 +77,10 @@ class BookingRulesTest {
         assertTrue(ShareStatus.CANCELLED.isEnded)
         assertFalse(ShareStatus.CANCELLED.isChosen)
     }
+
+    @Test
+    fun ratingLabelIsShortAndReadable() {
+        val rating = com.example.smarttravelplanner.domain.model.agent.AgentRating(average = 4.567, count = 12)
+        assertEquals("4.6 \u2605 (12)", rating.label)
+    }
 }

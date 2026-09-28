@@ -16,7 +16,11 @@ import com.example.smarttravelplanner.domain.model.agent.BookingActor
 import com.example.smarttravelplanner.domain.model.agent.QuoteInput
 import com.example.smarttravelplanner.domain.model.agent.ShareStatus
 import com.example.smarttravelplanner.domain.util.BookingRules
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
@@ -174,6 +178,18 @@ class LocalBookingRepository @Inject constructor(
 
     override fun observeReviewsForAgent(agentEmail: String): Flow<List<AgentReview>> =
         bookingDao.observeReviewsForAgent(agentEmail.trim().lowercase()).map { list -> list.map { it.toDomain() } }
+
+    override fun observeReviewsForTrip(tripId: Long): Flow<Map<Long, AgentReview>> =
+        bookingDao.observeReviewsForTrip(tripId).map { list -> list.associate { it.shareId to it.toDomain() } }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun observeMyReviews(): Flow<List<AgentReview>> =
+        authRepository.currentUserEmail
+            .map { it?.trim()?.lowercase().orEmpty() }
+            .distinctUntilChanged()
+            .flatMapLatest { email ->
+                if (email.isEmpty()) flowOf(emptyList()) else observeReviewsForAgent(email)
+            }
 
     override fun observeRatings(): Flow<Map<String, AgentRating>> =
         bookingDao.observeRatings().map { rows -> rows.associate { it.agentEmail to AgentRating(it.average, it.count) } }

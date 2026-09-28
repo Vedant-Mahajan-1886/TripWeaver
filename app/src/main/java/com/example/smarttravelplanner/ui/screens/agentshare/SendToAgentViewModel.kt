@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.smarttravelplanner.data.repository.AgentRepository
 import com.example.smarttravelplanner.data.repository.BookingRepository
+import com.example.smarttravelplanner.domain.model.agent.AgentRating
+import com.example.smarttravelplanner.domain.model.agent.AgentReview
 import com.example.smarttravelplanner.domain.model.agent.Booking
 import com.example.smarttravelplanner.domain.util.BookingRules
 import com.example.smarttravelplanner.data.repository.TripEdit
@@ -96,7 +98,9 @@ data class TravellerBookingUiState(
     val booking: Booking?,
     /** Booked, but the traveller changed the trip afterwards — agent hasn't re-confirmed yet. */
     val needsReconfirm: Boolean,
-    val isBusy: Boolean
+    val isBusy: Boolean,
+    /** The traveller's rating of this agent (after the trip), if given. */
+    val review: AgentReview? = null
 ) {
     val share: TripShare get() = row.share!!
 }
@@ -224,8 +228,9 @@ class SendToAgentViewModel @Inject constructor(
     val bookingState: StateFlow<TravellerBookingUiState?> = combine(
         uiState,
         bookingRepository.observeBookingsForTrip(tripId),
+        bookingRepository.observeReviewsForTrip(tripId),
         bookingBusy
-    ) { state, bookings, busy ->
+    ) { state, bookings, reviews, busy ->
         val row = state.chosen
             ?: state.rows.filter { it.share?.status == ShareStatus.CANCELLED }
                 .maxByOrNull { bookings[it.share!!.id]?.cancelledAt ?: 0L }
@@ -235,10 +240,24 @@ class SendToAgentViewModel @Inject constructor(
                 row = it,
                 booking = booking,
                 needsReconfirm = BookingRules.needsReconfirm(it.share.status, booking?.confirmedAt, state.lastTripChangeAt),
-                isBusy = busy
+                isBusy = busy,
+                review = reviews[it.share.id]
             )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** Average rating per agent email (shown on agent cards and in Compare offers). */
+    val ratings: StateFlow<Map<String, AgentRating>> = bookingRepository.observeRatings()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    init {
+        // A booked trip whose end date has passed becomes "Completed" (unlocks rating)
+        viewModelScope.launch { runCatching { bookingRepository.completeFinishedTrips() } }
+    }
+
+    fun rateAgent(shareId: Long, stars: Int, comment: String) = bookingAction("Thanks for rating your agent!") {
+        bookingRepository.rateAgent(shareId, stars, comment)
+    }
 
     fun acceptQuote(shareId: Long) = bookingAction("Quote accepted \u2014 your agent will book it now") {
         bookingRepository.acceptQuote(shareId)

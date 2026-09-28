@@ -53,6 +53,7 @@ import com.example.smarttravelplanner.ui.theme.PlayfairFontFamily
 @Composable
 internal fun CompareOffersSheet(
     offers: List<AgentOffer>,
+    ratings: Map<String, com.example.smarttravelplanner.domain.model.agent.AgentRating> = emptyMap(),
     chosenShareId: Long?,
     onViewDetails: (shareId: Long) -> Unit,
     onChoose: (shareId: Long) -> Unit,
@@ -98,6 +99,7 @@ internal fun CompareOffersSheet(
             items(offers, key = { it.share.id }) { offer ->
                 OfferCard(
                     offer = offer,
+                    rating = ratings[offer.row.agent.email],
                     isChosen = offer.share.id == chosenShareId,
                     canChoose = chosenShareId == null && offer.share.status == ShareStatus.RESPONDED,
                     onViewDetails = { onViewDetails(offer.share.id) },
@@ -138,6 +140,7 @@ internal fun CompareOffersSheet(
 @Composable
 private fun OfferCard(
     offer: AgentOffer,
+    rating: com.example.smarttravelplanner.domain.model.agent.AgentRating?,
     isChosen: Boolean,
     canChoose: Boolean,
     onViewDetails: () -> Unit,
@@ -172,6 +175,7 @@ private fun OfferCard(
                 if (sub.isNotBlank()) {
                     Text(text = sub, fontFamily = DmSansFontFamily, fontSize = 12.sp, color = OnBackgroundGray)
                 }
+                RatingLabel(rating)
             }
             when {
                 isChosen -> OfferPill("\u2713 Chosen", ApprovedGreen)
