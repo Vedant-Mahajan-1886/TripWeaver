@@ -129,7 +129,7 @@ interface AgentDao {
     @Query(
         """
         UPDATE trip_shares SET status = 'CLOSED'
-        WHERE tripId = :tripId AND id != :chosenShareId AND status NOT IN ('WITHDRAWN', 'CLOSED')
+        WHERE tripId = :tripId AND id != :chosenShareId AND status NOT IN ('WITHDRAWN', 'CLOSED', 'CANCELLED')
         """
     )
     suspend fun closeOtherShares(tripId: Long, chosenShareId: Long)

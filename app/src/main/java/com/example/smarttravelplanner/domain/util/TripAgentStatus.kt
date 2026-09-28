@@ -15,7 +15,7 @@ fun tripAgentStatusLabel(
     val open = statuses.filter { it.first != ShareStatus.WITHDRAWN }
     if (open.isEmpty()) return null
     return when {
-        open.any { it.first == ShareStatus.CONFIRMED } ->
+        open.any { it.first.isChosen } ->
             if (chosenAgency.isNullOrBlank()) "Agent chosen" else "Going ahead: $chosenAgency"
         open.any { it.first == ShareStatus.RESPONDED && it.second == ReviewDecision.APPROVED } -> "Approved by agent"
         open.any { it.first == ShareStatus.RESPONDED } -> "Agent feedback"

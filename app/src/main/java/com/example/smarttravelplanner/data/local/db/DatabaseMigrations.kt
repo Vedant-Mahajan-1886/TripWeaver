@@ -47,7 +47,8 @@ object DatabaseMigrations {
     }
 
     // v6 → v7 (agent_profiles, trip_shares, activity_feedback tables) and
-    // v7 → v8 (trip_edits table) are AutoMigrations declared on TravelDatabase,
+    // v7 → v8 (trip_edits table) and v8 → v9 (bookings, agent_reviews tables)
+    // are AutoMigrations declared on TravelDatabase,
     // because they only add new tables.
 
     /** All manual migrations, oldest first. Registered in DatabaseModule. */

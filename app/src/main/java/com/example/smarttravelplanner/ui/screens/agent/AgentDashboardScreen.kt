@@ -240,11 +240,11 @@ fun AgentDashboardScreen(
                         )
                     }
                 } else {
-                    ShareSection("Chosen \u2013 go ahead with booking", state.incoming.filter { it.share.status == ShareStatus.CONFIRMED }, onOpenShare)
+                    ShareSection("Chosen \u2013 go ahead with booking", state.incoming.filter { it.share.status.isChosen }, onOpenShare)
                     ShareSection("New", state.incoming.filter { it.share.status == ShareStatus.SENT }, onOpenShare)
                     ShareSection("In review", state.incoming.filter { it.share.status == ShareStatus.VIEWED }, onOpenShare)
                     ShareSection("Responded", state.incoming.filter { it.share.status == ShareStatus.RESPONDED }, onOpenShare)
-                    ShareSection("Closed", state.incoming.filter { it.share.status == ShareStatus.CLOSED }, onOpenShare)
+                    ShareSection("Closed", state.incoming.filter { it.share.status == ShareStatus.CLOSED || it.share.status == ShareStatus.CANCELLED }, onOpenShare)
                 }
             }
         }

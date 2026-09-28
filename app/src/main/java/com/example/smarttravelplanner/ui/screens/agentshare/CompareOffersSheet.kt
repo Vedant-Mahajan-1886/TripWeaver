@@ -176,6 +176,7 @@ private fun OfferCard(
             when {
                 isChosen -> OfferPill("\u2713 Chosen", ApprovedGreen)
                 share.status == ShareStatus.CLOSED -> OfferPill("Not chosen", OnBackgroundGray)
+                share.status == ShareStatus.CANCELLED -> OfferPill("Cancelled", Color(0xFFF87171))
                 !offer.hasResponded -> OfferPill("Waiting for review", OnBackgroundGray)
                 share.decision == ReviewDecision.APPROVED -> OfferPill("Approved", ApprovedGreen)
                 else -> OfferPill("Changes requested", Amber)
