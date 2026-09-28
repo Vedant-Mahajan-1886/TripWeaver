@@ -47,9 +47,10 @@ object DatabaseMigrations {
     }
 
     // v6 → v7 (agent_profiles, trip_shares, activity_feedback tables) and
-    // v7 → v8 (trip_edits table) and v8 → v9 (bookings, agent_reviews tables)
-    // are AutoMigrations declared on TravelDatabase,
-    // because they only add new tables.
+    // v7 → v8 (trip_edits table), v8 → v9 (bookings, agent_reviews tables) and
+    // v9 → v10 (agent_packages, package_days tables + nullable trip_shares.packageId)
+    // are AutoMigrations declared on TravelDatabase, because they only add tables
+    // or nullable columns.
 
     /** All manual migrations, oldest first. Registered in DatabaseModule. */
     val ALL: Array<Migration> = arrayOf(
