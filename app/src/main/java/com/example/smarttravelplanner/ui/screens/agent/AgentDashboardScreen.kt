@@ -74,6 +74,7 @@ import com.example.smarttravelplanner.ui.theme.PlayfairFontFamily
 fun AgentDashboardScreen(
     onLogout: () -> Unit,
     onOpenShare: (shareId: Long) -> Unit,
+    onOpenPackages: () -> Unit = {},
     viewModel: AgentDashboardViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -197,6 +198,26 @@ fun AgentDashboardScreen(
                         },
                         onDismiss = { editingProfile = false }
                     )
+                }
+
+                // ── My packages (ready-made trips) ──────────────────────────
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .clickable(onClick = onOpenPackages)
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("My packages", fontFamily = DmSansFontFamily, fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Ready-made trips travellers can book in one tap", fontFamily = DmSansFontFamily,
+                            fontSize = 12.sp, color = OnBackgroundGray)
+                    }
+                    Text("Open", fontFamily = DmSansFontFamily, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Amber)
                 }
 
                 // ── Ratings from travellers ─────────────────────────────────
