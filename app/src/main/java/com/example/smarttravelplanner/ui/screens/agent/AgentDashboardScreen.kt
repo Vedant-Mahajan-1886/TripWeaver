@@ -240,11 +240,15 @@ fun AgentDashboardScreen(
                         )
                     }
                 } else {
-                    ShareSection("Chosen \u2013 go ahead with booking", state.incoming.filter { it.share.status.isChosen }, onOpenShare)
+                    ShareSection("Chosen \u2013 send a quote", state.incoming.filter { it.share.status == ShareStatus.CONFIRMED }, onOpenShare)
+                    ShareSection("Ready to book", state.incoming.filter { it.share.status == ShareStatus.QUOTE_ACCEPTED }, onOpenShare)
+                    ShareSection("Quote sent \u2013 waiting for traveller", state.incoming.filter { it.share.status == ShareStatus.QUOTE_SENT }, onOpenShare)
                     ShareSection("New", state.incoming.filter { it.share.status == ShareStatus.SENT }, onOpenShare)
                     ShareSection("In review", state.incoming.filter { it.share.status == ShareStatus.VIEWED }, onOpenShare)
                     ShareSection("Responded", state.incoming.filter { it.share.status == ShareStatus.RESPONDED }, onOpenShare)
-                    ShareSection("Closed", state.incoming.filter { it.share.status == ShareStatus.CLOSED || it.share.status == ShareStatus.CANCELLED }, onOpenShare)
+                    ShareSection("Booked", state.incoming.filter { it.share.status == ShareStatus.BOOKED }, onOpenShare)
+                    ShareSection("Completed", state.incoming.filter { it.share.status == ShareStatus.COMPLETED }, onOpenShare)
+                    ShareSection("Closed & cancelled", state.incoming.filter { it.share.status == ShareStatus.CLOSED || it.share.status == ShareStatus.CANCELLED }, onOpenShare)
                 }
             }
         }

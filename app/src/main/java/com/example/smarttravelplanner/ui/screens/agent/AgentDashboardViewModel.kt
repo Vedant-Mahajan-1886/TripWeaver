@@ -3,6 +3,7 @@ package com.example.smarttravelplanner.ui.screens.agent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.smarttravelplanner.data.repository.AgentRepository
+import com.example.smarttravelplanner.data.repository.BookingRepository
 import com.example.smarttravelplanner.domain.model.agent.AgentProfile
 import com.example.smarttravelplanner.domain.model.agent.IncomingShare
 import com.example.smarttravelplanner.domain.model.agent.ShareStatus
@@ -30,8 +31,14 @@ sealed interface AgentDashboardUiState {
 
 @HiltViewModel
 class AgentDashboardViewModel @Inject constructor(
-    private val agentRepository: AgentRepository
+    private val agentRepository: AgentRepository,
+    private val bookingRepository: BookingRepository
 ) : ViewModel() {
+
+    init {
+        // Booked trips whose end date has passed become "Completed"
+        viewModelScope.launch { runCatching { bookingRepository.completeFinishedTrips() } }
+    }
 
     private val _notice = MutableStateFlow<String?>(null)
     /** One-off message after saving the profile. */
