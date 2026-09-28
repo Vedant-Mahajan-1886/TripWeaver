@@ -38,6 +38,12 @@ internal fun agentEditNotice(agentRepository: AgentRepository, tripId: Long): Fl
 /** Pure mapping from the trip's agent status label to the notice text. */
 internal fun agentEditNoticeFor(statusLabel: String?): String? = when {
     statusLabel == null -> null
+    statusLabel == "Trip completed" -> null
+    statusLabel.startsWith("Booked: ") -> {
+        val agent = statusLabel.removePrefix("Booked: ")
+        "Your trip is booked with $agent. After you change it, $agent will need to re-confirm the bookings."
+    }
+    statusLabel == "Booked" -> "Your trip is booked. After you change it, your agent will need to re-confirm."
     statusLabel.startsWith("Going ahead: ") ->
         "You're going ahead with ${statusLabel.removePrefix("Going ahead: ")}. They'll see what you change here."
     statusLabel == "Agent chosen" -> "Your chosen agent will see what you change here."

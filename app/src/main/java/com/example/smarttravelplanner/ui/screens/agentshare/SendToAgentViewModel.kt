@@ -4,6 +4,9 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.smarttravelplanner.data.repository.AgentRepository
+import com.example.smarttravelplanner.data.repository.BookingRepository
+import com.example.smarttravelplanner.domain.model.agent.Booking
+import com.example.smarttravelplanner.domain.util.BookingRules
 import com.example.smarttravelplanner.data.repository.TripEdit
 import com.example.smarttravelplanner.data.repository.TripEditRepository
 import com.example.smarttravelplanner.domain.model.agent.ActivityFeedback
@@ -63,7 +66,9 @@ data class SendToAgentUiState(
     /** Activities that more than one agent has an open suggestion for. */
     val conflicts: Set<AgentConflicts.ActivityRef> = emptySet(),
     /** Every agent that has (or had) this trip, for "Compare offers". */
-    val offers: List<AgentOffer> = emptyList()
+    val offers: List<AgentOffer> = emptyList(),
+    /** Latest change to the trip (manual edit or applied suggestion), for "re-confirm" after booking. */
+    val lastTripChangeAt: Long? = null
 ) {
     /** The agent the traveller chose, if any. */
     val chosen: AgentShareRow? get() = rows.firstOrNull { it.share?.status?.isChosen == true }
@@ -83,6 +88,17 @@ data class SendToAgentUiState(
     /** Agents who have sent their review back. */
     val respondedCount: Int get() = rows.count { it.share?.status == ShareStatus.RESPONDED }
     val canSend: Boolean get() = selectedEmails.isNotEmpty() && !isSending
+}
+
+/** The traveller's booking with the chosen agent (or the last cancelled one). */
+data class TravellerBookingUiState(
+    val row: AgentShareRow,
+    val booking: Booking?,
+    /** Booked, but the traveller changed the trip afterwards — agent hasn't re-confirmed yet. */
+    val needsReconfirm: Boolean,
+    val isBusy: Boolean
+) {
+    val share: TripShare get() = row.share!!
 }
 
 /** One agent's review of this trip, as the traveller sees it. */
@@ -111,7 +127,8 @@ class SendToAgentViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val agentRepository: AgentRepository,
     private val applyAgentSuggestion: ApplyAgentSuggestionUseCase,
-    tripEditRepository: TripEditRepository
+    tripEditRepository: TripEditRepository,
+    private val bookingRepository: BookingRepository
 ) : ViewModel() {
 
     private val tripId: Long = checkNotNull(savedStateHandle["tripId"])
@@ -147,7 +164,12 @@ class SendToAgentViewModel @Inject constructor(
             isSending = sel.isSending,
             notice = sel.notice,
             conflicts = AgentConflicts.conflictingActivities(tripFeedback),
-            offers = buildOffers(agents.map { AgentShareRow(it, latestByAgent[it.email]) }, tripFeedback, edits)
+            offers = buildOffers(agents.map { AgentShareRow(it, latestByAgent[it.email]) }, tripFeedback, edits),
+            lastTripChangeAt = listOfNotNull(
+                edits.maxOfOrNull { it.editedAt },
+                tripFeedback.filter { it.feedback.response == SuggestionResponse.APPLIED }
+                    .maxOfOrNull { it.feedback.updatedAt }
+            ).maxOrNull()
         )
     }.stateIn(
         scope = viewModelScope,
@@ -193,6 +215,53 @@ class SendToAgentViewModel @Inject constructor(
     }
 
     fun noticeShown() = selection.update { it.copy(notice = null) }
+
+    // ── Booking with the chosen agent ────────────────────────────────────────
+
+    private val bookingBusy = MutableStateFlow(false)
+
+    /** Quote / booking with the chosen agent, or the last cancelled booking; null if none. */
+    val bookingState: StateFlow<TravellerBookingUiState?> = combine(
+        uiState,
+        bookingRepository.observeBookingsForTrip(tripId),
+        bookingBusy
+    ) { state, bookings, busy ->
+        val row = state.chosen
+            ?: state.rows.filter { it.share?.status == ShareStatus.CANCELLED }
+                .maxByOrNull { bookings[it.share!!.id]?.cancelledAt ?: 0L }
+        row?.let {
+            val booking = bookings[it.share!!.id]
+            TravellerBookingUiState(
+                row = it,
+                booking = booking,
+                needsReconfirm = BookingRules.needsReconfirm(it.share.status, booking?.confirmedAt, state.lastTripChangeAt),
+                isBusy = busy
+            )
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun acceptQuote(shareId: Long) = bookingAction("Quote accepted \u2014 your agent will book it now") {
+        bookingRepository.acceptQuote(shareId)
+    }
+
+    fun declineQuote(shareId: Long, reason: String) = bookingAction("Quote declined \u2014 you can choose another agent") {
+        bookingRepository.declineQuote(shareId, reason)
+    }
+
+    fun cancelBooking(shareId: Long, reason: String) = bookingAction("Booking cancelled \u2014 you can choose another agent") {
+        bookingRepository.cancel(shareId, reason)
+    }
+
+    private fun bookingAction(successMessage: String, action: suspend () -> Result<Unit>) {
+        if (bookingBusy.value) return
+        viewModelScope.launch {
+            bookingBusy.value = true
+            action()
+                .onSuccess { selection.update { it.copy(notice = successMessage) } }
+                .onFailure { e -> selection.update { it.copy(notice = e.message ?: "Something went wrong.") } }
+            bookingBusy.value = false
+        }
+    }
 
     // ── Choosing an agent ────────────────────────────────────────────────────
 
