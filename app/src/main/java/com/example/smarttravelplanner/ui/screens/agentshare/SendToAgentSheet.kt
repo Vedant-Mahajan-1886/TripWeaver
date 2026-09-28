@@ -75,6 +75,7 @@ fun SendToAgentButton(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val feedbackState by viewModel.feedbackState.collectAsStateWithLifecycle()
+    val bookingState by viewModel.bookingState.collectAsStateWithLifecycle()
     var showSheet by remember { mutableStateOf(false) }
     var showCompare by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -91,6 +92,9 @@ fun SendToAgentButton(
     val buttonColor = if (chosen != null || approved.isNotEmpty()) ApprovedGreen else Amber
 
     val label = when {
+        chosen != null && chosen.share?.status == ShareStatus.QUOTE_SENT -> "Quote from ${chosen.agent.displayName} \u2014 review it"
+        chosen != null && chosen.share?.status == ShareStatus.BOOKED -> "\u2713 Booked with ${chosen.agent.displayName}"
+        chosen != null && chosen.share?.status == ShareStatus.COMPLETED -> "Trip completed \u00B7 ${chosen.agent.displayName}"
         chosen != null -> "Going ahead with ${chosen.agent.displayName}"
         approved.size == 1 -> "\u2713 Approved by ${approved.first().agent.displayName}"
         approved.size > 1 -> "\u2713 Approved by ${approved.size} agents"
@@ -186,6 +190,10 @@ fun SendToAgentButton(
             onSend = viewModel::send,
             onWithdraw = viewModel::withdraw,
             onViewFeedback = viewModel::openFeedback,
+            bookingState = bookingState,
+            onAcceptQuote = viewModel::acceptQuote,
+            onDeclineQuote = viewModel::declineQuote,
+            onCancelBooking = viewModel::cancelBooking,
             onCompare = {
                 showSheet = false
                 showCompare = true
@@ -204,6 +212,10 @@ private fun SendToAgentSheet(
     onSend: () -> Unit,
     onWithdraw: (Long) -> Unit,
     onViewFeedback: (Long) -> Unit,
+    bookingState: TravellerBookingUiState?,
+    onAcceptQuote: (Long) -> Unit,
+    onDeclineQuote: (Long, String) -> Unit,
+    onCancelBooking: (Long, String) -> Unit,
     onCompare: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -251,19 +263,14 @@ private fun SendToAgentSheet(
             }
 
             val chosenRow = uiState.chosen
-            if (chosenRow != null) {
+            // Booking with the chosen agent (quote, booked, …) or the last cancelled booking
+            if (bookingState != null) {
                 Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = "\u2713 You're going ahead with ${chosenRow.agent.displayName}. They'll contact you to book.",
-                    fontFamily = DmSansFontFamily,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = ApprovedGreen,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(ApprovedGreen.copy(alpha = 0.12f))
-                        .padding(10.dp)
+                TravellerBookingCard(
+                    state = bookingState,
+                    onAccept = onAcceptQuote,
+                    onDecline = onDeclineQuote,
+                    onCancel = onCancelBooking
                 )
             }
 

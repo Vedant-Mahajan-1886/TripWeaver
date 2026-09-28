@@ -50,4 +50,12 @@ class TripAgentStatusTest {
             )
         )
     }
+
+    @Test
+    fun bookingStagesHaveTheirOwnBadge() {
+        assertEquals("Quote received", tripAgentStatusLabel(listOf(ShareStatus.QUOTE_SENT to ReviewDecision.APPROVED), "W"))
+        assertEquals("Booking in progress", tripAgentStatusLabel(listOf(ShareStatus.QUOTE_ACCEPTED to ReviewDecision.APPROVED), "W"))
+        assertEquals("Booked: Wanderlust", tripAgentStatusLabel(listOf(ShareStatus.BOOKED to ReviewDecision.APPROVED), "Wanderlust"))
+        assertEquals("Trip completed", tripAgentStatusLabel(listOf(ShareStatus.COMPLETED to ReviewDecision.APPROVED), "W"))
+    }
 }

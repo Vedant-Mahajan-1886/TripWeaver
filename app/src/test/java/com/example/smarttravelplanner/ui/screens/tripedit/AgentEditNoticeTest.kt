@@ -25,4 +25,13 @@ class AgentEditNoticeTest {
             assertEquals("Agents reviewing this trip will see what you change here.", agentEditNoticeFor(it))
         }
     }
+
+    @Test
+    fun bookedTripsWarnAboutReconfirmation() {
+        assertEquals(
+            "Your trip is booked with Wanderlust. After you change it, Wanderlust will need to re-confirm the bookings.",
+            agentEditNoticeFor("Booked: Wanderlust")
+        )
+        assertNull(agentEditNoticeFor("Trip completed"))
+    }
 }
