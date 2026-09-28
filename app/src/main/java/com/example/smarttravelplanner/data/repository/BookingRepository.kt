@@ -39,6 +39,10 @@ interface BookingRepository {
     // ── Ratings ──────────────────────────────────────────────────────────────
     fun observeReviewForShare(shareId: Long): Flow<AgentReview?>
     fun observeReviewsForAgent(agentEmail: String): Flow<List<AgentReview>>
+    /** Reviews of every agent on one trip, keyed by share id. */
+    fun observeReviewsForTrip(tripId: Long): Flow<Map<Long, AgentReview>>
+    /** Reviews of the logged-in agent, newest first. */
+    fun observeMyReviews(): Flow<List<AgentReview>>
     /** Average rating per agent email. */
     fun observeRatings(): Flow<Map<String, AgentRating>>
 }

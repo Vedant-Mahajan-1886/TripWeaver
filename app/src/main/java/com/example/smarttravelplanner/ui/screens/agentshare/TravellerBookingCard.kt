@@ -52,13 +52,15 @@ internal fun TravellerBookingCard(
     state: TravellerBookingUiState,
     onAccept: (shareId: Long) -> Unit,
     onDecline: (shareId: Long, reason: String) -> Unit,
-    onCancel: (shareId: Long, reason: String) -> Unit
+    onCancel: (shareId: Long, reason: String) -> Unit,
+    onRate: (shareId: Long, stars: Int, comment: String) -> Unit = { _, _, _ -> }
 ) {
     val share = state.share
     val booking = state.booking
     val agent = state.row.agent.displayName
     var showDecline by remember { mutableStateOf(false) }
     var showCancel by remember { mutableStateOf(false) }
+    var editingRating by remember { mutableStateOf(false) }
     val expired = BookingRules.isQuoteExpired(booking?.quoteValidUntil, LocalDate.now())
 
     val (title, body, color) = when (share.status) {
@@ -83,7 +85,12 @@ internal fun TravellerBookingCard(
             "You changed the trip after it was booked. $agent needs to check and re-confirm the bookings.",
             Amber
         ) else Triple("\u2713 BOOKED WITH ${agent.uppercase()}", "Your trip is booked. Have a great trip!", ApprovedGreen)
-        ShareStatus.COMPLETED -> Triple("TRIP COMPLETED", "Hope you enjoyed it! You can rate $agent after the trip.", Blue)
+        ShareStatus.COMPLETED -> Triple(
+            "TRIP COMPLETED",
+            if (state.review == null) "Hope you enjoyed it! Rate $agent to help other travellers choose."
+            else "Thanks for rating $agent.",
+            Blue
+        )
         ShareStatus.CANCELLED -> Triple(
             "BOOKING CANCELLED",
             buildString {
@@ -159,6 +166,30 @@ internal fun TravellerBookingCard(
                 }
             }
         }
+        // Rating after the trip
+        if (share.status == ShareStatus.COMPLETED) {
+            val review = state.review
+            if (review == null || editingRating) {
+                RatingInput(
+                    agentName = agent,
+                    initialStars = review?.stars ?: 0,
+                    initialComment = review?.comment.orEmpty(),
+                    isBusy = state.isBusy,
+                    onSubmit = { stars, comment ->
+                        onRate(share.id, stars, comment)
+                        editingRating = false
+                    }
+                )
+            } else {
+                Stars(review.stars, size = 20.dp)
+                if (review.comment.isNotBlank()) {
+                    Text("\u201C${review.comment}\u201D", fontFamily = DmSansFontFamily, fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurface)
+                }
+                TextButton(onClick = { editingRating = true }) { Text("Edit rating", fontSize = 12.sp) }
+            }
+        }
+
         if (BookingRules.canCancel(share.status)) {
             TextButton(onClick = { showCancel = true }, enabled = !state.isBusy) {
                 Text("Cancel booking", fontSize = 12.sp, color = Red)

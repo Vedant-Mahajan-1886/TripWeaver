@@ -63,6 +63,9 @@ interface BookingDao {
     @Query("SELECT * FROM agent_reviews WHERE shareId = :shareId LIMIT 1")
     suspend fun getReviewForShare(shareId: Long): AgentReviewEntity?
 
+    @Query("SELECT * FROM agent_reviews WHERE shareId IN (SELECT id FROM trip_shares WHERE tripId = :tripId)")
+    fun observeReviewsForTrip(tripId: Long): Flow<List<AgentReviewEntity>>
+
     @Query("SELECT * FROM agent_reviews WHERE agentEmail = :agentEmail ORDER BY createdAt DESC")
     fun observeReviewsForAgent(agentEmail: String): Flow<List<AgentReviewEntity>>
 

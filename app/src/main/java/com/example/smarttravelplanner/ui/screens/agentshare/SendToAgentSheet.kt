@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.smarttravelplanner.domain.model.agent.AgentProfile
+import com.example.smarttravelplanner.domain.model.agent.AgentRating
 import com.example.smarttravelplanner.domain.model.agent.ShareStatus
 import com.example.smarttravelplanner.ui.theme.Amber
 import com.example.smarttravelplanner.ui.theme.DmSansFontFamily
@@ -76,6 +77,7 @@ fun SendToAgentButton(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val feedbackState by viewModel.feedbackState.collectAsStateWithLifecycle()
     val bookingState by viewModel.bookingState.collectAsStateWithLifecycle()
+    val ratings by viewModel.ratings.collectAsStateWithLifecycle()
     var showSheet by remember { mutableStateOf(false) }
     var showCompare by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -171,6 +173,7 @@ fun SendToAgentButton(
     } else if (showCompare) {
         CompareOffersSheet(
             offers = uiState.offers,
+            ratings = ratings,
             chosenShareId = chosen?.share?.id,
             onViewDetails = { shareId ->
                 showCompare = false
@@ -191,6 +194,8 @@ fun SendToAgentButton(
             onWithdraw = viewModel::withdraw,
             onViewFeedback = viewModel::openFeedback,
             bookingState = bookingState,
+            ratings = ratings,
+            onRateAgent = viewModel::rateAgent,
             onAcceptQuote = viewModel::acceptQuote,
             onDeclineQuote = viewModel::declineQuote,
             onCancelBooking = viewModel::cancelBooking,
@@ -213,6 +218,8 @@ private fun SendToAgentSheet(
     onWithdraw: (Long) -> Unit,
     onViewFeedback: (Long) -> Unit,
     bookingState: TravellerBookingUiState?,
+    ratings: Map<String, AgentRating>,
+    onRateAgent: (Long, Int, String) -> Unit,
     onAcceptQuote: (Long) -> Unit,
     onDeclineQuote: (Long, String) -> Unit,
     onCancelBooking: (Long, String) -> Unit,
@@ -270,7 +277,8 @@ private fun SendToAgentSheet(
                     state = bookingState,
                     onAccept = onAcceptQuote,
                     onDecline = onDeclineQuote,
-                    onCancel = onCancelBooking
+                    onCancel = onCancelBooking,
+                    onRate = onRateAgent
                 )
             }
 
@@ -328,6 +336,7 @@ private fun SendToAgentSheet(
                     items(uiState.rows, key = { it.agent.email }) { row ->
                         AgentRowItem(
                             row = row,
+                            rating = ratings[row.agent.email],
                             isSelected = row.agent.email in uiState.selectedEmails,
                             onToggle = { onToggleAgent(row.agent.email) },
                             onWithdraw = { row.share?.let { onWithdraw(it.id) } },
@@ -392,6 +401,7 @@ private fun SendToAgentSheet(
 @Composable
 private fun AgentRowItem(
     row: AgentShareRow,
+    rating: AgentRating?,
     isSelected: Boolean,
     onToggle: () -> Unit,
     onWithdraw: () -> Unit,
@@ -444,6 +454,7 @@ private fun AgentRowItem(
             if (subtitle.isNotBlank()) {
                 Text(text = subtitle, fontFamily = DmSansFontFamily, fontSize = 12.sp, color = OnBackgroundGray)
             }
+            RatingLabel(rating)
             if (agent.specialities.isNotEmpty()) {
                 Text(
                     text = agent.specialities.joinToString(" · "),

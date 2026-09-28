@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.smarttravelplanner.data.repository.AgentRepository
 import com.example.smarttravelplanner.data.repository.BookingRepository
 import com.example.smarttravelplanner.domain.model.agent.AgentProfile
+import com.example.smarttravelplanner.domain.model.agent.AgentReview
 import com.example.smarttravelplanner.domain.model.agent.IncomingShare
 import com.example.smarttravelplanner.domain.model.agent.ShareStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -21,8 +22,11 @@ sealed interface AgentDashboardUiState {
     data object Loading : AgentDashboardUiState
     data class Success(
         val profile: AgentProfile?,
-        val incoming: List<IncomingShare>
+        val incoming: List<IncomingShare>,
+        /** Travellers' ratings of this agent, newest first. */
+        val reviews: List<AgentReview> = emptyList()
     ) : AgentDashboardUiState {
+        val averageRating: Double? get() = reviews.takeIf { it.isNotEmpty() }?.map { it.stars }?.average()
         val newCount: Int get() = incoming.count { it.share.status == ShareStatus.SENT }
         val inReviewCount: Int get() = incoming.count { it.share.status == ShareStatus.VIEWED }
         val respondedCount: Int get() = incoming.count { it.share.status == ShareStatus.RESPONDED }
@@ -60,9 +64,10 @@ class AgentDashboardViewModel @Inject constructor(
 
     val uiState: StateFlow<AgentDashboardUiState> = combine(
         agentRepository.observeMyAgentProfile(),
-        agentRepository.observeIncomingShares()
-    ) { profile, incoming ->
-        AgentDashboardUiState.Success(profile, incoming)
+        agentRepository.observeIncomingShares(),
+        bookingRepository.observeMyReviews()
+    ) { profile, incoming, reviews ->
+        AgentDashboardUiState.Success(profile, incoming, reviews)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),

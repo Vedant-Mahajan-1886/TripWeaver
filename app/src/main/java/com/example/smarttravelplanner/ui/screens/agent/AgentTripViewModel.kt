@@ -50,6 +50,8 @@ sealed interface AgentTripUiState {
         val needsReconfirm: Boolean = false,
         /** A booking action is in progress. */
         val isBookingBusy: Boolean = false,
+        /** The traveller's rating of this agent for this trip (after completion). */
+        val review: com.example.smarttravelplanner.domain.model.agent.AgentReview? = null,
         /** Set once the review is saved; the screen then goes back. */
         val submittedDecision: ReviewDecision? = null
     ) : AgentTripUiState
@@ -134,7 +136,8 @@ class AgentTripViewModel @Inject constructor(
                     changesSinceReview = changes,
                     editsSinceReview = edits,
                     booking = booking,
-                    needsReconfirm = needsReconfirm
+                    needsReconfirm = needsReconfirm,
+                    review = bookingRepository.observeReviewForShare(shareId).first()
                 )
             }.onSuccess { state ->
                 _uiState.value = state

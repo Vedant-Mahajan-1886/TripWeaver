@@ -58,6 +58,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import com.example.smarttravelplanner.domain.model.agent.IncomingShare
 import com.example.smarttravelplanner.domain.model.agent.ShareStatus
+import com.example.smarttravelplanner.ui.screens.agentshare.Stars
 import com.example.smarttravelplanner.ui.screens.agentshare.StatusChip
 import com.example.smarttravelplanner.ui.theme.Amber
 import com.example.smarttravelplanner.ui.theme.DmSansFontFamily
@@ -196,6 +197,44 @@ fun AgentDashboardScreen(
                         },
                         onDismiss = { editingProfile = false }
                     )
+                }
+
+                // ── Ratings from travellers ─────────────────────────────────
+                state.averageRating?.let { avg ->
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(MaterialTheme.colorScheme.surface)
+                            .padding(16.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = String.format(java.util.Locale.US, "%.1f", avg),
+                                fontFamily = PlayfairFontFamily,
+                                fontSize = 26.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Amber
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Stars(kotlin.math.round(avg).toInt())
+                                Text(
+                                    "${state.reviews.size} review${if (state.reviews.size == 1) "" else "s"} from travellers",
+                                    fontFamily = DmSansFontFamily, fontSize = 12.sp, color = OnBackgroundGray
+                                )
+                            }
+                        }
+                        state.reviews.take(3).filter { it.comment.isNotBlank() }.forEach { review ->
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "\u201C${review.comment}\u201D \u2014 ${review.tripDestination}, ${review.stars}\u2605",
+                                fontFamily = DmSansFontFamily, fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
