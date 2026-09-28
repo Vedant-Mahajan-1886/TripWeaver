@@ -38,5 +38,7 @@ data class TripShareEntity(
     val overallComment: String = "",
     val priceEstimate: Double? = null,
     val sentAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    /** Set when the traveller chose one of this agent's ready-made packages (v10) */
+    val packageId: Long? = null
 )
