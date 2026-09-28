@@ -1,6 +1,9 @@
 package com.example.smarttravelplanner.ui.screens.explore
 
 import androidx.compose.foundation.background
+import com.example.smarttravelplanner.ui.screens.packages.DestinationPackagesSection
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -63,7 +66,10 @@ fun DestinationDetailsSheet(
     /** e.g. "~1,050 km from Mumbai (straight line)"; null hides the row. */
     distanceFromLabel: String? = null,
     onDismiss: () -> Unit,
-    onPlanTrip: () -> Unit
+    onPlanTrip: () -> Unit,
+    /** Agents' ready-made packages for this destination. */
+    onOpenPackage: (packageId: Long) -> Unit = {},
+    onBrowsePackages: () -> Unit = {}
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -75,6 +81,8 @@ fun DestinationDetailsSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                // Scrolls when the packages section makes the sheet taller than the screen
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .navigationBarsPadding()
                 .padding(bottom = 16.dp)
@@ -214,7 +222,16 @@ fun DestinationDetailsSheet(
                 )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ── Agents' ready-made packages for this destination ────────────
+            DestinationPackagesSection(
+                destinationName = destination.name,
+                onOpenPackage = onOpenPackage,
+                onBrowseAll = onBrowsePackages
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             // ── Primary action ──────────────────────────────────────────────
             Button(
