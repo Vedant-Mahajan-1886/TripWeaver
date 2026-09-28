@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.smarttravelplanner.data.repository.AgentRepository
+import com.example.smarttravelplanner.data.repository.BookingRepository
 import com.example.smarttravelplanner.data.repository.ItineraryRepository
 import com.example.smarttravelplanner.data.repository.TripEdit
 import com.example.smarttravelplanner.data.repository.TripEditRepository
@@ -12,6 +13,10 @@ import com.example.smarttravelplanner.domain.model.Itinerary
 import com.example.smarttravelplanner.domain.model.Trip
 import com.example.smarttravelplanner.domain.model.agent.ActivityVerdict
 import com.example.smarttravelplanner.domain.model.agent.AppliedTripChange
+import com.example.smarttravelplanner.domain.model.agent.Booking
+import com.example.smarttravelplanner.domain.model.agent.QuoteInput
+import com.example.smarttravelplanner.domain.model.agent.SuggestionResponse
+import com.example.smarttravelplanner.domain.util.BookingRules
 import com.example.smarttravelplanner.domain.model.agent.IncomingShare
 import com.example.smarttravelplanner.domain.model.agent.ReviewDecision
 import com.example.smarttravelplanner.domain.model.agent.ShareStatus
@@ -39,6 +44,12 @@ sealed interface AgentTripUiState {
         val changesSinceReview: List<AppliedTripChange> = emptyList(),
         /** Edits the traveller made by hand after this agent's last review. */
         val editsSinceReview: List<TripEdit> = emptyList(),
+        /** Quote / booking details once the traveller has chosen this agent. */
+        val booking: Booking? = null,
+        /** Booked, but the traveller changed the trip afterwards → agent should re-confirm. */
+        val needsReconfirm: Boolean = false,
+        /** A booking action is in progress. */
+        val isBookingBusy: Boolean = false,
         /** Set once the review is saved; the screen then goes back. */
         val submittedDecision: ReviewDecision? = null
     ) : AgentTripUiState
@@ -51,8 +62,17 @@ class AgentTripViewModel @Inject constructor(
     private val agentRepository: AgentRepository,
     private val tripRepository: TripRepository,
     private val itineraryRepository: ItineraryRepository,
-    private val tripEditRepository: TripEditRepository
+    private val tripEditRepository: TripEditRepository,
+    private val bookingRepository: BookingRepository
 ) : ViewModel() {
+
+    private val _notice = MutableStateFlow<String?>(null)
+    /** One-off message after a booking action. */
+    val notice: StateFlow<String?> = _notice.asStateFlow()
+
+    fun noticeShown() {
+        _notice.value = null
+    }
 
     private val shareId: Long = checkNotNull(savedStateHandle["shareId"])
 
@@ -63,9 +83,10 @@ class AgentTripViewModel @Inject constructor(
         load()
     }
 
-    fun load() {
+    /** @param showSpinner false = refresh in place (after a booking action) */
+    fun load(showSpinner: Boolean = true) {
         viewModelScope.launch {
-            _uiState.value = AgentTripUiState.Loading
+            if (showSpinner) _uiState.value = AgentTripUiState.Loading
             runCatching {
                 val incoming = agentRepository.observeIncomingShares()
                     .map { list -> list.firstOrNull { it.share.id == shareId } }
@@ -88,6 +109,17 @@ class AgentTripViewModel @Inject constructor(
                         .filter { it.editedAt > incoming.share.updatedAt }
                 } else emptyList()
 
+                val booking = bookingRepository.observeBooking(shareId).first()
+                val lastTripChangeAt = listOfNotNull(
+                    tripEditRepository.observeEdits(trip.id).first().maxOfOrNull { it.editedAt },
+                    agentRepository.observeFeedbackForTrip(trip.id).first()
+                        .filter { it.feedback.response == SuggestionResponse.APPLIED }
+                        .maxOfOrNull { it.feedback.updatedAt }
+                ).maxOrNull()
+                val needsReconfirm = BookingRules.needsReconfirm(
+                    incoming.share.status, booking?.confirmedAt, lastTripChangeAt
+                )
+
                 // Opening the trip tells the traveller it has been viewed
                 agentRepository.markViewed(shareId)
                 val shown = if (incoming.share.status == ShareStatus.SENT) {
@@ -100,13 +132,48 @@ class AgentTripViewModel @Inject constructor(
                     days = days,
                     draft = initialDraft(shown.share, existingFeedback, days),
                     changesSinceReview = changes,
-                    editsSinceReview = edits
+                    editsSinceReview = edits,
+                    booking = booking,
+                    needsReconfirm = needsReconfirm
                 )
             }.onSuccess { state ->
                 _uiState.value = state
             }.onFailure { e ->
                 _uiState.value = AgentTripUiState.Error(e.message ?: "Couldn't open this trip.")
             }
+        }
+    }
+
+    // ── Booking (after the traveller chose this agent) ───────────────────────
+
+    fun sendQuote(quote: QuoteInput) = bookingAction("Quote sent to the traveller") {
+        bookingRepository.sendQuote(shareId, quote)
+    }
+
+    fun markBooked(reference: String, notes: String) = bookingAction("Marked as booked") {
+        bookingRepository.markBooked(shareId, reference, notes)
+    }
+
+    fun reconfirm() = bookingAction("Booking re-confirmed") { bookingRepository.reconfirm(shareId) }
+
+    fun cancelBooking(reason: String) = bookingAction("Cancelled \u2014 the traveller has been told") {
+        bookingRepository.cancel(shareId, reason)
+    }
+
+    private fun bookingAction(successMessage: String, action: suspend () -> Result<Unit>) {
+        val state = _uiState.value as? AgentTripUiState.Success ?: return
+        if (state.isBookingBusy) return
+        viewModelScope.launch {
+            _uiState.update { (it as? AgentTripUiState.Success)?.copy(isBookingBusy = true) ?: it }
+            action()
+                .onSuccess {
+                    _notice.value = successMessage
+                    load(showSpinner = false)
+                }
+                .onFailure { e ->
+                    _notice.value = e.message ?: "Something went wrong."
+                    _uiState.update { (it as? AgentTripUiState.Success)?.copy(isBookingBusy = false) ?: it }
+                }
         }
     }
 

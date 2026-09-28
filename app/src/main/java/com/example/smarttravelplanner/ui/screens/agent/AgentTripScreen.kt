@@ -81,6 +81,15 @@ fun AgentTripScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
+    // Messages after booking actions (quote sent, booked, …)
+    val notice by viewModel.notice.collectAsStateWithLifecycle()
+    LaunchedEffect(notice) {
+        notice?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            viewModel.noticeShown()
+        }
+    }
+
     // After a successful submit: confirm and return to the dashboard
     val submitted = (uiState as? AgentTripUiState.Success)?.submittedDecision
     LaunchedEffect(submitted) {
@@ -139,7 +148,7 @@ fun AgentTripScreen(
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(
-                    onClick = viewModel::load,
+                    onClick = { viewModel.load() },
                     colors = ButtonDefaults.buttonColors(containerColor = Amber)
                 ) { Text("Retry", color = Color(0xFF1A1A1A)) }
             }
@@ -151,7 +160,13 @@ fun AgentTripScreen(
                 onSuggestion = viewModel::setSuggestion,
                 onOverallComment = viewModel::setOverallComment,
                 onPrice = viewModel::setPrice,
-                onSubmit = viewModel::submit
+                onSubmit = viewModel::submit,
+                bookingActions = AgentBookingActions(
+                    onSendQuote = viewModel::sendQuote,
+                    onMarkBooked = viewModel::markBooked,
+                    onReconfirm = viewModel::reconfirm,
+                    onCancel = viewModel::cancelBooking
+                )
             )
         }
     }
@@ -165,7 +180,8 @@ private fun TripContent(
     onSuggestion: (ActivityKey, String) -> Unit,
     onOverallComment: (String) -> Unit,
     onPrice: (String) -> Unit,
-    onSubmit: (ReviewDecision) -> Unit
+    onSubmit: (ReviewDecision) -> Unit,
+    bookingActions: AgentBookingActions
 ) {
     val trip = state.trip
     val share = state.incoming.share
@@ -247,7 +263,10 @@ private fun TripContent(
         }
 
         // ── Traveller's choice (after comparing offers) ─────────────────────
-        if (share.status.isChosen || share.status == ShareStatus.CLOSED || share.status == ShareStatus.CANCELLED) {
+        if (share.status.isChosen || share.status == ShareStatus.CANCELLED) {
+            // Booking flow: quote → booked → (re-confirm) → completed
+            item { AgentBookingPanel(state, bookingActions) }
+        } else if (share.status == ShareStatus.CLOSED) {
             item { ChoiceBanner(state) }
         }
 
