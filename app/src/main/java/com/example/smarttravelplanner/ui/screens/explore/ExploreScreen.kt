@@ -99,7 +99,10 @@ internal fun WishlistHeartButton(
 fun ExploreScreen(
     viewModel: ExploreViewModel = hiltViewModel(),
     onMenuClick: () -> Unit = {},
-    onPlanTrip: (destinationName: String) -> Unit = {}
+    onPlanTrip: (destinationName: String) -> Unit = {},
+    /** Agents' packages (from the destination sheet). */
+    onOpenPackage: (packageId: Long) -> Unit = {},
+    onBrowsePackages: (query: String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val searchQuery = uiState.searchQuery
@@ -640,6 +643,14 @@ fun ExploreScreen(
             onPlanTrip = {
                 viewModel.onDetailsDismissed()
                 onPlanTrip(selected.name)
+            },
+            onOpenPackage = { id ->
+                viewModel.onDetailsDismissed()
+                onOpenPackage(id)
+            },
+            onBrowsePackages = {
+                viewModel.onDetailsDismissed()
+                onBrowsePackages(selected.name)
             }
         )
     }

@@ -37,6 +37,8 @@ import com.example.smarttravelplanner.ui.screens.agent.AgentDashboardScreen
 import com.example.smarttravelplanner.ui.screens.agent.AgentTripScreen
 import com.example.smarttravelplanner.ui.screens.agentpackages.AgentPackagesScreen
 import com.example.smarttravelplanner.ui.screens.agentpackages.PackageEditorScreen
+import com.example.smarttravelplanner.ui.screens.packages.PackageDetailScreen
+import com.example.smarttravelplanner.ui.screens.packages.PackagesScreen
 import com.example.smarttravelplanner.ui.screens.tripedit.EditActivitiesScreen
 import com.example.smarttravelplanner.ui.screens.tripedit.EditTripScreen
 import com.example.smarttravelplanner.ui.screens.auth.AuthViewModel
@@ -62,6 +64,10 @@ private const val EDIT_TRIP_ROUTE = "edit_trip/{tripId}"
 
 /** Day-by-day activity editor (opened from Edit trip). */
 private const val EDIT_ACTIVITIES_ROUTE = "edit_activities/{tripId}"
+
+/** Travellers: browse published packages (optional search), and one package in full. */
+private const val PACKAGES_ROUTE = "packages?query={query}"
+private const val PACKAGE_DETAIL_ROUTE = "package/{packageId}"
 
 /** Agent's own ready-made packages, and the editor (packageId 0 = new). */
 private const val AGENT_PACKAGES_ROUTE = "agent_packages"
@@ -122,7 +128,7 @@ fun AppNavigation(
     val hiddenNavRoutes = setOf(
         "login", "profile", "my_profile", "manage_payments", "trip_detail/{tripId}",
         AGENT_DASHBOARD_ROUTE, AGENT_TRIP_ROUTE, EDIT_TRIP_ROUTE, EDIT_ACTIVITIES_ROUTE,
-        AGENT_PACKAGES_ROUTE, AGENT_PACKAGE_EDIT_ROUTE
+        AGENT_PACKAGES_ROUTE, AGENT_PACKAGE_EDIT_ROUTE, PACKAGES_ROUTE, PACKAGE_DETAIL_ROUTE
     )
     val isImeVisible = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
     val isNavRoute = hiddenNavRoutes.none { currentRoute.startsWith(it.substringBefore("{")) }
@@ -235,6 +241,30 @@ fun AppNavigation(
                 arguments = listOf(navArgument("shareId") { type = NavType.LongType })
             ) {
                 AgentTripScreen(onBack = { navController.popBackStack() })
+            }
+
+            // ── Packages for travellers ───────────────────────────────────────
+            composable(
+                route = PACKAGES_ROUTE,
+                arguments = listOf(navArgument("query") { type = NavType.StringType; defaultValue = "" })
+            ) {
+                PackagesScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenPackage = { id -> navController.navigate("package/$id") }
+                )
+            }
+            composable(
+                route = PACKAGE_DETAIL_ROUTE,
+                arguments = listOf(navArgument("packageId") { type = NavType.LongType })
+            ) {
+                PackageDetailScreen(
+                    onBack = { navController.popBackStack() },
+                    onTripCreated = { tripId ->
+                        navController.navigate("trip_detail/$tripId") {
+                            popUpTo(PACKAGE_DETAIL_ROUTE) { inclusive = true }
+                        }
+                    }
+                )
             }
 
             // ── Agent packages ────────────────────────────────────────────────
@@ -398,7 +428,9 @@ fun AppNavigation(
                         navController.currentBackStackEntry
                             ?.savedStateHandle
                             ?.set(PLAN_PREFILL_DESTINATION_KEY, destinationName)
-                    }
+                    },
+                    onOpenPackage = { id -> navController.navigate("package/$id") },
+                    onBrowsePackages = { query -> navController.navigate("packages?query=${android.net.Uri.encode(query)}") }
                 )
             }
 
