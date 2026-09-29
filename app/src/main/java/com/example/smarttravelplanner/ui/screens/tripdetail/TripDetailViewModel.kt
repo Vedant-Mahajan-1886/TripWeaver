@@ -14,6 +14,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.example.smarttravelplanner.data.repository.TripEditRepository
+import com.example.smarttravelplanner.domain.model.Activity
+import com.example.smarttravelplanner.domain.usecase.RegenerateActivityUseCase
+import com.example.smarttravelplanner.domain.util.TripEditor
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import javax.inject.Inject
 
@@ -23,8 +28,11 @@ class TripDetailViewModel @Inject constructor(
     private val getTripDetailUseCase: GetTripDetailUseCase,
     private val getWeatherForTripUseCase: GetWeatherForTripUseCase,
     private val photoRepository: PhotoRepository,
-    private val tripRepository: TripRepository
+    private val tripRepository: TripRepository,
+    private val tripEditRepository: TripEditRepository,
+    private val regenerateActivityUseCase: RegenerateActivityUseCase
 ) : ViewModel() {
+
 
     private val tripId: Long = checkNotNull(savedStateHandle["tripId"])
 
@@ -130,5 +138,186 @@ class TripDetailViewModel @Inject constructor(
     fun selectActivity(activityId: Long?) {
         _uiState.update { it.copy(selectedActivityId = activityId) }
     }
+
+    /**
+     * Swiped right: deletes an activity stop from the specified day.
+     * Records an undo snapshot so the traveller can restore it immediately.
+     */
+    fun deleteActivity(dayIndex: Int, activityIndex: Int) {
+        val state = _uiState.value
+        val trip = state.trip ?: return
+        val currentItin = state.itineraries.getOrNull(dayIndex) ?: return
+        val activity = currentItin.activities.getOrNull(activityIndex) ?: return
+
+        val previousItineraries = state.itineraries
+        val result = runCatching {
+            TripEditor.deleteActivity(state.itineraries, currentItin.dayNumber, activityIndex)
+        }.getOrNull() ?: return
+
+        _uiState.update {
+            it.copy(
+                lastDeletedActivity = DeletedActivitySnapshot(
+                    title = activity.title,
+                    dayNumber = currentItin.dayNumber,
+                    previousItineraries = previousItineraries
+                ),
+                userNotice = "Removed “${activity.title}”"
+            )
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            tripEditRepository.saveEdits(
+                trip = trip,
+                days = result.days,
+                summaries = listOf(result.summary)
+            )
+        }
+    }
+
+    /** Restores the last deleted activity to its exact position. */
+    fun undoDelete() {
+        val state = _uiState.value
+        val snapshot = state.lastDeletedActivity ?: return
+        val trip = state.trip ?: return
+
+        _uiState.update {
+            it.copy(
+                lastDeletedActivity = null,
+                userNotice = "Restored “${snapshot.title}”"
+            )
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            tripEditRepository.saveEdits(
+                trip = trip,
+                days = snapshot.previousItineraries,
+                summaries = listOf("Restored “${snapshot.title}” to Day ${snapshot.dayNumber}")
+            )
+        }
+    }
+
+    fun dismissUndo() {
+        _uiState.update { it.copy(lastDeletedActivity = null) }
+    }
+
+    /** Updates an activity stop after the user edits it. */
+    fun updateActivity(dayIndex: Int, activityIndex: Int, updated: Activity) {
+        val state = _uiState.value
+        val trip = state.trip ?: return
+        val currentItin = state.itineraries.getOrNull(dayIndex) ?: return
+
+        val result = runCatching {
+            TripEditor.updateActivity(state.itineraries, currentItin.dayNumber, activityIndex, updated)
+        }.getOrElse { e ->
+            _uiState.update { it.copy(userNotice = e.message ?: "Failed to update activity") }
+            return
+        }
+
+        _uiState.update { it.copy(userNotice = "Saved “${updated.title}”") }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            tripEditRepository.saveEdits(
+                trip = trip,
+                days = result.days,
+                summaries = listOf(result.summary)
+            )
+        }
+    }
+
+    /**
+     * Regenerates an activity stop using Gemini/Ollama AI.
+     * Can be invoked either with optional custom instructions or with an edited base activity
+     * ("use to regenerate that edited part").
+     */
+    fun regenerateActivity(
+        dayIndex: Int,
+        activityIndex: Int,
+        instructions: String = "",
+        baseActivity: Activity? = null,
+        onComplete: ((Result<Activity>) -> Unit)? = null
+    ) {
+        val state = _uiState.value
+        val trip = state.trip ?: return
+        val currentItin = state.itineraries.getOrNull(dayIndex) ?: return
+        val targetActivity = baseActivity ?: currentItin.activities.getOrNull(activityIndex) ?: return
+        val otherActivities = currentItin.activities.filterIndexed { idx, _ -> idx != activityIndex }
+
+        _uiState.update {
+            it.copy(
+                isRegenerating = true,
+                regeneratingActivityTitle = targetActivity.title
+            )
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = regenerateActivityUseCase(
+                destination = trip.destination,
+                dayNumber = currentItin.dayNumber,
+                itineraryId = currentItin.id,
+                currentActivity = targetActivity,
+                otherActivities = otherActivities,
+                instructions = instructions,
+                tripInterests = trip.interests
+            )
+
+            result.onSuccess { newActivity ->
+                if (onComplete != null) {
+                    _uiState.update {
+                        it.copy(
+                            isRegenerating = false,
+                            regeneratingActivityTitle = null,
+                            userNotice = "✨ Regenerated “${newActivity.title}”"
+                        )
+                    }
+                    withContext(Dispatchers.Main) {
+                        onComplete(Result.success(newActivity))
+                    }
+                } else {
+                    val updateResult = runCatching {
+                        TripEditor.updateActivity(
+                            days = _uiState.value.itineraries,
+                            dayNumber = currentItin.dayNumber,
+                            index = activityIndex,
+                            updated = newActivity
+                        )
+                    }.getOrNull()
+
+                    if (updateResult != null) {
+                        tripEditRepository.saveEdits(
+                            trip = trip,
+                            days = updateResult.days,
+                            summaries = listOf("Regenerated stop in Day ${currentItin.dayNumber}: “${newActivity.title}”")
+                        )
+                    }
+
+                    _uiState.update {
+                        it.copy(
+                            isRegenerating = false,
+                            regeneratingActivityTitle = null,
+                            userNotice = "✨ Replaced with “${newActivity.title}”"
+                        )
+                    }
+                }
+            }.onFailure { err ->
+                _uiState.update {
+                    it.copy(
+                        isRegenerating = false,
+                        regeneratingActivityTitle = null,
+                        userNotice = "AI regeneration failed: ${err.message ?: "Unknown error"}"
+                    )
+                }
+                if (onComplete != null) {
+                    withContext(Dispatchers.Main) {
+                        onComplete(Result.failure(err))
+                    }
+                }
+            }
+        }
+    }
+
+    fun clearUserNotice() {
+        _uiState.update { it.copy(userNotice = null) }
+    }
 }
+
 

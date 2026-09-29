@@ -266,4 +266,60 @@ object ItineraryPromptBuilder {
             Output ONLY the raw JSON matching the required schema.
         """.trimIndent()
     }
+
+    val singleActivitySystemPrompt: String = """
+        You are an elite travel concierge and destination specialist.
+        Your task is to generate or regenerate a single destination activity for a travel itinerary.
+
+        You MUST respond with ONLY a valid, parseable JSON object matching this schema — no markdown formatting, no code fences:
+        {
+          "title": "Actionable activity title",
+          "place_name": "Exact real-world name of the landmark, restaurant, or site",
+          "place_id": "",
+          "address": "Specific locality or street address",
+          "lat": 0.0,
+          "lng": 0.0,
+          "start_time": "HH:MM",
+          "end_time": "HH:MM",
+          "category": "ATTRACTION|FOOD|ACCOMMODATION|TRANSPORT|NATURE|CULTURE|SHOPPING|OTHER",
+          "description": "Insightful 2-3 sentence guide with highlight, insider pro-tip, and transit advice.",
+          "estimated_cost_inr": 0.0,
+          "weather_note": null
+        }
+
+        RULES:
+        1. REAL PLACES: Use real, specific, existing place names with realistic coordinates. Never generic placeholders.
+        2. DIVERSITY & FIT: Do NOT duplicate other activities already planned for this day. Fit the time slot and neighborhood.
+        3. USER EDITS & INSTRUCTIONS: If the user provides specific preferences, an edited title, category, budget, or instructions, honor them strictly.
+    """.trimIndent()
+
+    fun buildActivityRegenerationMessage(
+        destination: String,
+        dayNumber: Int,
+        currentActivity: com.example.smarttravelplanner.domain.model.Activity,
+        otherActivities: List<com.example.smarttravelplanner.domain.model.Activity>,
+        instructions: String = "",
+        tripInterests: List<String> = emptyList()
+    ): String = """
+        DESTINATION: $destination
+        DAY NUMBER: Day $dayNumber
+        TIME SLOT: ${currentActivity.startTime.ifBlank { "Flexible" }} - ${currentActivity.endTime.ifBlank { "Flexible" }}
+
+        CURRENT ACTIVITY TO BE REPLACED / REGENERATED:
+        - Title: ${currentActivity.title}
+        - Place / Location: ${currentActivity.location}
+        - Category: ${currentActivity.category.name}
+        - Current Cost: ₹${currentActivity.estimatedCost.toInt()} INR
+        - Description: ${currentActivity.description}
+
+        OTHER ACTIVITIES PLANNED ON THIS DAY (DO NOT DUPLICATE):
+        ${if (otherActivities.isEmpty()) "None" else otherActivities.joinToString("\n") { "- ${it.startTime}-${it.endTime}: ${it.title} at ${it.location}" }}
+
+        TRIP INTERESTS: ${if (tripInterests.isEmpty()) "General Exploration" else tripInterests.joinToString(", ")}
+
+        ${if (instructions.isNotBlank()) "USER SPECIFIC INSTRUCTIONS / EDITED DETAILS TO INCORPORATE:\n$instructions" else "Please generate a fresh, exciting, and high-quality alternative stop for this time slot."}
+
+        Output ONLY the raw JSON object for the replacement activity.
+    """.trimIndent()
 }
+

@@ -1,35 +1,48 @@
 package com.example.smarttravelplanner.ui.screens.tripedit
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -45,19 +58,24 @@ import com.example.smarttravelplanner.ui.theme.DmSansFontFamily
 import com.example.smarttravelplanner.ui.theme.OnBackgroundGray
 import com.example.smarttravelplanner.ui.theme.PlayfairFontFamily
 
+
 /**
  * Bottom sheet to add a new activity or edit an existing one.
  * If the place changes, its map coordinates are cleared (they belonged to the old place).
+ * Includes AI assistant option to regenerate or refine the stop using the edited fields.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-internal fun ActivityFormSheet(
+fun ActivityFormSheet(
     dayNumber: Int,
     existing: Activity?,
     onSave: (Activity) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onRegenerateWithAi: ((baseActivity: Activity, instructions: String, onComplete: (Activity) -> Unit) -> Unit)? = null,
+    isRegenerating: Boolean = false
 ) {
     var title by remember { mutableStateOf(existing?.title.orEmpty()) }
+
     var startTime by remember { mutableStateOf(existing?.startTime.orEmpty()) }
     var endTime by remember { mutableStateOf(existing?.endTime.orEmpty()) }
     var location by remember { mutableStateOf(existing?.location.orEmpty()) }
@@ -160,7 +178,140 @@ internal fun ActivityFormSheet(
                 Text("• $it", fontFamily = DmSansFontFamily, fontSize = 13.sp, color = MaterialTheme.colorScheme.error)
             }
 
+            if (onRegenerateWithAi != null) {
+                var showAiPrompt by remember { mutableStateOf(false) }
+                var aiInstruction by remember { mutableStateOf("") }
+                var isLocalAiBusy by remember { mutableStateOf(false) }
+
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    border = BorderStroke(1.dp, Amber.copy(alpha = 0.4f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = Amber,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = "AI Regenerate & Refine",
+                                    fontFamily = DmSansFontFamily,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            TextButton(
+                                onClick = { showAiPrompt = !showAiPrompt },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = if (showAiPrompt) "Hide options" else "Customize AI prompt",
+                                    fontSize = 12.sp,
+                                    color = Amber
+                                )
+                            }
+                        }
+
+                        Text(
+                            text = "Regenerate this stop with Gemini AI using your edited details above.",
+                            fontFamily = DmSansFontFamily,
+                            fontSize = 12.5.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        if (showAiPrompt) {
+                            OutlinedTextField(
+                                value = aiInstruction,
+                                onValueChange = { aiInstruction = it.take(150) },
+                                label = { Text("Special AI prompt (optional)") },
+                                placeholder = { Text("e.g. Suggest a rooftop café, or make it indoor") },
+                                colors = fieldColors,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                val cost = costText.toDoubleOrNull() ?: 0.0
+                                val base = (existing ?: Activity(itineraryId = 0, title = "")).copy(
+                                    title = title.trim(),
+                                    startTime = startTime.trim(),
+                                    endTime = endTime.trim(),
+                                    location = location.trim(),
+                                    estimatedCost = cost,
+                                    description = description.trim(),
+                                    category = category
+                                )
+                                isLocalAiBusy = true
+                                onRegenerateWithAi(base, aiInstruction) { newAct ->
+                                    isLocalAiBusy = false
+                                    title = newAct.title
+                                    if (newAct.startTime.isNotBlank()) startTime = newAct.startTime
+                                    if (newAct.endTime.isNotBlank()) endTime = newAct.endTime
+                                    location = newAct.location
+                                    if (newAct.estimatedCost > 0) costText = newAct.estimatedCost.toInt().toString()
+                                    description = newAct.description
+                                    category = newAct.category
+                                }
+                            },
+                            enabled = !isLocalAiBusy && !isRegenerating,
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, Amber),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (isLocalAiBusy || isRegenerating) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = Amber,
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = "Regenerating stop with AI...",
+                                    fontFamily = DmSansFontFamily,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Amber,
+                                    fontSize = 13.sp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Outlined.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = Amber,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    text = "Regenerate with AI from these details",
+                                    fontFamily = DmSansFontFamily,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Amber,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             Button(
+
                 onClick = {
                     val cost = costText.toDoubleOrNull() ?: 0.0
                     val found = TripEditor.validateActivity(title, startTime, endTime, cost)

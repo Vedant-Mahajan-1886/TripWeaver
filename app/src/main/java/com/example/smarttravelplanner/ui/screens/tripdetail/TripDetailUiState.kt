@@ -15,6 +15,13 @@ enum class TripDetailViewMode {
 }
 
 @Immutable
+data class DeletedActivitySnapshot(
+    val title: String,
+    val dayNumber: Int,
+    val previousItineraries: List<Itinerary>
+)
+
+@Immutable
 data class TripDetailUiState(
     val trip: Trip? = null,
     val itineraries: List<Itinerary> = emptyList(),
@@ -24,9 +31,14 @@ data class TripDetailUiState(
     val selectedActivityId: Long? = null,
     val isLoading: Boolean = true,
     val isLoadingWeather: Boolean = false,
+    val isRegenerating: Boolean = false,
+    val regeneratingActivityTitle: String? = null,
+    val lastDeletedActivity: DeletedActivitySnapshot? = null,
+    val userNotice: String? = null,
     val error: String? = null
 ) {
     val selectedItinerary: Itinerary?
+
         get() = itineraries.getOrNull(selectedDayIndex)
 
     val selectedDayWeather: DayWeather?

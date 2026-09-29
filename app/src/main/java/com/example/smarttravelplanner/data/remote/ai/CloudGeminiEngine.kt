@@ -180,4 +180,69 @@ class CloudGeminiEngine @Inject constructor(
             text.trim()
         }
     }
+
+    override suspend fun regenerateActivity(
+        destination: String,
+        dayNumber: Int,
+        currentActivity: com.example.smarttravelplanner.domain.model.Activity,
+        otherActivities: List<com.example.smarttravelplanner.domain.model.Activity>,
+        instructions: String,
+        model: String,
+        tripInterests: List<String>
+    ): Result<ActivityDto> = withContext(Dispatchers.IO) {
+        runCatching {
+            val prefs = userPreferencesRepository.userPreferences.first()
+            val apiKey = prefs.cloudApiKey.ifBlank { BuildConfig.GEMINI_API_KEY }.trim()
+            if (apiKey.isBlank()) {
+                throw IllegalStateException("Gemini API key is missing. Please set your API key in Settings.")
+            }
+
+            val resolvedModel = model.ifBlank {
+                prefs.cloudModel.ifBlank { "gemini-3.1-flash-lite" }
+            }.trim()
+
+            val userMessage = ItineraryPromptBuilder.buildActivityRegenerationMessage(
+                destination = destination,
+                dayNumber = dayNumber,
+                currentActivity = currentActivity,
+                otherActivities = otherActivities,
+                instructions = instructions,
+                tripInterests = tripInterests
+            )
+
+            val request = GeminiGenerateRequest(
+                systemInstruction = GeminiContent(
+                    parts = listOf(GeminiPart(text = ItineraryPromptBuilder.singleActivitySystemPrompt))
+                ),
+                contents = listOf(
+                    GeminiContent(
+                        role = "user",
+                        parts = listOf(GeminiPart(text = userMessage))
+                    )
+                ),
+                generationConfig = GeminiGenerationConfig(
+                    responseMimeType = "application/json",
+                    temperature = 0.5
+                )
+            )
+
+            val rawResponse = geminiApi.generateContent(
+                model = resolvedModel,
+                apiKey = apiKey,
+                request = request
+            )
+            if (!rawResponse.isSuccessful) {
+                val errorBody = rawResponse.errorBody()?.string() ?: "(no error body)"
+                throw IllegalStateException("Gemini error HTTP ${rawResponse.code()}: $errorBody")
+            }
+            val response = rawResponse.body()
+                ?: throw IllegalStateException("Gemini returned an empty response body.")
+
+            val text = response.candidates?.firstOrNull()?.content?.parts?.joinToString("\n") { it.text }
+                ?: throw IllegalStateException("Empty response from Gemini")
+
+            ItineraryJsonParser.parseSingleActivity(text, resolvedModel, gson)
+        }
+    }
 }
+

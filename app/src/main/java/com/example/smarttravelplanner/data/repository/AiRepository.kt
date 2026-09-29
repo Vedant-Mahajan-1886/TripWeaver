@@ -36,8 +36,16 @@ interface AiRepository {
         kids: Int = 0
     ): Result<GeneratedItineraryDto>
 
-    /**
-     * Sends a freeform chat message to the AI (for the AI assistant / explore screen).
-     */
     suspend fun chat(userMessage: String, model: String): Result<String>
+
+    suspend fun regenerateActivity(
+        destination: String,
+        dayNumber: Int,
+        currentActivity: com.example.smarttravelplanner.domain.model.Activity,
+        otherActivities: List<com.example.smarttravelplanner.domain.model.Activity>,
+        instructions: String = "",
+        model: String = "",
+        tripInterests: List<String> = emptyList()
+    ): Result<com.example.smarttravelplanner.data.remote.dto.ActivityDto>
 }
+

@@ -94,4 +94,45 @@ class LocalOllamaEngine @Inject constructor(
             content.replace(Regex("<think>[\\s\\S]*?</think>"), "").trim()
         }
     }
+
+    override suspend fun regenerateActivity(
+        destination: String,
+        dayNumber: Int,
+        currentActivity: com.example.smarttravelplanner.domain.model.Activity,
+        otherActivities: List<com.example.smarttravelplanner.domain.model.Activity>,
+        instructions: String,
+        model: String,
+        tripInterests: List<String>
+    ): Result<com.example.smarttravelplanner.data.remote.dto.ActivityDto> = withContext(Dispatchers.IO) {
+        runCatching {
+            val userMessage = ItineraryPromptBuilder.buildActivityRegenerationMessage(
+                destination = destination,
+                dayNumber = dayNumber,
+                currentActivity = currentActivity,
+                otherActivities = otherActivities,
+                instructions = instructions,
+                tripInterests = tripInterests
+            )
+
+            val response = ollamaApi.chat(
+                OllamaChatRequest(
+                    model = model.ifBlank { "qwen3.5:4b" },
+                    messages = listOf(
+                        OllamaMessage(role = "system", content = ItineraryPromptBuilder.singleActivitySystemPrompt),
+                        OllamaMessage(role = "user", content = userMessage)
+                    ),
+                    stream = false,
+                    format = "json",
+                    think = false
+                )
+            )
+
+            val raw = (response.message?.content?.takeIf { it.isNotBlank() }
+                ?: response.message?.thinking?.takeIf { it.isNotBlank() })
+                ?: error("Empty response from Ollama model '$model'")
+
+            ItineraryJsonParser.parseSingleActivity(raw, model, gson)
+        }
+    }
 }
+

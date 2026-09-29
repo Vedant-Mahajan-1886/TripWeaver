@@ -98,4 +98,49 @@ class AiRepositoryImpl @Inject constructor(
             cloudGeminiEngine.chat(userMessage, resolvedModel)
         }
     }
+
+    override suspend fun regenerateActivity(
+        destination: String,
+        dayNumber: Int,
+        currentActivity: com.example.smarttravelplanner.domain.model.Activity,
+        otherActivities: List<com.example.smarttravelplanner.domain.model.Activity>,
+        instructions: String,
+        model: String,
+        tripInterests: List<String>
+    ): Result<com.example.smarttravelplanner.data.remote.dto.ActivityDto> {
+        val prefs = userPreferencesRepository.userPreferences.first()
+
+        return if (prefs.aiProvider.equals("LOCAL", ignoreCase = true)) {
+            val resolvedModel = if (model.isNotBlank() && !model.startsWith("gemini")) {
+                model
+            } else {
+                prefs.ollamaModel.ifBlank { "qwen3.5:4b" }
+            }
+            localOllamaEngine.regenerateActivity(
+                destination = destination,
+                dayNumber = dayNumber,
+                currentActivity = currentActivity,
+                otherActivities = otherActivities,
+                instructions = instructions,
+                model = resolvedModel,
+                tripInterests = tripInterests
+            )
+        } else {
+            val resolvedModel = if (model.isNotBlank() && model.startsWith("gemini")) {
+                model
+            } else {
+                prefs.cloudModel.ifBlank { "gemini-3.1-flash-lite" }
+            }
+            cloudGeminiEngine.regenerateActivity(
+                destination = destination,
+                dayNumber = dayNumber,
+                currentActivity = currentActivity,
+                otherActivities = otherActivities,
+                instructions = instructions,
+                model = resolvedModel,
+                tripInterests = tripInterests
+            )
+        }
+    }
 }
+

@@ -62,6 +62,7 @@ import com.example.smarttravelplanner.domain.model.ActivityCategory
 import com.example.smarttravelplanner.domain.model.DayWeather
 import com.example.smarttravelplanner.domain.model.Itinerary
 import com.example.smarttravelplanner.domain.model.Trip
+import com.example.smarttravelplanner.ui.screens.tripedit.ActivityFormSheet
 import com.example.smarttravelplanner.ui.theme.*
 import com.example.smarttravelplanner.ui.screens.agentshare.SendToAgentButton
 import com.example.smarttravelplanner.util.DestinationImageHelper
@@ -77,6 +78,37 @@ fun TripDetailScreen(
     onEditClick: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Interactive target for editing / regenerating activity (dayIndex, activityIndex, activity)
+    var editingActivityTarget by remember { mutableStateOf<Triple<Int, Int, Activity>?>(null) }
+    var regeneratingActivityTarget by remember { mutableStateOf<Triple<Int, Int, Activity>?>(null) }
+
+    // "Removed X" with Undo
+    LaunchedEffect(uiState.lastDeletedActivity) {
+        val deleted = uiState.lastDeletedActivity ?: return@LaunchedEffect
+        val result = snackbarHostState.showSnackbar(
+            message = "Removed “${deleted.title}” from Day ${deleted.dayNumber}",
+            actionLabel = "Undo",
+            duration = SnackbarDuration.Short
+        )
+        if (result == SnackbarResult.ActionPerformed) {
+            viewModel.undoDelete()
+        } else {
+            viewModel.dismissUndo()
+        }
+    }
+
+    LaunchedEffect(uiState.userNotice) {
+        val notice = uiState.userNotice ?: return@LaunchedEffect
+        if (uiState.lastDeletedActivity == null) {
+            snackbarHostState.showSnackbar(
+                message = notice,
+                duration = SnackbarDuration.Short
+            )
+            viewModel.clearUserNotice()
+        }
+    }
 
     // Coming back from Edit trip: reload the trip's details (name, dates, budget…)
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refreshTrip() }
@@ -93,13 +125,82 @@ fun TripDetailScreen(
                 onRetry = onBackClick
             )
             uiState.trip != null -> TripDetailContent(
-                uiState          = uiState,
-                onBackClick      = onBackClick,
-                onEditClick      = onEditClick,
-                onDaySelect      = { viewModel.selectDay(it) },
-                onViewModeSelect = { viewModel.setViewMode(it) },
-                onActivitySelect = { viewModel.selectActivity(it) }
+                uiState              = uiState,
+                onBackClick          = onBackClick,
+                onEditClick          = onEditClick,
+                onDaySelect          = { viewModel.selectDay(it) },
+                onViewModeSelect     = { viewModel.setViewMode(it) },
+                onActivitySelect     = { viewModel.selectActivity(it) },
+                onDeleteActivity     = { dayIdx, actIdx -> viewModel.deleteActivity(dayIdx, actIdx) },
+                onEditActivity       = { dayIdx, actIdx, act -> editingActivityTarget = Triple(dayIdx, actIdx, act) },
+                onRegenerateActivity = { dayIdx, actIdx, act -> regeneratingActivityTarget = Triple(dayIdx, actIdx, act) }
             )
+        }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 76.dp)
+                .zIndex(99f)
+        )
+
+        // Activity Edit Sheet (Left Swipe action / Full swipe)
+        val editTarget = editingActivityTarget
+        if (editTarget != null) {
+            val (dayIdx, actIdx, act) = editTarget
+            val itin = uiState.itineraries.getOrNull(dayIdx)
+            if (itin != null) {
+                ActivityFormSheet(
+                    dayNumber = itin.dayNumber,
+                    existing = act,
+                    onSave = { updated ->
+                        viewModel.updateActivity(dayIdx, actIdx, updated)
+                        editingActivityTarget = null
+                    },
+                    onDismiss = { editingActivityTarget = null },
+                    onRegenerateWithAi = { base, instructions, onComplete ->
+                        viewModel.regenerateActivity(
+                            dayIndex = dayIdx,
+                            activityIndex = actIdx,
+                            instructions = instructions,
+                            baseActivity = base
+                        ) { res ->
+                            res.onSuccess { onComplete(it) }
+                        }
+                    },
+                    isRegenerating = uiState.isRegenerating
+                )
+            }
+        }
+
+        // Quick AI Regenerate Dialog
+        val regenTarget = regeneratingActivityTarget
+        if (regenTarget != null) {
+            val (dayIdx, actIdx, act) = regenTarget
+            val itin = uiState.itineraries.getOrNull(dayIdx)
+            if (itin != null) {
+                RegenerateActivityDialog(
+                    dayNumber = itin.dayNumber,
+                    activity = act,
+                    onDismiss = { regeneratingActivityTarget = null },
+                    onRegenerate = { instructions, onGenerated ->
+                        viewModel.regenerateActivity(
+                            dayIndex = dayIdx,
+                            activityIndex = actIdx,
+                            instructions = instructions,
+                            baseActivity = act
+                        ) { res ->
+                            res.onSuccess { onGenerated(it) }
+                        }
+                    },
+                    onApplyReplacement = { replacement ->
+                        viewModel.updateActivity(dayIdx, actIdx, replacement)
+                        regeneratingActivityTarget = null
+                    }
+                )
+            }
         }
 
         // Travel-agent feature: send this trip to agents (hidden on the map view)
@@ -124,8 +225,12 @@ private fun TripDetailContent(
     onEditClick: () -> Unit,
     onDaySelect: (Int) -> Unit,
     onViewModeSelect: (TripDetailViewMode) -> Unit,
-    onActivitySelect: (Long?) -> Unit
+    onActivitySelect: (Long?) -> Unit,
+    onDeleteActivity: (dayIndex: Int, activityIndex: Int) -> Unit = { _, _ -> },
+    onEditActivity: (dayIndex: Int, activityIndex: Int, activity: Activity) -> Unit = { _, _, _ -> },
+    onRegenerateActivity: (dayIndex: Int, activityIndex: Int, activity: Activity) -> Unit = { _, _, _ -> }
 ) {
+
     val trip        = uiState.trip!!
     val itineraries = uiState.itineraries
     val weather     = uiState.weather
@@ -517,14 +622,17 @@ private fun TripDetailContent(
                 when (mode) {
                     TripDetailViewMode.TIMELINE -> {
                         TimelineContent(
-                            trip = trip,
-                            uiState = uiState,
-                            itineraries = itineraries,
-                            weather = weather,
-                            context = context,
-                            onActivitySelect = onActivitySelect,
-                            onViewModeSelect = onViewModeSelect,
-                            lazyListState = timelineListState
+                            trip                 = trip,
+                            uiState              = uiState,
+                            itineraries          = itineraries,
+                            weather              = weather,
+                            context              = context,
+                            onActivitySelect     = onActivitySelect,
+                            onViewModeSelect     = onViewModeSelect,
+                            onDeleteActivity     = onDeleteActivity,
+                            onEditActivity       = onEditActivity,
+                            onRegenerateActivity = onRegenerateActivity,
+                            lazyListState        = timelineListState
                         )
                     }
                     TripDetailViewMode.BUDGET -> {
@@ -544,8 +652,52 @@ private fun TripDetailContent(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Timeline Mode View / Content (Weather + Activities)
+//  Timeline Mode View / Content (Weather + Activities + Swipe Interactions)
 // ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun SwipeGestureHintBar() {
+    var isDismissed by rememberSaveable { mutableStateOf(false) }
+    if (isDismissed) return
+
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = if (isDark) Color(0xFF132035) else Color(0xFFEFF6FF),
+        border = BorderStroke(0.8.dp, if (isDark) Color(0xFF1E3A5F) else Color(0xFFBFDBFE)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = "💡 Swipe left: Edit & AI Regenerate • Swipe right: Delete",
+                    fontFamily = DmSansFontFamily,
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (isDark) Color(0xFF93C5FD) else Color(0xFF1D4ED8)
+                )
+            }
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "Dismiss",
+                tint = if (isDark) Color(0xFF93C5FD) else Color(0xFF1D4ED8),
+                modifier = Modifier
+                    .size(14.dp)
+                    .clickable { isDismissed = true }
+            )
+        }
+    }
+}
+
 @Composable
 private fun TimelineContent(
     trip: Trip,
@@ -555,6 +707,9 @@ private fun TimelineContent(
     context: Context,
     onActivitySelect: (Long?) -> Unit,
     onViewModeSelect: (TripDetailViewMode) -> Unit,
+    onDeleteActivity: (dayIndex: Int, activityIndex: Int) -> Unit = { _, _ -> },
+    onEditActivity: (dayIndex: Int, activityIndex: Int, activity: Activity) -> Unit = { _, _, _ -> },
+    onRegenerateActivity: (dayIndex: Int, activityIndex: Int, activity: Activity) -> Unit = { _, _, _ -> },
     lazyListState: LazyListState = rememberLazyListState()
 ) {
     LazyColumn(
@@ -572,17 +727,17 @@ private fun TimelineContent(
                 item(key = "day_weather_capsule") {
                     Spacer(Modifier.height(4.dp))
                     DayWeatherBar(dayWeather = currentDayWeather)
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(6.dp))
                 }
             } else if (uiState.isLoadingWeather) {
                 item(key = "day_weather_loading") {
                     Spacer(Modifier.height(4.dp))
                     DayWeatherLoadingBar()
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(6.dp))
                 }
             }
 
-            // 2. Day Itinerary Activities with Material 3 Expressive Transition
+            // 2. Day Itinerary Activities with Material 3 Expressive Transition & Swipeable Cards
             item(key = "day_activities_wrapper") {
                 AnimatedContent(
                     targetState = uiState.selectedDayIndex,
@@ -631,26 +786,40 @@ private fun TimelineContent(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
+                            SwipeGestureHintBar()
+                            Spacer(Modifier.height(4.dp))
+
                             currentItinerary.activities.forEachIndexed { idx, activity ->
-                                ActivityCard(
-                                    activityIndex = idx,
-                                    activity = activity,
-                                    isLast = idx == currentItinerary.activities.lastIndex,
-                                    onViewOnMap = {
-                                        onActivitySelect(activity.id)
-                                        onViewModeSelect(TripDetailViewMode.VISUALIZE)
-                                    },
-                                    onNavigate = {
-                                        if (MapUtils.isValidCoord(activity.lat, activity.lng)) {
-                                            MapUtils.launchGoogleMapsDirections(
-                                                context = context,
-                                                lat     = activity.lat!!,
-                                                lng     = activity.lng!!,
-                                                label   = activity.location.ifBlank { activity.title }
-                                            )
-                                        }
+                                key(activity.id.takeIf { it != 0L } ?: "${dayIdx}_${activity.title}_$idx") {
+                                    SwipeableActivityCard(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp),
+                                        onDelete = { onDeleteActivity(dayIdx, idx) },
+                                        onEdit = { onEditActivity(dayIdx, idx, activity) },
+                                        onRegenerate = { onRegenerateActivity(dayIdx, idx, activity) }
+                                    ) {
+                                        ActivityCard(
+                                            activityIndex = idx,
+                                            activity = activity,
+                                            isLast = idx == currentItinerary.activities.lastIndex,
+                                            onViewOnMap = {
+                                                onActivitySelect(activity.id)
+                                                onViewModeSelect(TripDetailViewMode.VISUALIZE)
+                                            },
+                                            onNavigate = {
+                                                if (MapUtils.isValidCoord(activity.lat, activity.lng)) {
+                                                    MapUtils.launchGoogleMapsDirections(
+                                                        context = context,
+                                                        lat     = activity.lat!!,
+                                                        lng     = activity.lng!!,
+                                                        label   = activity.location.ifBlank { activity.title }
+                                                    )
+                                                }
+                                            }
+                                        )
                                     }
-                                )
+                                }
                             }
                         }
                     }
@@ -681,17 +850,24 @@ private fun TimelineModeView(
     onDaySelect: (Int) -> Unit = {},
     onActivitySelect: (Long?) -> Unit,
     onViewModeSelect: (TripDetailViewMode) -> Unit,
+    onDeleteActivity: (dayIndex: Int, activityIndex: Int) -> Unit = { _, _ -> },
+    onEditActivity: (dayIndex: Int, activityIndex: Int, activity: Activity) -> Unit = { _, _, _ -> },
+    onRegenerateActivity: (dayIndex: Int, activityIndex: Int, activity: Activity) -> Unit = { _, _, _ -> },
     lazyListState: LazyListState = rememberLazyListState()
 ) = TimelineContent(
-    trip = trip,
-    uiState = uiState,
-    itineraries = itineraries,
-    weather = weather,
-    context = context,
-    onActivitySelect = onActivitySelect,
-    onViewModeSelect = onViewModeSelect,
-    lazyListState = lazyListState
+    trip                 = trip,
+    uiState              = uiState,
+    itineraries          = itineraries,
+    weather              = weather,
+    context              = context,
+    onActivitySelect     = onActivitySelect,
+    onViewModeSelect     = onViewModeSelect,
+    onDeleteActivity     = onDeleteActivity,
+    onEditActivity       = onEditActivity,
+    onRegenerateActivity = onRegenerateActivity,
+    lazyListState        = lazyListState
 )
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Visualize (Map) Mode View / Content (Cached State & Minimal First-Time Loader)
@@ -1543,7 +1719,6 @@ private fun ActivityCard(
         modifier = Modifier
             .fillMaxWidth()
             .height(IntrinsicSize.Min)
-            .padding(horizontal = 16.dp)
     ) {
         // Timeline Column (Node + Spine)
         Column(
