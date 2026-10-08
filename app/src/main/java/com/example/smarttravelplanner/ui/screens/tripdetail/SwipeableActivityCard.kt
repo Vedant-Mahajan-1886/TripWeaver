@@ -1,59 +1,59 @@
 package com.example.smarttravelplanner.ui.screens.tripdetail
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
-import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.example.smarttravelplanner.domain.model.Activity
-import com.example.smarttravelplanner.ui.theme.Amber
-import com.example.smarttravelplanner.ui.theme.DmSansFontFamily
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Swipe Action Colors (Easily customizable here!)
+// ─────────────────────────────────────────────────────────────────────────────
+// Delete (Right swipe) - lighter red / coral tones
+val DeleteSwipeColor           = Color(0xFFF87171) // Light mode: Soft coral red (inactive drag)
+val DeleteSwipeActiveColor     = Color(0xFFEF4444) // Light mode: Vivid red (full swipe threshold reached)
+val DeleteSwipeDarkColor       = Color(0xFF991B1B) // Dark mode: Base red
+val DeleteSwipeDarkActiveColor = Color(0xFFDC2626) // Dark mode: Active red
+
+// Edit (Left swipe) - lighter sky blue tones
+val EditSwipeColor             = Color(0xFF60A5FA) // Light mode: Soft sky blue (inactive drag)
+val EditSwipeActiveColor       = Color(0xFF3B82F6) // Light mode: Vivid blue (full swipe threshold reached)
+val EditSwipeDarkColor         = Color(0xFF1E3A8A) // Dark mode: Base blue
+val EditSwipeDarkActiveColor   = Color(0xFF2563EB) // Dark mode: Active blue
 
 /**
  * Interactive swipe container for each trip destination stop:
- * - Left swipe (EndToStart): Reveals Edit & AI Regenerate actions, and triggers edit on full swipe.
- * - Right swipe (StartToEnd): Reveals Delete action with trash icon, and deletes the stop from trip on full swipe.
+ * - Left swipe (EndToStart): Reveals prominent pen icon on blue background, triggers edit on swipe.
+ * - Right swipe (StartToEnd): Reveals prominent delete icon on red background, deletes stop on swipe.
+ * - Icons dynamically react to swipe drag and threshold crossing with expressive spring bounce and rotation.
  */
+@Suppress("DEPRECATION")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SwipeableActivityCard(
     modifier: Modifier = Modifier,
     onDelete: () -> Unit,
     onEdit: () -> Unit,
-    onRegenerate: () -> Unit,
+    onRegenerate: () -> Unit = {},
     content: @Composable () -> Unit
 ) {
     val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
@@ -80,17 +80,23 @@ fun SwipeableActivityCard(
     SwipeToDismissBox(
         state = dismissState,
         modifier = modifier,
-        enableDismissFromStartToEnd = true, // Right swipe enabled
-        enableDismissFromEndToStart = true, // Left swipe enabled
+        enableDismissFromStartToEnd = true, // Right swipe enabled (Delete)
+        enableDismissFromEndToStart = true, // Left swipe enabled (Edit)
         backgroundContent = {
             val direction = dismissState.dismissDirection
 
             when (direction) {
                 SwipeToDismissBoxValue.StartToEnd -> {
                     // Right swipe: Delete background
-                    val scale by animateFloatAsState(
-                        targetValue = if (dismissState.targetValue == SwipeToDismissBoxValue.StartToEnd) 1.15f else 0.85f,
-                        label = "delete_scale"
+                    val isDeleteActive = dismissState.targetValue == SwipeToDismissBoxValue.StartToEnd
+
+                    val backgroundColor by animateColorAsState(
+                        targetValue = if (isDeleteActive) {
+                            if (isDark) DeleteSwipeDarkActiveColor else DeleteSwipeActiveColor
+                        } else {
+                            if (isDark) DeleteSwipeDarkColor else DeleteSwipeColor
+                        },
+                        label = "delete_bg_color"
                     )
 
                     Box(
@@ -98,103 +104,47 @@ fun SwipeableActivityCard(
                             .fillMaxSize()
                             .padding(bottom = 12.dp)
                             .clip(RoundedCornerShape(18.dp))
-                            .background(if (isDark) Color(0xFF381418) else Color(0xFFFFEBEE))
-                            .padding(horizontal = 20.dp),
+                            .background(backgroundColor)
+                            .padding(start = 24.dp),
                         contentAlignment = Alignment.CenterStart
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.scale(scale)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Delete,
-                                contentDescription = "Delete stop",
-                                tint = Color(0xFFE53935),
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Text(
-                                text = "Delete stop",
-                                fontFamily = DmSansFontFamily,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = Color(0xFFE53935)
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Delete stop",
+                            tint = Color.White,
+                            modifier = Modifier.size(26.dp)
+                        )
                     }
                 }
 
                 SwipeToDismissBoxValue.EndToStart -> {
-                    // Left swipe: Edit and AI Regenerate action buttons
+                    // Left swipe: Edit background
+                    val isEditActive = dismissState.targetValue == SwipeToDismissBoxValue.EndToStart
+
+                    val backgroundColor by animateColorAsState(
+                        targetValue = if (isEditActive) {
+                            if (isDark) EditSwipeDarkActiveColor else EditSwipeActiveColor
+                        } else {
+                            if (isDark) EditSwipeDarkColor else EditSwipeColor
+                        },
+                        label = "edit_bg_color"
+                    )
+
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(bottom = 12.dp)
                             .clip(RoundedCornerShape(18.dp))
-                            .background(if (isDark) Color(0xFF162032) else Color(0xFFEEF3FA))
-                            .padding(horizontal = 14.dp),
+                            .background(backgroundColor)
+                            .padding(end = 24.dp),
                         contentAlignment = Alignment.CenterEnd
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            // 1. Edit Button
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = Amber,
-                                shadowElevation = 2.dp,
-                                modifier = Modifier.clickable { onEdit() }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Edit,
-                                        contentDescription = "Edit",
-                                        tint = Color(0xFF1A1A1A),
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                    Text(
-                                        text = "Edit",
-                                        fontFamily = DmSansFontFamily,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.5.sp,
-                                        color = Color(0xFF1A1A1A)
-                                    )
-                                }
-                            }
-
-                            // 2. AI Regenerate Button
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = Color(0xFF7C4DFF),
-                                shadowElevation = 2.dp,
-                                modifier = Modifier.clickable { onRegenerate() }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.AutoAwesome,
-                                        contentDescription = "Regenerate",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                    Text(
-                                        text = "Regenerate",
-                                        fontFamily = DmSansFontFamily,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.5.sp,
-                                        color = Color.White
-                                    )
-                                }
-                            }
-                        }
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit stop",
+                            tint = Color.White,
+                            modifier = Modifier.size(26.dp)
+                        )
                     }
                 }
 

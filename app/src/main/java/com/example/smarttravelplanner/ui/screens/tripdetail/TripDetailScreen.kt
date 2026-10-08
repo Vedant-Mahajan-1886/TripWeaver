@@ -654,49 +654,6 @@ private fun TripDetailContent(
 // ─────────────────────────────────────────────────────────────────────────────
 //  Timeline Mode View / Content (Weather + Activities + Swipe Interactions)
 // ─────────────────────────────────────────────────────────────────────────────
-@Composable
-private fun SwipeGestureHintBar() {
-    var isDismissed by rememberSaveable { mutableStateOf(false) }
-    if (isDismissed) return
-
-    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = if (isDark) Color(0xFF132035) else Color(0xFFEFF6FF),
-        border = BorderStroke(0.8.dp, if (isDark) Color(0xFF1E3A5F) else Color(0xFFBFDBFE)),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = "💡 Swipe left: Edit & AI Regenerate • Swipe right: Delete",
-                    fontFamily = DmSansFontFamily,
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = if (isDark) Color(0xFF93C5FD) else Color(0xFF1D4ED8)
-                )
-            }
-            Icon(
-                imageVector = Icons.Default.Close,
-                contentDescription = "Dismiss",
-                tint = if (isDark) Color(0xFF93C5FD) else Color(0xFF1D4ED8),
-                modifier = Modifier
-                    .size(14.dp)
-                    .clickable { isDismissed = true }
-            )
-        }
-    }
-}
 
 @Composable
 private fun TimelineContent(
@@ -786,9 +743,6 @@ private fun TimelineContent(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            SwipeGestureHintBar()
-                            Spacer(Modifier.height(4.dp))
-
                             currentItinerary.activities.forEachIndexed { idx, activity ->
                                 key(activity.id.takeIf { it != 0L } ?: "${dayIdx}_${activity.title}_$idx") {
                                     SwipeableActivityCard(
