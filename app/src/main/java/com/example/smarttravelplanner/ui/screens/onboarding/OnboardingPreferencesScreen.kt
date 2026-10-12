@@ -35,9 +35,13 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -123,18 +127,39 @@ fun OnboardingPreferencesScreen(
                     .padding(top = 10.dp, bottom = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // 1. Clean Header (No hamburger menu: Title on left, "Skip this" on right)
+                // 1. Clean Header (No hamburger menu: Title styled like "Explore India" / "My Trips", "Skip this" on right)
+                val isLightMode = MaterialTheme.colorScheme.background.luminance() > 0.5f
+                val preferencesAccentColor = if (isLightMode) AmberDark else Amber
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = if (isEditMode) "Edit Preferences" else "Choose Preferences",
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = PlayfairFontFamily,
-                        color = onSurfaceColor,
+                        text = buildAnnotatedString {
+                            withStyle(
+                                SpanStyle(
+                                    fontFamily = PlayfairFontFamily,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 28.sp,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                )
+                            ) {
+                                append(if (isEditMode) "Edit " else "Choose ")
+                            }
+                            withStyle(
+                                SpanStyle(
+                                    fontFamily = PlayfairFontFamily,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontStyle = FontStyle.Italic,
+                                    fontSize = 28.sp,
+                                    color = preferencesAccentColor
+                                )
+                            ) {
+                                append("Preferences")
+                            }
+                        },
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
@@ -156,50 +181,7 @@ fun OnboardingPreferencesScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // 2. Progress Indicator directly below the header
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        val currentDisplay = (uiState.currentIndex + 1).coerceAtMost(uiState.totalCards)
-                        Text(
-                            text = "Card $currentDisplay of ${uiState.totalCards}",
-                            fontSize = 12.sp,
-                            color = mutedColor,
-                            fontFamily = DmSansFontFamily,
-                            fontWeight = FontWeight.Medium
-                        )
-
-                        val likedCount = uiState.likedInterestIds.size
-                        if (likedCount > 0) {
-                            Text(
-                                text = "$likedCount vibe${if (likedCount > 1) "s" else ""} liked",
-                                fontSize = 12.sp,
-                                color = CompletedGreen,
-                                fontFamily = DmSansFontFamily,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    LinearProgressIndicator(
-                        progress = { uiState.progress },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(4.dp)
-                            .clip(RoundedCornerShape(2.dp)),
-                        color = Amber,
-                        trackColor = if (isDark) CardBorderDark else CardBorderLight
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // 3. Card Stack: occupies remaining available vertical space smoothly
                 Box(
@@ -509,7 +491,7 @@ private fun TinderCardView(
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Gradient Scrim for crystal clear readability across bright and dark regions
+            // Gradient Scrim for crystal clear readability behind title
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -517,11 +499,11 @@ private fun TinderCardView(
                         Brush.verticalGradient(
                             colors = listOf(
                                 Color.Transparent,
-                                Color(0x1A000000),
-                                Color(0x88000000),
-                                Color(0xF00A0A0A)
+                                Color.Transparent,
+                                Color(0x44000000),
+                                Color(0xDD0A0A0A)
                             ),
-                            startY = 220f
+                            startY = 350f
                         )
                     )
             )
@@ -616,54 +598,20 @@ private fun TinderCardView(
                 }
             }
 
-            // Card Text Details
-            Column(
+            // Prominent Card Title
+            Box(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .fillMaxWidth()
-                    .padding(20.dp)
+                    .padding(horizontal = 22.dp, vertical = 22.dp)
             ) {
-                // Category Pill Badge
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Amber.copy(alpha = 0.25f))
-                        .border(1.dp, Amber.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = card.category.uppercase(),
-                        color = AmberLight,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = DmSansFontFamily,
-                        letterSpacing = 1.sp
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Title
                 Text(
                     text = card.title,
-                    fontSize = 26.sp,
+                    fontSize = 32.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = PlayfairFontFamily,
                     color = Color.White,
                     maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                // Description
-                Text(
-                    text = card.description,
-                    fontSize = 13.sp,
-                    fontFamily = DmSansFontFamily,
-                    color = Color.White.copy(alpha = 0.90f),
-                    lineHeight = 18.sp,
-                    maxLines = 3,
                     overflow = TextOverflow.Ellipsis
                 )
             }
