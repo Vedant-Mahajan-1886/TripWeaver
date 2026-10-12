@@ -2,15 +2,14 @@ package com.example.smarttravelplanner.data.repository
 
 import com.example.smarttravelplanner.data.remote.dto.GeneratedItineraryDto
 import com.example.smarttravelplanner.domain.model.DayWeather
+import com.example.smarttravelplanner.domain.model.UserTravelPreferences
 
 interface AiRepository {
     /**
-     * Generates a structured travel itinerary using Ollama in JSON mode.
+     * Generates a structured travel itinerary using Ollama or Gemini in JSON mode.
      *
      * The response is a fully parsed [GeneratedItineraryDto] with day-by-day
      * activities, place names, coordinates, timings and cost estimates.
-     * In Track B, real place data from Google Places will be injected into
-     * the prompt before calling Ollama, so all coordinates will be verified.
      *
      * @param destination      Target travel destination (e.g. "Rajasthan, India")
      * @param days             Number of days for the trip
@@ -19,8 +18,9 @@ interface AiRepository {
      * @param travelStyle      Pacing preference: "relaxed" | "balanced" | "packed"
      * @param startDate        ISO-8601 start date (e.g. "2024-10-15")
      * @param notes            Additional user instructions for the AI
-     * @param model            Ollama model name (default "llama3.2")
+     * @param model            AI model name
      * @param weatherForecast  Optional forecasted weather conditions for the trip dates
+     * @param userPreferences  Optional account-scoped saved travel style preferences
      */
     suspend fun generateItinerary(
         destination: String,
@@ -33,7 +33,8 @@ interface AiRepository {
         model: String,
         weatherForecast: List<DayWeather>? = null,
         adults: Int = 1,
-        kids: Int = 0
+        kids: Int = 0,
+        userPreferences: UserTravelPreferences? = null
     ): Result<GeneratedItineraryDto>
 
     suspend fun chat(userMessage: String, model: String): Result<String>
@@ -45,7 +46,8 @@ interface AiRepository {
         otherActivities: List<com.example.smarttravelplanner.domain.model.Activity>,
         instructions: String = "",
         model: String = "",
-        tripInterests: List<String> = emptyList()
+        tripInterests: List<String> = emptyList(),
+        userPreferences: UserTravelPreferences? = null
     ): Result<com.example.smarttravelplanner.data.remote.dto.ActivityDto>
 }
 

@@ -465,4 +465,135 @@ class OnboardingViewModelTest {
             assertTrue("Card description must be informative", card.description.length > 20)
         }
     }
+
+    @Test
+    fun editModeStartsAtCardZeroEvenWhenAllCardsPreviouslyDecided() = runBlocking {
+        val email = "traveler.edit@example.com"
+        userPreferencesRepository.initializeNewAccountOnboarding(email)
+
+        // Complete all 12 cards in first-time onboarding
+        viewModel.loadPreferencesForAccount(email, isEdit = false).join()
+        for (i in 0 until DefaultPreferenceDeck.cards.size) {
+            viewModel.onCardAction(if (i % 2 == 0) CardAction.LIKE else CardAction.DISLIKE)?.join()
+        }
+        val prefsAfterOnboarding = userPreferencesRepository.getTravelPreferencesOnce(email)
+        assertEquals(OnboardingStatus.COMPLETED, prefsAfterOnboarding.onboardingStatus)
+        assertEquals(12, prefsAfterOnboarding.preferenceWeights.size)
+
+        // Now open in Edit Mode from Profile
+        viewModel.loadPreferencesForAccount(email, isEdit = true).join()
+        val editState = viewModel.uiState.value
+
+        assertEquals("Edit mode must start at card 0 to allow review/editing", 0, editState.currentIndex)
+        assertFalse("Must not show finished deck initially in edit mode", editState.isFinishedDeck)
+        assertEquals(prefsAfterOnboarding.likedInterestIds, editState.likedInterestIds)
+        assertEquals(prefsAfterOnboarding.dislikedInterestIds, editState.dislikedInterestIds)
+        assertEquals(prefsAfterOnboarding.preferenceWeights, editState.preferenceWeights)
+    }
+
+    @Test
+    fun editModeEditingSingleDecisionDoesNotAlterUnrelatedDecisions() = runBlocking {
+        val email = "traveler.isolate@example.com"
+        userPreferencesRepository.initializeNewAccountOnboarding(email)
+
+        val card0 = DefaultPreferenceDeck.cards[0].id
+        val card1 = DefaultPreferenceDeck.cards[1].id
+        val card2 = DefaultPreferenceDeck.cards[2].id
+
+        // Pre-populate preferences: card0 liked (+1.0), card1 strongly preferred (+2.0), card2 disliked (-1.0)
+        userPreferencesRepository.updateTravelPreferences(
+            email = email,
+            liked = setOf(card0, card1),
+            stronglyPreferred = setOf(card1),
+            disliked = setOf(card2),
+            weights = mapOf(card0 to 1.0f, card1 to 2.0f, card2 to -1.0f)
+        )
+        userPreferencesRepository.updateOnboardingStatus(email, OnboardingStatus.COMPLETED)
+
+        // Load in Edit mode
+        viewModel.loadPreferencesForAccount(email, isEdit = true).join()
+        assertEquals(0, viewModel.uiState.value.currentIndex)
+
+        // Change card0 from LIKE to DISLIKE
+        viewModel.onCardAction(CardAction.DISLIKE)?.join()
+
+        val updatedPrefs = userPreferencesRepository.getTravelPreferencesOnce(email)
+
+        // Verify card0 is updated to DISLIKE
+        assertFalse("Card 0 must no longer be liked", updatedPrefs.likedInterestIds.contains(card0))
+        assertTrue("Card 0 must now be disliked", updatedPrefs.dislikedInterestIds.contains(card0))
+        assertEquals(-1.0f, updatedPrefs.preferenceWeights[card0] ?: 0f, 0.01f)
+
+        // Verify unrelated choices (card1 and card2) remain completely intact
+        assertTrue("Card 1 must still be liked", updatedPrefs.likedInterestIds.contains(card1))
+        assertTrue("Card 1 must still be strongly preferred", updatedPrefs.stronglyPreferredInterestIds.contains(card1))
+        assertEquals(2.0f, updatedPrefs.preferenceWeights[card1] ?: 0f, 0.01f)
+
+        assertTrue("Card 2 must still be disliked", updatedPrefs.dislikedInterestIds.contains(card2))
+        assertEquals(-1.0f, updatedPrefs.preferenceWeights[card2] ?: 0f, 0.01f)
+    }
+
+    @Test
+    fun editModeUndoRestoresPreviousDecisionAndIndex() = runBlocking {
+        val email = "traveler.undo.edit@example.com"
+        userPreferencesRepository.initializeNewAccountOnboarding(email)
+
+        val card0 = DefaultPreferenceDeck.cards[0].id
+        userPreferencesRepository.updateTravelPreferences(
+            email = email,
+            liked = setOf(card0),
+            stronglyPreferred = emptySet(),
+            disliked = emptySet(),
+            weights = mapOf(card0 to 1.0f)
+        )
+        userPreferencesRepository.updateOnboardingStatus(email, OnboardingStatus.COMPLETED)
+
+        viewModel.loadPreferencesForAccount(email, isEdit = true).join()
+
+        // Edit card0 to STRONG_PREFERENCE (+2.0)
+        viewModel.onCardAction(CardAction.STRONG_PREFERENCE)?.join()
+        assertEquals(1, viewModel.uiState.value.currentIndex)
+        assertTrue(viewModel.uiState.value.stronglyPreferredInterestIds.contains(card0))
+
+        // Tap Undo
+        viewModel.undoLastAction()?.join()
+        val stateAfterUndo = viewModel.uiState.value
+        assertEquals("Index must revert to 0", 0, stateAfterUndo.currentIndex)
+        assertTrue("Card 0 must still be liked", stateAfterUndo.likedInterestIds.contains(card0))
+        assertFalse("Card 0 must no longer be strongly preferred", stateAfterUndo.stronglyPreferredInterestIds.contains(card0))
+        assertEquals(1.0f, stateAfterUndo.preferenceWeights[card0] ?: 0f, 0.01f)
+
+        val persisted = userPreferencesRepository.getTravelPreferencesOnce(email)
+        assertFalse("Persisted stronglyPreferred must be reverted", persisted.stronglyPreferredInterestIds.contains(card0))
+        assertEquals(1.0f, persisted.preferenceWeights[card0] ?: 0f, 0.01f)
+    }
+
+    @Test
+    fun editModePreservesOnboardingStatusAcrossEditsUndosAndCompletion() = runBlocking {
+        val email = "traveler.status.preserve@example.com"
+        userPreferencesRepository.initializeNewAccountOnboarding(email)
+        userPreferencesRepository.updateOnboardingStatus(email, OnboardingStatus.COMPLETED)
+
+        viewModel.loadPreferencesForAccount(email, isEdit = true).join()
+
+        // 1. Perform card action
+        viewModel.onCardAction(CardAction.LIKE)?.join()
+        var persisted = userPreferencesRepository.getTravelPreferencesOnce(email)
+        assertEquals("Onboarding status must remain COMPLETED after card edit", OnboardingStatus.COMPLETED, persisted.onboardingStatus)
+
+        // 2. Perform Undo
+        viewModel.undoLastAction()?.join()
+        persisted = userPreferencesRepository.getTravelPreferencesOnce(email)
+        assertEquals("Onboarding status must remain COMPLETED after undo", OnboardingStatus.COMPLETED, persisted.onboardingStatus)
+
+        // 3. Complete editing
+        viewModel.completeOnboarding()?.join()
+        persisted = userPreferencesRepository.getTravelPreferencesOnce(email)
+        assertEquals("Onboarding status must remain COMPLETED after completeOnboarding", OnboardingStatus.COMPLETED, persisted.onboardingStatus)
+
+        // 4. Skip action (if triggered)
+        viewModel.skipOnboarding()?.join()
+        persisted = userPreferencesRepository.getTravelPreferencesOnce(email)
+        assertEquals("Onboarding status must remain COMPLETED after skipOnboarding in edit mode", OnboardingStatus.COMPLETED, persisted.onboardingStatus)
+    }
 }

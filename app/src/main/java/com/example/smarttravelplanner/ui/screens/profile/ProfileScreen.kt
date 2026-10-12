@@ -63,6 +63,7 @@ fun ProfileScreen(
     onCloseClick: () -> Unit = {},
     onNavigateToMyProfile: () -> Unit = {},
     onNavigateToManagePayments: () -> Unit = {},
+    onNavigateToPreferences: () -> Unit = {},
     onNavigateToWishlist: () -> Unit = {},
     onLogoutClick: () -> Unit = {}
 ) {
@@ -112,11 +113,11 @@ fun ProfileScreen(
             ) {
                 QuickActionCard(
                     modifier = Modifier.weight(1f),
-                    title = "Wishlist",
-                    icon = Icons.Filled.Favorite,
-                    iconBg = Color(0xFFF87171).copy(alpha = 0.15f),
-                    iconTint = Color(0xFFF87171),
-                    onClick = onNavigateToWishlist
+                    title = "Preferences",
+                    icon = Icons.Outlined.Tune,
+                    iconBg = Color(0xFFA855F7).copy(alpha = 0.15f),
+                    iconTint = Color(0xFFA855F7),
+                    onClick = onNavigateToPreferences
                 )
 
                 QuickActionCard(

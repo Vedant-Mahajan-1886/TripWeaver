@@ -1,5 +1,6 @@
 package com.example.smarttravelplanner.ui.screens.onboarding
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
@@ -63,15 +64,20 @@ fun OnboardingPreferencesScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
+    BackHandler(enabled = isEditMode) {
+        onComplete()
+    }
+
     LaunchedEffect(isEditMode) {
         viewModel.isEditMode = isEditMode
     }
 
-    LaunchedEffect(userEmail) {
+    LaunchedEffect(userEmail, isEditMode) {
+        viewModel.isEditMode = isEditMode
         if (!userEmail.isNullOrBlank()) {
-            viewModel.loadPreferencesForAccount(userEmail)
+            viewModel.loadPreferencesForAccount(userEmail, isEdit = isEditMode)
         } else {
-            viewModel.startWithSessionUser()
+            viewModel.startWithSessionUser(isEdit = isEditMode)
         }
     }
 
@@ -116,7 +122,14 @@ fun OnboardingPreferencesScreen(
                 FinishedDeckView(
                     uiState = uiState,
                     isDark = isDark,
-                    onContinue = { viewModel.completeOnboarding() }
+                    isEditMode = isEditMode,
+                    onContinue = {
+                        if (isEditMode) {
+                            onComplete()
+                        } else {
+                            viewModel.completeOnboarding()
+                        }
+                    }
                 )
             }
         } else {
@@ -165,7 +178,20 @@ fun OnboardingPreferencesScreen(
                         modifier = Modifier.weight(1f, fill = false)
                     )
 
-                    if (!isEditMode && !uiState.isFinishedDeck) {
+                    if (isEditMode) {
+                        TextButton(
+                            onClick = onComplete,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "Done",
+                                color = Amber,
+                                fontSize = 14.sp,
+                                fontFamily = DmSansFontFamily,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    } else if (!uiState.isFinishedDeck) {
                         TextButton(
                             onClick = { viewModel.skipOnboarding() },
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
@@ -756,6 +782,7 @@ private fun BottomActionControls(
 private fun FinishedDeckView(
     uiState: OnboardingUiState,
     isDark: Boolean,
+    isEditMode: Boolean = false,
     onContinue: () -> Unit
 ) {
     val surfaceColor = if (isDark) SurfaceDark else SurfaceLight
@@ -803,7 +830,10 @@ private fun FinishedDeckView(
             )
 
             Text(
-                text = "Your travel tastes have been recorded. We'll use these to customize your AI recommendations and personalized itineraries.",
+                text = if (isEditMode)
+                    "Your updated travel tastes have been saved to your profile. We'll use these to customize your AI recommendations and personalized itineraries."
+                else
+                    "Your travel tastes have been recorded. We'll use these to customize your AI recommendations and personalized itineraries.",
                 fontSize = 14.sp,
                 fontFamily = DmSansFontFamily,
                 color = mutedColor,
@@ -852,7 +882,7 @@ private fun FinishedDeckView(
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Text(
-                    text = "Start Planning",
+                    text = if (isEditMode) "Done" else "Start Planning",
                     color = Color.Black,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,

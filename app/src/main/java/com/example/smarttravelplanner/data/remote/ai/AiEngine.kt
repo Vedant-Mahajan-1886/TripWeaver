@@ -2,6 +2,7 @@ package com.example.smarttravelplanner.data.remote.ai
 
 import com.example.smarttravelplanner.data.remote.dto.GeneratedItineraryDto
 import com.example.smarttravelplanner.domain.model.DayWeather
+import com.example.smarttravelplanner.domain.model.UserTravelPreferences
 
 /**
  * Common abstraction for AI itinerary generation engines (Local Ollama vs Cloud Gemini).
@@ -21,7 +22,8 @@ interface AiEngine {
         weatherForecast: List<DayWeather>? = null,
         enableWebGrounding: Boolean = false,
         adults: Int = 1,
-        kids: Int = 0
+        kids: Int = 0,
+        userPreferences: UserTravelPreferences? = null
     ): Result<GeneratedItineraryDto>
 
     suspend fun chat(userMessage: String, model: String): Result<String>
@@ -33,7 +35,8 @@ interface AiEngine {
         otherActivities: List<com.example.smarttravelplanner.domain.model.Activity>,
         instructions: String = "",
         model: String,
-        tripInterests: List<String> = emptyList()
+        tripInterests: List<String> = emptyList(),
+        userPreferences: UserTravelPreferences? = null
     ): Result<com.example.smarttravelplanner.data.remote.dto.ActivityDto>
 }
 

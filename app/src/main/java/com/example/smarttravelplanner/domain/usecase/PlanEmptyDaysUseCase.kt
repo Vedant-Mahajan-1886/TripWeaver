@@ -2,6 +2,7 @@ package com.example.smarttravelplanner.domain.usecase
 
 import com.example.smarttravelplanner.data.remote.dto.ActivityDto
 import com.example.smarttravelplanner.data.repository.AiRepository
+import com.example.smarttravelplanner.data.repository.AuthRepository
 import com.example.smarttravelplanner.data.repository.ItineraryRepository
 import com.example.smarttravelplanner.data.repository.TripEditRepository
 import com.example.smarttravelplanner.data.repository.TripRepository
@@ -10,6 +11,7 @@ import com.example.smarttravelplanner.domain.model.Activity
 import com.example.smarttravelplanner.domain.model.ActivityCategory
 import com.example.smarttravelplanner.domain.model.Itinerary
 import com.example.smarttravelplanner.domain.model.Trip
+import com.example.smarttravelplanner.domain.model.UserTravelPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -31,14 +33,20 @@ class PlanEmptyDaysUseCase @Inject constructor(
     private val aiRepository: AiRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val getWeatherForTripUseCase: GetWeatherForTripUseCase,
-    private val tripEditRepository: TripEditRepository
+    private val tripEditRepository: TripEditRepository,
+    private val authRepository: AuthRepository
 ) {
 
     /**
      * @param onlyDays limit to these day numbers (null = every empty day)
+     * @param userPreferences optional account travel preferences override
      * @return how many days were planned (0 if there was nothing to plan)
      */
-    suspend operator fun invoke(tripId: Long, onlyDays: Set<Int>? = null): Result<Int> =
+    suspend operator fun invoke(
+        tripId: Long,
+        onlyDays: Set<Int>? = null,
+        userPreferences: UserTravelPreferences? = null
+    ): Result<Int> =
         withContext(Dispatchers.IO) {
             runCatching {
                 val trip = tripRepository.getTripById(tripId) ?: error("Trip not found.")
@@ -58,6 +66,13 @@ class PlanEmptyDaysUseCase @Inject constructor(
                     prefs.cloudModel.ifBlank { "gemini-3.1-flash-lite" }
                 }
 
+                val resolvedTravelPrefs = userPreferences ?: runCatching {
+                    val email = authRepository.currentUserEmail.first()?.trim()?.lowercase()
+                    if (!email.isNullOrBlank()) {
+                        userPreferencesRepository.getTravelPreferencesOnce(email)
+                    } else null
+                }.getOrNull()
+
                 val dto = aiRepository.generateItinerary(
                     destination = trip.destination,
                     days = targets.size,
@@ -68,7 +83,8 @@ class PlanEmptyDaysUseCase @Inject constructor(
                     model = model,
                     weatherForecast = weather,
                     adults = trip.adults,
-                    kids = trip.kids
+                    kids = trip.kids,
+                    userPreferences = resolvedTravelPrefs
                 ).getOrThrow()
 
                 val generated = dto.days.sortedBy { it.dayNumber }

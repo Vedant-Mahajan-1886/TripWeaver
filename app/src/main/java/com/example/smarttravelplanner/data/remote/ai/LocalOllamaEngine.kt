@@ -5,6 +5,7 @@ import com.example.smarttravelplanner.data.remote.dto.GeneratedItineraryDto
 import com.example.smarttravelplanner.data.remote.dto.OllamaChatRequest
 import com.example.smarttravelplanner.data.remote.dto.OllamaMessage
 import com.example.smarttravelplanner.domain.model.DayWeather
+import com.example.smarttravelplanner.domain.model.UserTravelPreferences
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -31,7 +32,8 @@ class LocalOllamaEngine @Inject constructor(
         weatherForecast: List<DayWeather>?,
         enableWebGrounding: Boolean,
         adults: Int,
-        kids: Int
+        kids: Int,
+        userPreferences: UserTravelPreferences?
     ): Result<GeneratedItineraryDto> = withContext(Dispatchers.IO) {
         runCatching {
             val userMessage = ItineraryPromptBuilder.buildUserMessage(
@@ -45,7 +47,8 @@ class LocalOllamaEngine @Inject constructor(
                 weatherForecast    = weatherForecast,
                 enableWebGrounding = false, // Ollama has no built-in Google Search grounding
                 adults             = adults,
-                kids               = kids
+                kids               = kids,
+                userPreferences    = userPreferences
             )
 
             val response = ollamaApi.chat(
@@ -102,7 +105,8 @@ class LocalOllamaEngine @Inject constructor(
         otherActivities: List<com.example.smarttravelplanner.domain.model.Activity>,
         instructions: String,
         model: String,
-        tripInterests: List<String>
+        tripInterests: List<String>,
+        userPreferences: UserTravelPreferences?
     ): Result<com.example.smarttravelplanner.data.remote.dto.ActivityDto> = withContext(Dispatchers.IO) {
         runCatching {
             val userMessage = ItineraryPromptBuilder.buildActivityRegenerationMessage(
@@ -111,7 +115,8 @@ class LocalOllamaEngine @Inject constructor(
                 currentActivity = currentActivity,
                 otherActivities = otherActivities,
                 instructions = instructions,
-                tripInterests = tripInterests
+                tripInterests = tripInterests,
+                userPreferences = userPreferences
             )
 
             val response = ollamaApi.chat(

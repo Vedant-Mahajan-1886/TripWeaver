@@ -35,19 +35,21 @@ class OnboardingViewModel @Inject constructor(
     private var targetEmail: String? = null
     var isEditMode: Boolean = false
 
-    fun startWithSessionUser(): Job = activeScope.launch {
+    fun startWithSessionUser(isEdit: Boolean = this.isEditMode): Job = activeScope.launch {
+        this@OnboardingViewModel.isEditMode = isEdit
         val email = authRepository.currentUserEmail.first()
         if (!email.isNullOrBlank()) {
-            loadPreferencesForAccount(email)
+            loadPreferencesForAccount(email, isEdit)
         }
     }
 
     /**
      * Initializes or switches the onboarding account context.
-     * Restores any previously saved decisions from an interrupted session (IN_PROGRESS)
-     * and sets the active card to the first unrated interest.
+     * Restores any previously saved decisions. In edit mode, starts at card 0 so the user
+     * can review and update all cards. In first-time onboarding mode, resumes at the first unrated interest.
      */
-    fun loadPreferencesForAccount(email: String): Job {
+    fun loadPreferencesForAccount(email: String, isEdit: Boolean = this.isEditMode): Job {
+        this.isEditMode = isEdit
         val normalized = email.trim().lowercase()
         targetEmail = normalized
 
@@ -59,17 +61,22 @@ class OnboardingViewModel @Inject constructor(
                 val deck = DefaultPreferenceDeck.cards
                 val decidedIds = existingPrefs.likedInterestIds + existingPrefs.dislikedInterestIds
 
-                // Resume at the first undecided card, or at card 0 if none
-                var resumeIndex = 0
-                for ((index, card) in deck.withIndex()) {
-                    if (card.id in decidedIds) {
-                        resumeIndex = index + 1
-                    } else {
-                        resumeIndex = index
-                        break
+                // In edit mode, start at card 0 to allow reviewing and changing existing decisions.
+                // In onboarding mode, resume at the first undecided card, or at card 0 if none.
+                val resumeIndex = if (isEdit) {
+                    0
+                } else {
+                    var idx = 0
+                    for ((index, card) in deck.withIndex()) {
+                        if (card.id in decidedIds) {
+                            idx = index + 1
+                        } else {
+                            idx = index
+                            break
+                        }
                     }
+                    idx.coerceIn(0, deck.size)
                 }
-                resumeIndex = resumeIndex.coerceIn(0, deck.size)
 
                 _uiState.update { current ->
                     current.copy(
@@ -167,7 +174,7 @@ class OnboardingViewModel @Inject constructor(
                         dislikedInterestIds = newDisliked,
                         preferenceWeights = newWeights,
                         history = newHistory,
-                        isCompleted = isFinalCard,
+                        isCompleted = isFinalCard && !isEditMode,
                         isActionInProgress = false
                     )
                 }

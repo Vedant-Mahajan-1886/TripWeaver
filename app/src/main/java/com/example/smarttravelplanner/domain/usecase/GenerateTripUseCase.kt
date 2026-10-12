@@ -2,15 +2,19 @@ package com.example.smarttravelplanner.domain.usecase
 
 import com.example.smarttravelplanner.data.remote.dto.ActivityDto
 import com.example.smarttravelplanner.data.repository.AiRepository
+import com.example.smarttravelplanner.data.repository.AuthRepository
 import com.example.smarttravelplanner.data.repository.ItineraryRepository
-import com.example.smarttravelplanner.data.repository.TripRepository
 import com.example.smarttravelplanner.data.repository.PhotoRepository
-import com.example.smarttravelplanner.util.DestinationImageHelper
+import com.example.smarttravelplanner.data.repository.TripRepository
+import com.example.smarttravelplanner.data.repository.UserPreferencesRepository
 import com.example.smarttravelplanner.domain.model.Activity
 import com.example.smarttravelplanner.domain.model.ActivityCategory
 import com.example.smarttravelplanner.domain.model.Itinerary
 import com.example.smarttravelplanner.domain.model.Trip
+import com.example.smarttravelplanner.domain.model.UserTravelPreferences
+import com.example.smarttravelplanner.util.DestinationImageHelper
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import javax.inject.Inject
@@ -29,7 +33,9 @@ class GenerateTripUseCase @Inject constructor(
     private val tripRepository: TripRepository,
     private val itineraryRepository: ItineraryRepository,
     private val photoRepository: PhotoRepository,
-    private val getWeatherForTripUseCase: GetWeatherForTripUseCase
+    private val getWeatherForTripUseCase: GetWeatherForTripUseCase,
+    private val userPreferencesRepository: UserPreferencesRepository,
+    private val authRepository: AuthRepository
 ) {
     suspend operator fun invoke(
         destination: String,
@@ -41,7 +47,8 @@ class GenerateTripUseCase @Inject constructor(
         notes: String,
         model: String,
         adults: Int = 1,
-        kids: Int = 0
+        kids: Int = 0,
+        userPreferences: UserTravelPreferences? = null
     ): Result<Long> = withContext(Dispatchers.IO) {
         runCatching {
 
@@ -58,7 +65,15 @@ class GenerateTripUseCase @Inject constructor(
             ).getOrNull()
         }.getOrNull()?.takeIf { it.isNotEmpty() }
 
-        // Step 2 — Generate structured weather-aware itinerary from AI
+        // Step 2 — Resolve account-scoped travel preferences for authenticated traveller
+        val resolvedTravelPrefs = userPreferences ?: runCatching {
+            val email = authRepository.currentUserEmail.first()?.trim()?.lowercase()
+            if (!email.isNullOrBlank()) {
+                userPreferencesRepository.getTravelPreferencesOnce(email)
+            } else null
+        }.getOrNull()
+
+        // Step 3 — Generate structured weather-aware, personalized itinerary from AI
         val dto = aiRepository.generateItinerary(
             destination     = destination,
             days            = days,
@@ -70,7 +85,8 @@ class GenerateTripUseCase @Inject constructor(
             model           = model,
             weatherForecast = weatherForecast,
             adults          = adults,
-            kids            = kids
+            kids            = kids,
+            userPreferences = resolvedTravelPrefs
         ).getOrThrow()
 
         // Step 3 — Build Trip domain object and persist it

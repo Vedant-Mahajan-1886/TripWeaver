@@ -5,6 +5,7 @@ import com.example.smarttravelplanner.data.remote.api.GeminiApi
 import com.example.smarttravelplanner.data.remote.dto.*
 import com.example.smarttravelplanner.data.repository.UserPreferencesRepository
 import com.example.smarttravelplanner.domain.model.DayWeather
+import com.example.smarttravelplanner.domain.model.UserTravelPreferences
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -33,7 +34,8 @@ class CloudGeminiEngine @Inject constructor(
         weatherForecast: List<DayWeather>?,
         enableWebGrounding: Boolean,
         adults: Int,
-        kids: Int
+        kids: Int,
+        userPreferences: UserTravelPreferences?
     ): Result<GeneratedItineraryDto> = withContext(Dispatchers.IO) {
         runCatching {
             val prefs = userPreferencesRepository.userPreferences.first()
@@ -63,7 +65,8 @@ class CloudGeminiEngine @Inject constructor(
                 weatherForecast    = weatherForecast,
                 enableWebGrounding = isWebGroundingEnabled,
                 adults             = adults,
-                kids               = kids
+                kids               = kids,
+                userPreferences    = userPreferences
             )
 
             val tools = if (isWebGroundingEnabled) {
@@ -188,7 +191,8 @@ class CloudGeminiEngine @Inject constructor(
         otherActivities: List<com.example.smarttravelplanner.domain.model.Activity>,
         instructions: String,
         model: String,
-        tripInterests: List<String>
+        tripInterests: List<String>,
+        userPreferences: UserTravelPreferences?
     ): Result<ActivityDto> = withContext(Dispatchers.IO) {
         runCatching {
             val prefs = userPreferencesRepository.userPreferences.first()
@@ -207,7 +211,8 @@ class CloudGeminiEngine @Inject constructor(
                 currentActivity = currentActivity,
                 otherActivities = otherActivities,
                 instructions = instructions,
-                tripInterests = tripInterests
+                tripInterests = tripInterests,
+                userPreferences = userPreferences
             )
 
             val request = GeminiGenerateRequest(

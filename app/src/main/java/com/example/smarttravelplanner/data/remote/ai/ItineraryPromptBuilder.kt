@@ -1,14 +1,82 @@
 package com.example.smarttravelplanner.data.remote.ai
 
 import com.example.smarttravelplanner.domain.model.DayWeather
+import com.example.smarttravelplanner.domain.model.UserTravelPreferences
 import com.example.smarttravelplanner.domain.util.WeatherPromptFormatter
 
 /**
  * Shared prompt builder for itinerary generation across both Cloud and Local AI engines.
  * Ensures consistent schema compliance, weather awareness, geocoded map coordinates,
- * and category-based budget allocation.
+ * category-based budget allocation, and personalized travel style preferences.
  */
 object ItineraryPromptBuilder {
+
+    /**
+     * Exact natural language mapping for the 12 onboarding card IDs.
+     */
+    val PREFERENCE_ID_TO_NATURAL_LANGUAGE: Map<String, String> = mapOf(
+        "adventure" to "adventure activities",
+        "relaxation" to "relaxing experiences",
+        "nature_wildlife" to "nature and wildlife",
+        "culture_heritage" to "culture and heritage",
+        "food_cafes" to "food and cafés",
+        "history_architecture" to "history and architecture",
+        "shopping_city_life" to "shopping and city life",
+        "photography_scenic" to "photography and scenic views",
+        "road_trips" to "road trips",
+        "beaches_islands" to "beaches and islands",
+        "mountains_trekking" to "mountains and trekking",
+        "local_offbeat" to "local and offbeat experiences"
+    )
+
+    fun formatPreferencesContext(preferences: UserTravelPreferences?): String {
+        if (preferences == null) return ""
+
+        val strongIds = (preferences.stronglyPreferredInterestIds +
+            preferences.preferenceWeights.filterValues { it >= 1.5f }.keys).toSet()
+
+        val likedIds = ((preferences.likedInterestIds - strongIds) +
+            preferences.preferenceWeights.filterValues { it in 0.5f..1.4f }.keys - strongIds).toSet()
+
+        val dislikedIds = (preferences.dislikedInterestIds +
+            preferences.preferenceWeights.filterValues { it < 0f }.keys).toSet()
+
+        if (strongIds.isEmpty() && likedIds.isEmpty() && dislikedIds.isEmpty()) {
+            return ""
+        }
+
+        val strongText = strongIds.map { PREFERENCE_ID_TO_NATURAL_LANGUAGE[it] ?: it.replace('_', ' ') }
+        val likedText = likedIds.map { PREFERENCE_ID_TO_NATURAL_LANGUAGE[it] ?: it.replace('_', ' ') }
+        val dislikedText = dislikedIds.map { PREFERENCE_ID_TO_NATURAL_LANGUAGE[it] ?: it.replace('_', ' ') }
+
+        val answeredIds = strongIds + likedIds + dislikedIds
+        val unansweredIds = PREFERENCE_ID_TO_NATURAL_LANGUAGE.keys - answeredIds
+        val unansweredText = unansweredIds.mapNotNull { PREFERENCE_ID_TO_NATURAL_LANGUAGE[it] }
+
+        return buildString {
+            appendLine()
+            appendLine("TRAVELLER SAVED PREFERENCES (ONBOARDING PROFILE):")
+            appendLine("The traveller has saved baseline travel style preferences. Personalize the itinerary to reflect these preferences:")
+            if (strongText.isNotEmpty()) {
+                appendLine("- STRONG PREFERENCES (+2.0 Weight - High Priority): Prioritize and emphasize relevant experiences featuring ${strongText.joinToString(", ")}.")
+            }
+            if (likedText.isNotEmpty()) {
+                appendLine("- LIKES (+1.0 Weight - Favorable): Include relevant experiences featuring ${likedText.joinToString(", ")} where appropriate.")
+            }
+            if (dislikedText.isNotEmpty()) {
+                appendLine("- DISLIKES (-1.0 Weight - De-prioritize / Soft Avoidance): Reduce the frequency of experiences featuring ${dislikedText.joinToString(", ")}. Do not treat as absolute exclusions if essential to the destination, but favor alternatives.")
+            }
+            if (unansweredText.isNotEmpty()) {
+                appendLine("- UNANSWERED INTERESTS (Neutral baseline): ${unansweredText.joinToString(", ")} (neutral; neither favored nor avoided).")
+            } else {
+                appendLine("- UNANSWERED INTERESTS: Neutral baseline.")
+            }
+            appendLine()
+            appendLine("CONSTRAINT INTEGRITY & PREFERENCE HIERARCHY:")
+            appendLine("- Explicit trip parameters (destination, duration, dates, budget, traveler count, accessibility, and user special instructions) take STRICT precedence and must NEVER be overridden by these preferences.")
+            appendLine("- If explicit trip interests or user special instructions request specific activities or themes, satisfy those explicit requirements first.")
+        }.trimEnd()
+    }
 
     val itinerarySystemPrompt: String = """
         You are an elite travel concierge and destination specialist with deep local knowledge across global and Indian travel destinations.
@@ -123,7 +191,8 @@ object ItineraryPromptBuilder {
         weatherForecast: List<DayWeather>?,
         enableWebGrounding: Boolean = false,
         adults: Int = 1,
-        kids: Int = 0
+        kids: Int = 0,
+        userPreferences: UserTravelPreferences? = null
     ): String {
         val interestText = interests.ifEmpty { listOf("General Sightseeing", "Local Food", "Culture") }.joinToString(", ")
         val (paceGuideline, activityCountGuideline) = when (travelStyle.lowercase()) {
@@ -233,6 +302,8 @@ object ItineraryPromptBuilder {
             """.trimIndent()
         } else ""
 
+        val preferencesContext = formatPreferencesContext(userPreferences)
+
         return """
             DESTINATION: $destination
             DURATION: $days Days
@@ -248,6 +319,7 @@ object ItineraryPromptBuilder {
             $notesContext
             $weatherContext
             $familyGuideline
+            $preferencesContext
             $webGroundingContext
             
             REQUIREMENTS FOR THIS ITINERARY:
@@ -262,6 +334,7 @@ object ItineraryPromptBuilder {
                * Do NOT drastically under-allocate (e.g. allocating only half the budget is strictly forbidden).
                * Always include real "ACCOMMODATION" entries with nightly stay costs (~₹$suggestedNightlyStay/night) matching the chosen tier (e.g. luxury heritage hotels / 5-star stays for luxury budgets).
                * All estimated_cost_inr values must account for the entire group of $totalPassengers passengers ($adults adults${if (kids > 0) ", $kids kids" else ""}).
+            8. Personalization Alignment: When traveller saved preferences are provided, prioritize strong preferences (+2.0), weave in liked activities (+1.0), and minimize disliked activities (-1.0) without overriding explicit destination constraints or user instructions.
             
             Output ONLY the raw JSON matching the required schema.
         """.trimIndent()
@@ -299,8 +372,11 @@ object ItineraryPromptBuilder {
         currentActivity: com.example.smarttravelplanner.domain.model.Activity,
         otherActivities: List<com.example.smarttravelplanner.domain.model.Activity>,
         instructions: String = "",
-        tripInterests: List<String> = emptyList()
-    ): String = """
+        tripInterests: List<String> = emptyList(),
+        userPreferences: UserTravelPreferences? = null
+    ): String {
+        val preferencesContext = formatPreferencesContext(userPreferences)
+        return """
         DESTINATION: $destination
         DAY NUMBER: Day $dayNumber
         TIME SLOT: ${currentActivity.startTime.ifBlank { "Flexible" }} - ${currentActivity.endTime.ifBlank { "Flexible" }}
@@ -316,10 +392,12 @@ object ItineraryPromptBuilder {
         ${if (otherActivities.isEmpty()) "None" else otherActivities.joinToString("\n") { "- ${it.startTime}-${it.endTime}: ${it.title} at ${it.location}" }}
 
         TRIP INTERESTS: ${if (tripInterests.isEmpty()) "General Exploration" else tripInterests.joinToString(", ")}
+        $preferencesContext
 
         ${if (instructions.isNotBlank()) "USER SPECIFIC INSTRUCTIONS / EDITED DETAILS TO INCORPORATE:\n$instructions" else "Please generate a fresh, exciting, and high-quality alternative stop for this time slot."}
 
         Output ONLY the raw JSON object for the replacement activity.
     """.trimIndent()
+    }
 }
 

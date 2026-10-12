@@ -64,6 +64,9 @@ internal const val AGENT_DASHBOARD_ROUTE = "agent_dashboard"
 /** Personalized travel preferences onboarding route for new travellers. */
 internal const val ONBOARDING_PREFERENCES_ROUTE = "onboarding_preferences"
 
+/** Edit travel preferences route accessed from Profile screen. */
+internal const val EDIT_PREFERENCES_ROUTE = "edit_preferences"
+
 /**
  * Determines the cold-start destination based on auth state, role, and onboarding status.
  * Returns null while any necessary state is still loading.
@@ -156,7 +159,7 @@ fun AppNavigation(
         "login", "profile", "my_profile", "manage_payments", "trip_detail/{tripId}",
         AGENT_DASHBOARD_ROUTE, AGENT_TRIP_ROUTE, EDIT_TRIP_ROUTE, EDIT_ACTIVITIES_ROUTE,
         AGENT_PACKAGES_ROUTE, AGENT_PACKAGE_EDIT_ROUTE, PACKAGES_ROUTE, PACKAGE_DETAIL_ROUTE,
-        ONBOARDING_PREFERENCES_ROUTE
+        ONBOARDING_PREFERENCES_ROUTE, EDIT_PREFERENCES_ROUTE
     )
     val isImeVisible = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
     val isNavRoute = hiddenNavRoutes.none { currentRoute.startsWith(it.substringBefore("{")) }
@@ -524,6 +527,7 @@ fun AppNavigation(
                     onCloseClick           = { navController.popBackStack() },
                     onNavigateToMyProfile  = { navController.navigate("my_profile") },
                     onNavigateToManagePayments = { navController.navigate("manage_payments") },
+                    onNavigateToPreferences = { navController.navigate(EDIT_PREFERENCES_ROUTE) },
                     onNavigateToWishlist   = {
                         exploreViewModel.filterBySavedOnly()
                         val popped = navController.popBackStack("explore", inclusive = false)
@@ -553,6 +557,16 @@ fun AppNavigation(
 
             composable("manage_payments") {
                 ManagePaymentsScreen(onBackClick = { navController.popBackStack() })
+            }
+
+            composable(EDIT_PREFERENCES_ROUTE) {
+                val userPrefs by profileViewModel.preferences.collectAsStateWithLifecycle()
+                OnboardingPreferencesScreen(
+                    userEmail = userPrefs.email,
+                    isEditMode = true,
+                    onComplete = { navController.popBackStack() },
+                    onSkip = { navController.popBackStack() }
+                )
             }
         }
     }
