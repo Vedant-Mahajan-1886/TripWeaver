@@ -1,6 +1,5 @@
 package com.example.smarttravelplanner.data.repository
 
-import android.util.Patterns
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -9,6 +8,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import com.example.smarttravelplanner.data.local.dao.UserDao
 import com.example.smarttravelplanner.data.local.entity.UserEntity
 import com.example.smarttravelplanner.data.remote.service.EmailVerificationService
+import com.example.smarttravelplanner.domain.model.AuthResult
 import com.example.smarttravelplanner.util.SecurityUtils
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -27,6 +27,11 @@ class AuthRepositoryImpl @Inject constructor(
     private object Keys {
         val IS_LOGGED_IN = booleanPreferencesKey("auth_is_logged_in")
         val LOGGED_IN_EMAIL = stringPreferencesKey("auth_logged_in_email")
+    }
+
+    companion object {
+        private val EMAIL_REGEX = Regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
+        fun isValidEmail(email: String): Boolean = email.isNotBlank() && EMAIL_REGEX.matches(email)
     }
 
     override val isLoggedIn: Flow<Boolean> = dataStore.data.map { prefs ->
@@ -61,7 +66,7 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun sendRegistrationOtp(email: String): Result<Unit> = runCatching {
         val trimmedEmail = email.trim().lowercase()
-        if (trimmedEmail.isBlank() || !Patterns.EMAIL_ADDRESS.matcher(trimmedEmail).matches()) {
+        if (trimmedEmail.isBlank() || !isValidEmail(trimmedEmail)) {
             throw IllegalArgumentException("Please enter a valid email address.")
         }
 
@@ -79,14 +84,14 @@ class AuthRepositoryImpl @Inject constructor(
         email: String,
         password: String,
         otp: String
-    ): Result<Unit> = runCatching {
+    ): Result<AuthResult> = runCatching {
         val trimmedName = fullName.trim()
         val trimmedEmail = email.trim().lowercase()
 
         if (trimmedName.isBlank()) {
             throw IllegalArgumentException("Full name cannot be empty.")
         }
-        if (!Patterns.EMAIL_ADDRESS.matcher(trimmedEmail).matches()) {
+        if (!isValidEmail(trimmedEmail)) {
             throw IllegalArgumentException("Please enter a valid email address.")
         }
         if (password.length < 6) {
@@ -113,14 +118,19 @@ class AuthRepositoryImpl @Inject constructor(
         // Update profile in UserPreferences
         syncUserProfile(trimmedName, trimmedEmail)
 
+        // Initialize fresh onboarding state for this new account
+        userPreferencesRepository.initializeNewAccountOnboarding(trimmedEmail)
+
         // Set session
         dataStore.edit { prefs ->
             prefs[Keys.IS_LOGGED_IN] = true
             prefs[Keys.LOGGED_IN_EMAIL] = trimmedEmail
         }
+
+        AuthResult(email = trimmedEmail, isNewAccount = true)
     }
 
-    override suspend fun login(email: String, password: String): Result<Unit> = runCatching {
+    override suspend fun login(email: String, password: String): Result<AuthResult> = runCatching {
         val trimmedEmail = email.trim().lowercase()
         if (trimmedEmail.isBlank()) {
             throw IllegalArgumentException("Please enter your email.")
@@ -144,24 +154,31 @@ class AuthRepositoryImpl @Inject constructor(
         // Sync name & email with UserPreferences
         syncUserProfile(user.fullName, user.email)
 
+        // Migrate legacy account if this returning user has no onboarding record yet
+        userPreferencesRepository.migrateLegacyAccountIfNeeded(user.email)
+
         // Set session
         dataStore.edit { prefs ->
             prefs[Keys.IS_LOGGED_IN] = true
             prefs[Keys.LOGGED_IN_EMAIL] = user.email
         }
+
+        AuthResult(email = user.email, isNewAccount = false)
     }
 
     override suspend fun loginWithGoogle(
         email: String,
         fullName: String,
         profilePictureUrl: String?
-    ): Result<Unit> = runCatching {
+    ): Result<AuthResult> = runCatching {
         val googleEmail = email.trim().lowercase()
         val googleName = fullName.trim().ifBlank { "Google Traveler" }
 
-        // Ensure user exists in Room or insert
+        // Determine whether user existed before authentication
         val existing = userDao.getUserByEmail(googleEmail)
-        if (existing == null) {
+        val isNew = (existing == null)
+
+        if (isNew) {
             val salt = SecurityUtils.generateSalt()
             userDao.insertUser(
                 UserEntity(
@@ -174,8 +191,14 @@ class AuthRepositoryImpl @Inject constructor(
                     profilePictureUrl = profilePictureUrl
                 )
             )
-        } else if (!profilePictureUrl.isNullOrBlank()) {
-            userDao.updateProfilePicture(googleEmail, profilePictureUrl)
+            // Initialize fresh onboarding state for new Google traveller
+            userPreferencesRepository.initializeNewAccountOnboarding(googleEmail)
+        } else {
+            if (!profilePictureUrl.isNullOrBlank()) {
+                userDao.updateProfilePicture(googleEmail, profilePictureUrl)
+            }
+            // Migrate legacy account if no onboarding record exists yet
+            userPreferencesRepository.migrateLegacyAccountIfNeeded(googleEmail)
         }
 
         syncUserProfile(
@@ -189,11 +212,13 @@ class AuthRepositoryImpl @Inject constructor(
             prefs[Keys.IS_LOGGED_IN] = true
             prefs[Keys.LOGGED_IN_EMAIL] = googleEmail
         }
+
+        AuthResult(email = googleEmail, isNewAccount = isNew)
     }
 
     override suspend fun sendPasswordResetOtp(email: String): Result<Unit> = runCatching {
         val trimmedEmail = email.trim().lowercase()
-        if (trimmedEmail.isBlank() || !Patterns.EMAIL_ADDRESS.matcher(trimmedEmail).matches()) {
+        if (trimmedEmail.isBlank() || !isValidEmail(trimmedEmail)) {
             throw IllegalArgumentException("Please enter a valid email address.")
         }
 
@@ -211,10 +236,10 @@ class AuthRepositoryImpl @Inject constructor(
         email: String,
         otp: String,
         newPassword: String
-    ): Result<Unit> = runCatching {
+    ): Result<AuthResult> = runCatching {
         val trimmedEmail = email.trim().lowercase()
 
-        if (!Patterns.EMAIL_ADDRESS.matcher(trimmedEmail).matches()) {
+        if (!isValidEmail(trimmedEmail)) {
             throw IllegalArgumentException("Please enter a valid email address.")
         }
         if (newPassword.length < 6) {
@@ -238,13 +263,22 @@ class AuthRepositoryImpl @Inject constructor(
         // 5. Sync profile and start session
         syncUserProfile(user.fullName, user.email)
 
+        // Migrate legacy account if needed
+        userPreferencesRepository.migrateLegacyAccountIfNeeded(user.email)
+
         dataStore.edit { prefs ->
             prefs[Keys.IS_LOGGED_IN] = true
             prefs[Keys.LOGGED_IN_EMAIL] = user.email
         }
+
+        AuthResult(email = user.email, isNewAccount = false)
     }
 
     override suspend fun logout(): Result<Unit> = runCatching {
+        val currentEmail = dataStore.data.first()[Keys.LOGGED_IN_EMAIL]
+        if (!currentEmail.isNullOrBlank()) {
+            userPreferencesRepository.clearAccountState(currentEmail)
+        }
         dataStore.edit { prefs ->
             prefs[Keys.IS_LOGGED_IN] = false
             prefs.remove(Keys.LOGGED_IN_EMAIL)

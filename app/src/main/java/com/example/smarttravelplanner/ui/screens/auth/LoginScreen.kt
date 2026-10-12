@@ -80,9 +80,9 @@ private const val TAJ_MAHAL_ONLINE_IMAGE =
 @Composable
 fun LoginScreen(
     viewModel: AuthViewModel = hiltViewModel(),
-    onLoginSuccess: () -> Unit,
+    onLoginSuccess: (isNewAccount: Boolean) -> Unit,
     /** Called instead of [onLoginSuccess] when a travel-agent account signs in. */
-    onAgentLoginSuccess: () -> Unit = onLoginSuccess
+    onAgentLoginSuccess: () -> Unit = { onLoginSuccess(false) }
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val resendCountdown by viewModel.resendCountdown.collectAsState()
@@ -138,7 +138,11 @@ fun LoginScreen(
 
     LaunchedEffect(uiState.isSuccess) {
         if (uiState.isSuccess) {
-            if (uiState.sessionRole == UserRole.AGENT) onAgentLoginSuccess() else onLoginSuccess()
+            if (uiState.sessionRole == UserRole.AGENT) {
+                onAgentLoginSuccess()
+            } else {
+                onLoginSuccess(uiState.isNewAccount)
+            }
         }
     }
 

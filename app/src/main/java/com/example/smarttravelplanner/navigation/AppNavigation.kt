@@ -52,12 +52,39 @@ import com.example.smarttravelplanner.ui.screens.plan.PlanScreen
 import com.example.smarttravelplanner.ui.screens.profile.MyProfileScreen
 import com.example.smarttravelplanner.ui.screens.profile.ProfileScreen
 import com.example.smarttravelplanner.ui.screens.profile.ProfileViewModel
+import com.example.smarttravelplanner.domain.model.OnboardingStatus
+import com.example.smarttravelplanner.ui.screens.onboarding.OnboardingPreferencesScreen
 import com.example.smarttravelplanner.ui.screens.tripdetail.TripDetailScreen
 import com.example.smarttravelplanner.ui.theme.Amber
 
 
 /** Landing screen for travel-agent accounts (no bottom navigation). */
-private const val AGENT_DASHBOARD_ROUTE = "agent_dashboard"
+internal const val AGENT_DASHBOARD_ROUTE = "agent_dashboard"
+
+/** Personalized travel preferences onboarding route for new travellers. */
+internal const val ONBOARDING_PREFERENCES_ROUTE = "onboarding_preferences"
+
+/**
+ * Determines the cold-start destination based on auth state, role, and onboarding status.
+ * Returns null while any necessary state is still loading.
+ * Crucially, does NOT interpret a null onboarding status as finished.
+ */
+internal fun resolveColdStartDestination(
+    isLoggedIn: Boolean?,
+    sessionRole: UserRole?,
+    onboardingStatus: OnboardingStatus?
+): String? = when {
+    isLoggedIn == false -> "login"
+    isLoggedIn == true && sessionRole == UserRole.AGENT -> AGENT_DASHBOARD_ROUTE
+    isLoggedIn == true && sessionRole == UserRole.TRAVELLER -> {
+        when {
+            onboardingStatus == null -> null // still loading; do NOT interpret as finished
+            onboardingStatus.isFinished -> "home"
+            else -> ONBOARDING_PREFERENCES_ROUTE
+        }
+    }
+    else -> null // still loading auth or role
+}
 
 /** Edit a trip's details (opened from the pencil in Trip Detail's header). */
 private const val EDIT_TRIP_ROUTE = "edit_trip/{tripId}"
@@ -89,18 +116,18 @@ fun AppNavigation(
     val navController = rememberNavController()
     val isLoggedIn by authViewModel.isLoggedIn.collectAsStateWithLifecycle(initialValue = null)
     val sessionRole by authViewModel.sessionRole.collectAsStateWithLifecycle()
+    val sessionOnboardingStatus by authViewModel.sessionOnboardingStatus.collectAsStateWithLifecycle()
 
     // Pick the start screen once, at app launch: login, Home (traveller) or Agent Dashboard.
     // Kept in remembered state so later login/logout changes never rebuild the NavGraph.
     val startDestinationState = remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(isLoggedIn, sessionRole) {
+    LaunchedEffect(isLoggedIn, sessionRole, sessionOnboardingStatus) {
         if (startDestinationState.value == null) {
-            startDestinationState.value = when {
-                isLoggedIn == false -> "login"
-                isLoggedIn == true && sessionRole == UserRole.AGENT -> AGENT_DASHBOARD_ROUTE
-                isLoggedIn == true && sessionRole != null -> "home"
-                else -> null // still loading
-            }
+            startDestinationState.value = resolveColdStartDestination(
+                isLoggedIn = isLoggedIn,
+                sessionRole = sessionRole,
+                onboardingStatus = sessionOnboardingStatus
+            )
         }
     }
 
@@ -128,7 +155,8 @@ fun AppNavigation(
     val hiddenNavRoutes = setOf(
         "login", "profile", "my_profile", "manage_payments", "trip_detail/{tripId}",
         AGENT_DASHBOARD_ROUTE, AGENT_TRIP_ROUTE, EDIT_TRIP_ROUTE, EDIT_ACTIVITIES_ROUTE,
-        AGENT_PACKAGES_ROUTE, AGENT_PACKAGE_EDIT_ROUTE, PACKAGES_ROUTE, PACKAGE_DETAIL_ROUTE
+        AGENT_PACKAGES_ROUTE, AGENT_PACKAGE_EDIT_ROUTE, PACKAGES_ROUTE, PACKAGE_DETAIL_ROUTE,
+        ONBOARDING_PREFERENCES_ROUTE
     )
     val isImeVisible = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
     val isNavRoute = hiddenNavRoutes.none { currentRoute.startsWith(it.substringBefore("{")) }
@@ -209,14 +237,38 @@ fun AppNavigation(
             ) {
                 LoginScreen(
                     viewModel = authViewModel,
-                    onLoginSuccess = {
-                        navController.navigate("home") {
-                            popUpTo("login") { inclusive = true }
+                    onLoginSuccess = { isNewAccount ->
+                        if (isNewAccount) {
+                            navController.navigate(ONBOARDING_PREFERENCES_ROUTE) {
+                                popUpTo("login") { inclusive = true }
+                            }
+                        } else {
+                            navController.navigate("home") {
+                                popUpTo("login") { inclusive = true }
+                            }
                         }
                     },
                     onAgentLoginSuccess = {
                         navController.navigate(AGENT_DASHBOARD_ROUTE) {
                             popUpTo("login") { inclusive = true }
+                        }
+                    }
+                )
+            }
+
+            // ── Onboarding Preferences ─────────────────────────────────────────
+            composable(ONBOARDING_PREFERENCES_ROUTE) {
+                val userPrefs by profileViewModel.preferences.collectAsStateWithLifecycle()
+                OnboardingPreferencesScreen(
+                    userEmail = userPrefs.email,
+                    onComplete = {
+                        navController.navigate("home") {
+                            popUpTo(ONBOARDING_PREFERENCES_ROUTE) { inclusive = true }
+                        }
+                    },
+                    onSkip = {
+                        navController.navigate("home") {
+                            popUpTo(ONBOARDING_PREFERENCES_ROUTE) { inclusive = true }
                         }
                     }
                 )

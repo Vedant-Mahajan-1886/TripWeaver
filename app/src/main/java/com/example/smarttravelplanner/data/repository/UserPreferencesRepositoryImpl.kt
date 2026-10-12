@@ -2,9 +2,13 @@ package com.example.smarttravelplanner.data.repository
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
+import com.example.smarttravelplanner.domain.model.OnboardingStatus
 import com.example.smarttravelplanner.domain.model.UserPreferences
+import com.example.smarttravelplanner.domain.model.UserTravelPreferences
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.io.IOException
 import javax.inject.Inject
@@ -13,7 +17,7 @@ class UserPreferencesRepositoryImpl @Inject constructor(
     private val dataStore: DataStore<Preferences>
 ) : UserPreferencesRepository {
 
-    // ── DataStore keys ────────────────────────────────────────────────────────
+    // ── Global DataStore keys ─────────────────────────────────────────────────
     private object Keys {
         val FIRST_NAME          = stringPreferencesKey("first_name")
         val LAST_NAME           = stringPreferencesKey("last_name")
@@ -41,7 +45,50 @@ class UserPreferencesRepositoryImpl @Inject constructor(
         val PREFERRED_ACTIVITIES = stringPreferencesKey("preferred_activities") // comma-separated
     }
 
-    // ── Read ─────────────────────────────────────────────────────────────────
+    // ── Account-Scoped DataStore key generator ────────────────────────────────
+    private object AccountKeys {
+        private const val PREFIX = "account_pref"
+
+        fun onboardingStatus(email: String) =
+            stringPreferencesKey("${PREFIX}_${email}_onboarding_status")
+
+        fun likedInterests(email: String) =
+            stringSetPreferencesKey("${PREFIX}_${email}_liked_interests")
+
+        fun stronglyPreferredInterests(email: String) =
+            stringSetPreferencesKey("${PREFIX}_${email}_strongly_preferred_interests")
+
+        fun dislikedInterests(email: String) =
+            stringSetPreferencesKey("${PREFIX}_${email}_disliked_interests")
+
+        fun preferenceWeights(email: String) =
+            stringPreferencesKey("${PREFIX}_${email}_preference_weights")
+    }
+
+    private fun validateEmail(email: String): String {
+        val normalized = email.trim().lowercase()
+        require(normalized.isNotBlank()) { "Email cannot be blank for account-scoped preferences" }
+        return normalized
+    }
+
+    private fun serializeWeights(weights: Map<String, Float>): String {
+        if (weights.isEmpty()) return ""
+        return weights.entries.joinToString(",") { "${it.key}:${it.value}" }
+    }
+
+    private fun deserializeWeights(raw: String?): Map<String, Float> {
+        if (raw.isNullOrBlank()) return emptyMap()
+        return raw.split(",")
+            .mapNotNull { item ->
+                val parts = item.split(":")
+                if (parts.size == 2) {
+                    val weight = parts[1].toFloatOrNull()
+                    if (weight != null) parts[0] to weight else null
+                } else null
+            }.toMap()
+    }
+
+    // ── Global Profile Preferences Read ──────────────────────────────────────
     override val userPreferences: Flow<UserPreferences> = dataStore.data
         .catch { e ->
             // If DataStore file is corrupted, emit empty preferences
@@ -49,7 +96,7 @@ class UserPreferencesRepositoryImpl @Inject constructor(
         }
         .map { prefs -> prefs.toUserPreferences() }
 
-    // ── Write ─────────────────────────────────────────────────────────────────
+    // ── Global Profile Preferences Write ─────────────────────────────────────
     override suspend fun update(prefs: UserPreferences) {
         dataStore.edit { p ->
             p.writeUserPreferences(prefs)
@@ -68,6 +115,123 @@ class UserPreferencesRepositoryImpl @Inject constructor(
         dataStore.edit { p ->
             p[Keys.THEME_MODE] = themeMode
         }
+    }
+
+    // ── Account-Scoped Travel Preferences Implementation ─────────────────────
+
+    override fun getTravelPreferences(email: String): Flow<UserTravelPreferences> {
+        val normalized = validateEmail(email)
+        val statusKey = AccountKeys.onboardingStatus(normalized)
+        val likedKey = AccountKeys.likedInterests(normalized)
+        val strongKey = AccountKeys.stronglyPreferredInterests(normalized)
+        val dislikedKey = AccountKeys.dislikedInterests(normalized)
+        val weightsKey = AccountKeys.preferenceWeights(normalized)
+
+        return dataStore.data
+            .catch { e ->
+                if (e is IOException) emit(emptyPreferences()) else throw e
+            }
+            .map { prefs ->
+                val rawStatus = prefs[statusKey]
+                val status = OnboardingStatus.fromStorage(rawStatus)
+                val liked = prefs[likedKey].orEmpty()
+                val strong = prefs[strongKey].orEmpty()
+                val disliked = prefs[dislikedKey].orEmpty()
+                val weights = deserializeWeights(prefs[weightsKey])
+
+                UserTravelPreferences(
+                    email = normalized,
+                    onboardingStatus = status,
+                    likedInterestIds = liked,
+                    stronglyPreferredInterestIds = strong,
+                    dislikedInterestIds = disliked,
+                    preferenceWeights = weights
+                )
+            }
+            .distinctUntilChanged()
+    }
+
+    override suspend fun getTravelPreferencesOnce(email: String): UserTravelPreferences =
+        getTravelPreferences(email).first()
+
+    override suspend fun getRawOnboardingStatus(email: String): OnboardingStatus? {
+        val normalized = validateEmail(email)
+        val key = AccountKeys.onboardingStatus(normalized)
+        val raw = dataStore.data
+            .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+            .first()[key]
+        return if (raw != null) OnboardingStatus.fromStorage(raw) else null
+    }
+
+    override suspend fun initializeNewAccountOnboarding(email: String) {
+        val normalized = validateEmail(email)
+        val statusKey = AccountKeys.onboardingStatus(normalized)
+        val likedKey = AccountKeys.likedInterests(normalized)
+        val strongKey = AccountKeys.stronglyPreferredInterests(normalized)
+        val dislikedKey = AccountKeys.dislikedInterests(normalized)
+        val weightsKey = AccountKeys.preferenceWeights(normalized)
+
+        dataStore.edit { prefs ->
+            prefs[statusKey] = OnboardingStatus.NOT_STARTED.name
+            prefs[likedKey] = emptySet()
+            prefs[strongKey] = emptySet()
+            prefs[dislikedKey] = emptySet()
+            prefs[weightsKey] = ""
+        }
+    }
+
+    override suspend fun updateOnboardingStatus(email: String, status: OnboardingStatus) {
+        val normalized = validateEmail(email)
+        val statusKey = AccountKeys.onboardingStatus(normalized)
+        dataStore.edit { prefs ->
+            prefs[statusKey] = status.name
+        }
+    }
+
+    override suspend fun updateTravelPreferences(
+        email: String,
+        liked: Set<String>,
+        stronglyPreferred: Set<String>,
+        disliked: Set<String>,
+        weights: Map<String, Float>
+    ) {
+        val normalized = validateEmail(email)
+        val likedKey = AccountKeys.likedInterests(normalized)
+        val strongKey = AccountKeys.stronglyPreferredInterests(normalized)
+        val dislikedKey = AccountKeys.dislikedInterests(normalized)
+        val weightsKey = AccountKeys.preferenceWeights(normalized)
+
+        dataStore.edit { prefs ->
+            prefs[likedKey] = liked
+            prefs[strongKey] = stronglyPreferred
+            prefs[dislikedKey] = disliked
+            prefs[weightsKey] = serializeWeights(weights)
+        }
+    }
+
+    override suspend fun migrateLegacyAccountIfNeeded(email: String): OnboardingStatus {
+        val normalized = validateEmail(email)
+        val statusKey = AccountKeys.onboardingStatus(normalized)
+        var resolvedStatus: OnboardingStatus = OnboardingStatus.LEGACY_COMPLETED
+
+        dataStore.edit { prefs ->
+            val existing = prefs[statusKey]
+            if (existing == null) {
+                // Legacy user: mark LEGACY_COMPLETED so returning user lands on Home without forced onboarding
+                prefs[statusKey] = OnboardingStatus.LEGACY_COMPLETED.name
+                resolvedStatus = OnboardingStatus.LEGACY_COMPLETED
+            } else {
+                resolvedStatus = OnboardingStatus.fromStorage(existing)
+            }
+        }
+        return resolvedStatus
+    }
+
+    override suspend fun clearAccountState(email: String) {
+        validateEmail(email)
+        // Invalidate transient in-memory state only.
+        // Persisted DataStore keys (status, liked, strongly preferred, disliked, weights)
+        // are explicitly PRESERVED across logout and subsequent login.
     }
 
     // ── Serialization Helpers ────────────────────────────────────────────────

@@ -20,5 +20,7 @@ data class AuthUiState(
     val errorMessage: String? = null,
     val isSuccess: Boolean = false,
     /** Role of the account that just signed in; decides Home vs Agent Dashboard. */
-    val sessionRole: UserRole = UserRole.TRAVELLER
+    val sessionRole: UserRole = UserRole.TRAVELLER,
+    /** True if this authentication operation created a brand-new account (eligible for onboarding). */
+    val isNewAccount: Boolean = false
 )

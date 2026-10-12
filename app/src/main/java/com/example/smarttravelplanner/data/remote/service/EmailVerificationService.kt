@@ -15,10 +15,17 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
+interface EmailVerificationService {
+    suspend fun sendVerificationOtp(email: String): Result<String>
+    suspend fun sendPasswordResetOtp(email: String): Result<String>
+    fun verifyOtp(email: String, enteredCode: String): Result<Boolean>
+    fun clearSession(email: String)
+}
+
 @Singleton
-class EmailVerificationService @Inject constructor(
+class EmailVerificationServiceImpl @Inject constructor(
     @param:ApplicationContext private val context: Context
-) {
+) : EmailVerificationService {
     private val channelId = "auth_verification_channel"
     private val notificationManager =
         context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -104,7 +111,7 @@ class EmailVerificationService @Inject constructor(
      * Generates a 6-digit OTP valid for 5 minutes and sends it via Gmail SMTP
      * directly to the recipient's email inbox. Persists session to SharedPreferences.
      */
-    suspend fun sendVerificationOtp(email: String): Result<String> = runCatching {
+    override suspend fun sendVerificationOtp(email: String): Result<String> = runCatching {
         val normalizedEmail = email.trim().lowercase()
         val code = SecurityUtils.generateOtp()
         val expiresAt = System.currentTimeMillis() + 5 * 60 * 1000 // 5 minutes
@@ -148,7 +155,7 @@ class EmailVerificationService @Inject constructor(
     /**
      * Sends a 6-digit password reset OTP to the user's email via Gmail SMTP.
      */
-    suspend fun sendPasswordResetOtp(email: String): Result<String> = runCatching {
+    override suspend fun sendPasswordResetOtp(email: String): Result<String> = runCatching {
         val normalizedEmail = email.trim().lowercase()
         val code = SecurityUtils.generateOtp()
         val expiresAt = System.currentTimeMillis() + 5 * 60 * 1000 // 5 minutes
@@ -191,7 +198,7 @@ class EmailVerificationService @Inject constructor(
     /**
      * Verifies the entered 6-digit code against the active session for the email.
      */
-    fun verifyOtp(email: String, enteredCode: String): Result<Boolean> = runCatching {
+    override fun verifyOtp(email: String, enteredCode: String): Result<Boolean> = runCatching {
         val normalizedEmail = email.trim().lowercase()
         val session = getSession(normalizedEmail)
             ?: throw IllegalStateException("No verification code sent to this email. Please request a new code.")
@@ -220,7 +227,7 @@ class EmailVerificationService @Inject constructor(
     /**
      * Clears any active OTP session for the email.
      */
-    fun clearSession(email: String) {
+    override fun clearSession(email: String) {
         val normalized = email.trim().lowercase()
         prefs.edit()
             .remove("session_${normalized}_code")

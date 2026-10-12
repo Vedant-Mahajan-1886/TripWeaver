@@ -7,6 +7,8 @@ import com.example.smarttravelplanner.data.repository.AgentRepository
 import com.example.smarttravelplanner.data.repository.AuthRepository
 import com.example.smarttravelplanner.data.repository.UserRoleRepository
 import com.example.smarttravelplanner.domain.model.UserRole
+import com.example.smarttravelplanner.data.repository.UserPreferencesRepository
+import com.example.smarttravelplanner.domain.model.OnboardingStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -15,6 +17,12 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -25,7 +33,8 @@ class AuthViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val userRoleRepository: UserRoleRepository,
     private val agentRepository: AgentRepository,
-    private val demoAgentSeeder: DemoAgentSeeder
+    private val demoAgentSeeder: DemoAgentSeeder,
+    private val userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
 
     init {
@@ -61,6 +70,33 @@ class AuthViewModel @Inject constructor(
             initialValue = null
         )
 
+    /**
+     * Account-specific onboarding status for the currently authenticated user.
+     * Null if nobody is logged in or while loading.
+     * Automatically triggers idempotent legacy account migration for older users.
+     */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val sessionOnboardingStatus: StateFlow<OnboardingStatus?> = combine(
+        authRepository.isLoggedIn,
+        authRepository.currentUserEmail
+    ) { loggedIn, email ->
+        if (loggedIn && !email.isNullOrBlank()) email else null
+    }.flatMapLatest { email ->
+        if (email == null) {
+            flowOf<OnboardingStatus?>(null)
+        } else {
+            userPreferencesRepository.getTravelPreferences(email)
+                .map<com.example.smarttravelplanner.domain.model.UserTravelPreferences, OnboardingStatus?> { it.onboardingStatus }
+                .onStart {
+                    userPreferencesRepository.migrateLegacyAccountIfNeeded(email)
+                }
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = null
+    )
+
     /** Countdown timer in seconds for OTP resend cooldown */
     private val _resendCountdown = MutableStateFlow(0)
     val resendCountdown = _resendCountdown.asStateFlow()
@@ -84,9 +120,14 @@ class AuthViewModel @Inject constructor(
                 return@launch
             }
             authRepository.login(normalizedEmail, password)
-                .onSuccess {
+                .onSuccess { authResult ->
                     _uiState.update {
-                        it.copy(isLoading = false, isSuccess = true, sessionRole = UserRole.TRAVELLER)
+                        it.copy(
+                            isLoading = false,
+                            isSuccess = true,
+                            sessionRole = UserRole.TRAVELLER,
+                            isNewAccount = authResult.isNewAccount
+                        )
                     }
                 }
                 .onFailure { error ->
@@ -185,8 +226,15 @@ class AuthViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             val normalizedEmail = email.trim().lowercase()
             authRepository.verifyOtpAndCreateAccount(fullName, normalizedEmail, password, otp)
-                .onSuccess {
-                    _uiState.update { it.copy(isLoading = false, isSuccess = true) }
+                .onSuccess { authResult ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            isSuccess = true,
+                            sessionRole = UserRole.TRAVELLER,
+                            isNewAccount = authResult.isNewAccount
+                        )
+                    }
                 }
                 .onFailure { error ->
                     _uiState.update {
@@ -220,8 +268,15 @@ class AuthViewModel @Inject constructor(
                 return@launch
             }
             authRepository.loginWithGoogle(normalizedEmail, fullName, profilePictureUrl)
-                .onSuccess {
-                    _uiState.update { it.copy(isLoading = false, isSuccess = true) }
+                .onSuccess { authResult ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            isSuccess = true,
+                            sessionRole = UserRole.TRAVELLER,
+                            isNewAccount = authResult.isNewAccount
+                        )
+                    }
                 }
                 .onFailure { error ->
                     _uiState.update {
@@ -358,10 +413,17 @@ class AuthViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             val normalizedEmail = email.trim().lowercase()
             authRepository.resetPassword(normalizedEmail, otp, newPassword)
-                .onSuccess {
+                .onSuccess { authResult ->
                     // Resetting signs the user in: send agents to their dashboard
                     val role = userRoleRepository.roleForEmail(normalizedEmail) ?: UserRole.TRAVELLER
-                    _uiState.update { it.copy(isLoading = false, isSuccess = true, sessionRole = role) }
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            isSuccess = true,
+                            sessionRole = role,
+                            isNewAccount = authResult.isNewAccount
+                        )
+                    }
                 }
                 .onFailure { error ->
                     _uiState.update {
@@ -441,7 +503,7 @@ class AuthViewModel @Inject constructor(
             authRepository.login(normalizedEmail, password)
                 .onSuccess {
                     _uiState.update {
-                        it.copy(isLoading = false, isSuccess = true, sessionRole = UserRole.AGENT)
+                        it.copy(isLoading = false, isSuccess = true, sessionRole = UserRole.AGENT, isNewAccount = false)
                     }
                 }
                 .onFailure { error ->
@@ -529,7 +591,7 @@ class AuthViewModel @Inject constructor(
             result
                 .onSuccess {
                     _uiState.update {
-                        it.copy(isLoading = false, isSuccess = true, sessionRole = UserRole.AGENT)
+                        it.copy(isLoading = false, isSuccess = true, sessionRole = UserRole.AGENT, isNewAccount = false)
                     }
                 }
                 .onFailure { error ->
@@ -562,6 +624,33 @@ class AuthViewModel @Inject constructor(
 
     fun resetState() {
         _uiState.value = AuthUiState()
+    }
+
+    /** Completes preferences onboarding and saves personalized selections. */
+    fun completeOnboarding(
+        email: String,
+        liked: Set<String>,
+        stronglyPreferred: Set<String> = emptySet(),
+        disliked: Set<String> = emptySet(),
+        weights: Map<String, Float> = emptyMap()
+    ) {
+        viewModelScope.launch {
+            userPreferencesRepository.updateTravelPreferences(
+                email = email,
+                liked = liked,
+                stronglyPreferred = stronglyPreferred,
+                disliked = disliked,
+                weights = weights
+            )
+            userPreferencesRepository.updateOnboardingStatus(email, OnboardingStatus.COMPLETED)
+        }
+    }
+
+    /** Skips preferences onboarding for the specified account without forcing it again. */
+    fun skipOnboarding(email: String) {
+        viewModelScope.launch {
+            userPreferencesRepository.updateOnboardingStatus(email, OnboardingStatus.SKIPPED)
+        }
     }
 
     private fun startResendCooldown() {

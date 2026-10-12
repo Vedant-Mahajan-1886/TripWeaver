@@ -22,6 +22,8 @@ import com.example.smarttravelplanner.data.repository.PhotoRepository
 import com.example.smarttravelplanner.data.repository.PhotoRepositoryImpl
 import com.example.smarttravelplanner.data.repository.PlacesRepository
 import com.example.smarttravelplanner.data.repository.PlacesRepositoryImpl
+import com.example.smarttravelplanner.data.remote.service.EmailVerificationService
+import com.example.smarttravelplanner.data.remote.service.EmailVerificationServiceImpl
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -31,6 +33,9 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class RepositoryModule {
+
+    @Binds @Singleton
+    abstract fun bindEmailVerificationService(impl: EmailVerificationServiceImpl): EmailVerificationService
 
     @Binds @Singleton
     abstract fun bindAuthRepository(impl: AuthRepositoryImpl): AuthRepository
