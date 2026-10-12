@@ -59,7 +59,7 @@ object DefaultPreferenceDeck {
             title = "Relaxation",
             category = "Travel Style",
             description = "Tranquil coastal havens, soothing wellness retreats, quiet waters, and leisurely paces.",
-            imageRes = R.drawable.dest_kerala
+            imageRes = R.drawable.pref_relaxation
         ),
         PreferenceCardItem(
             id = "nature_wildlife",
@@ -119,21 +119,21 @@ object DefaultPreferenceDeck {
             title = "Beaches & Islands",
             category = "Ways to Explore",
             description = "Sun-drenched sands, turquoise waves, coastal sunset walks, and tropical island hopping.",
-            imageRes = R.drawable.dest_goa
+            imageRes = R.drawable.pref_beaches_islands
         ),
         PreferenceCardItem(
             id = "mountains_trekking",
             title = "Mountains & Trekking",
             category = "Ways to Explore",
             description = "Summit ridge hikes, crisp Himalayan air, cascading waterfalls, and pine-clad slopes.",
-            imageRes = R.drawable.dest_manali
+            imageRes = R.drawable.pref_mountains_trekking
         ),
         PreferenceCardItem(
             id = "local_offbeat",
             title = "Local & Offbeat Experiences",
             category = "Ways to Explore",
             description = "Living root bridges, secluded mountain hamlets, native folklore, and unexplored paths.",
-            imageRes = R.drawable.dest_shillong
+            imageRes = R.drawable.pref_local_offbeat
         )
     )
 }

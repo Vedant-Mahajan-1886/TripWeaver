@@ -445,7 +445,7 @@ class OnboardingViewModelTest {
         // Verify exact verified image mappings
         val expectedMappings = mapOf(
             "adventure" to com.example.smarttravelplanner.R.drawable.pref_adventure,
-            "relaxation" to com.example.smarttravelplanner.R.drawable.dest_kerala,
+            "relaxation" to com.example.smarttravelplanner.R.drawable.pref_relaxation,
             "nature_wildlife" to com.example.smarttravelplanner.R.drawable.pref_nature_wildlife,
             "culture_heritage" to com.example.smarttravelplanner.R.drawable.dest_jaipur,
             "food_cafes" to com.example.smarttravelplanner.R.drawable.pref_food_cafes,
@@ -453,9 +453,9 @@ class OnboardingViewModelTest {
             "shopping_city_life" to com.example.smarttravelplanner.R.drawable.pref_city_shopping,
             "photography_scenic" to com.example.smarttravelplanner.R.drawable.dest_kashmir,
             "road_trips" to com.example.smarttravelplanner.R.drawable.pref_road_trips,
-            "beaches_islands" to com.example.smarttravelplanner.R.drawable.dest_goa,
-            "mountains_trekking" to com.example.smarttravelplanner.R.drawable.dest_manali,
-            "local_offbeat" to com.example.smarttravelplanner.R.drawable.dest_shillong
+            "beaches_islands" to com.example.smarttravelplanner.R.drawable.pref_beaches_islands,
+            "mountains_trekking" to com.example.smarttravelplanner.R.drawable.pref_mountains_trekking,
+            "local_offbeat" to com.example.smarttravelplanner.R.drawable.pref_local_offbeat
         )
 
         deck.forEach { card ->
