@@ -70,6 +70,7 @@ import java.util.Locale
 fun AgentPackagesScreen(
     onBack: (() -> Unit)?,
     onEdit: (packageId: Long) -> Unit,
+    headerExtra: @Composable () -> Unit = {},
     viewModel: AgentPackagesViewModel = hiltViewModel()
 ) {
     val packages by viewModel.packages.collectAsStateWithLifecycle()
@@ -117,6 +118,7 @@ fun AgentPackagesScreen(
                     Text("Ready-made trips travellers can book in one tap", fontFamily = DmSansFontFamily,
                         fontSize = 13.sp, color = OnBackgroundGray)
                 }
+                Box(Modifier.padding(horizontal = 16.dp).padding(bottom = 10.dp)) { headerExtra() }
             }
 
             val list = packages

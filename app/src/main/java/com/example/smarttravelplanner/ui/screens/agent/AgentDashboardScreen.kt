@@ -90,6 +90,8 @@ import com.example.smarttravelplanner.domain.util.isSoon
 import com.example.smarttravelplanner.domain.util.label
 import com.example.smarttravelplanner.domain.util.tripTiming
 import com.example.smarttravelplanner.domain.util.upcomingBookedTrips
+import com.example.smarttravelplanner.ui.screens.agentgroups.AgentGroupsScreen
+import com.example.smarttravelplanner.ui.screens.agentgroups.PackagesModeSwitch
 import com.example.smarttravelplanner.ui.screens.agentpackages.AgentPackagesScreen
 import com.example.smarttravelplanner.ui.screens.agentshare.Stars
 import com.example.smarttravelplanner.ui.screens.agentshare.StatusChip
@@ -124,11 +126,15 @@ fun AgentDashboardScreen(
     onLogout: () -> Unit,
     onOpenShare: (shareId: Long) -> Unit,
     onEditPackage: (packageId: Long) -> Unit,
+    onOpenGroup: (groupId: Long) -> Unit,
+    onEditGroup: (groupId: Long) -> Unit,
     viewModel: AgentDashboardViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val notice by viewModel.notice.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf(AgentTab.REQUESTS) }
+    // Packages tab: ready-made packages, or fixed-date group trips
+    var showGroups by rememberSaveable { mutableStateOf(false) }
 
     // Search / filter / sort per tab. Kept here so they survive switching tabs.
     var requestQuery by rememberSaveable { mutableStateOf("") }
@@ -177,7 +183,14 @@ fun AgentDashboardScreen(
                 .padding(padding)
         ) {
             if (tab == AgentTab.PACKAGES) {
-                AgentPackagesScreen(onBack = null, onEdit = onEditPackage)
+                val modeSwitch: @Composable () -> Unit = {
+                    PackagesModeSwitch(groupsSelected = showGroups, onSelect = { showGroups = it })
+                }
+                if (showGroups) {
+                    AgentGroupsScreen(onOpen = onOpenGroup, onEdit = onEditGroup, headerExtra = modeSwitch)
+                } else {
+                    AgentPackagesScreen(onBack = null, onEdit = onEditPackage, headerExtra = modeSwitch)
+                }
             } else {
                 when (val state = uiState) {
                     AgentDashboardUiState.Loading -> Box(
