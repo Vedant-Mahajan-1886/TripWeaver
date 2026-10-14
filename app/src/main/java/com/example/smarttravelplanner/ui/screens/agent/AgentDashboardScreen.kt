@@ -1,85 +1,121 @@
 package com.example.smarttravelplanner.ui.screens.agent
 
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Logout
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.EventAvailable
+import androidx.compose.material.icons.filled.Inbox
+import androidx.compose.material.icons.filled.Luggage
+import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.EventAvailable
 import androidx.compose.material.icons.outlined.Inbox
+import androidx.compose.material.icons.outlined.Luggage
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material.icons.outlined.SupportAgent
-import android.widget.Toast
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 import com.example.smarttravelplanner.domain.model.agent.IncomingShare
 import com.example.smarttravelplanner.domain.model.agent.ShareStatus
+import com.example.smarttravelplanner.ui.screens.agentpackages.AgentPackagesScreen
 import com.example.smarttravelplanner.ui.screens.agentshare.Stars
 import com.example.smarttravelplanner.ui.screens.agentshare.StatusChip
 import com.example.smarttravelplanner.ui.theme.Amber
 import com.example.smarttravelplanner.ui.theme.DmSansFontFamily
 import com.example.smarttravelplanner.ui.theme.OnBackgroundGray
 import com.example.smarttravelplanner.ui.theme.PlayfairFontFamily
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
+/** The four sections of the travel-agent app, shown in the bottom bar. */
+enum class AgentTab(val label: String, val filledIcon: ImageVector, val outlineIcon: ImageVector) {
+    REQUESTS("Requests", Icons.Filled.Inbox, Icons.Outlined.Inbox),
+    BOOKINGS("Bookings", Icons.Filled.EventAvailable, Icons.Outlined.EventAvailable),
+    PACKAGES("Packages", Icons.Filled.Luggage, Icons.Outlined.Luggage),
+    PROFILE("Profile", Icons.Filled.AccountCircle, Icons.Outlined.AccountCircle)
+}
+
+/** Requests that ended without a booking (shown last on the Requests tab). */
+private val CLOSED_STATUSES = setOf(ShareStatus.CLOSED, ShareStatus.CANCELLED, ShareStatus.WITHDRAWN)
 
 /**
- * Landing screen for travel-agent accounts.
- * Shows the agency card, counters and every trip travellers have sent,
- * grouped by status. Tapping a trip opens it for review.
+ * Home of a travel-agent account: four tabs with a bottom bar.
+ *  - Requests: itineraries travellers sent for review (new, in review, responded, closed)
+ *  - Bookings: trips where this agent was chosen (quote, booking, completed)
+ *  - Packages: the agent's ready-made trips
+ *  - Profile:  agency details, ratings and log out
  */
 @Composable
 fun AgentDashboardScreen(
     onLogout: () -> Unit,
     onOpenShare: (shareId: Long) -> Unit,
-    onOpenPackages: () -> Unit = {},
+    onEditPackage: (packageId: Long) -> Unit,
     viewModel: AgentDashboardViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val notice by viewModel.notice.collectAsStateWithLifecycle()
-    var editingProfile by remember { mutableStateOf(false) }
+    var tab by rememberSaveable { mutableStateOf(AgentTab.REQUESTS) }
     val context = LocalContext.current
 
     LaunchedEffect(notice) {
@@ -89,229 +125,414 @@ fun AgentDashboardScreen(
         }
     }
 
+    // Back from any other tab returns to Requests before leaving the app.
+    BackHandler(enabled = tab != AgentTab.REQUESTS) { tab = AgentTab.REQUESTS }
+
+    val success = uiState as? AgentDashboardUiState.Success
+
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        bottomBar = {
+            AgentBottomBar(
+                selected = tab,
+                badges = mapOf(
+                    AgentTab.REQUESTS to (success?.newCount ?: 0),
+                    AgentTab.BOOKINGS to (success?.bookingActionCount ?: 0)
+                ),
+                onSelect = { tab = it }
+            )
+        }
+    ) { padding ->
+        Box(
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            if (tab == AgentTab.PACKAGES) {
+                AgentPackagesScreen(onBack = null, onEdit = onEditPackage)
+            } else {
+                when (val state = uiState) {
+                    AgentDashboardUiState.Loading -> Box(
+                        Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) { CircularProgressIndicator(color = Amber) }
+
+                    is AgentDashboardUiState.Success -> when (tab) {
+                        AgentTab.REQUESTS -> RequestsTab(state, onOpenShare)
+                        AgentTab.BOOKINGS -> BookingsTab(state, onOpenShare)
+                        AgentTab.PROFILE -> ProfileTab(state, onLogout, viewModel::saveProfile)
+                        AgentTab.PACKAGES -> Unit
+                    }
+                }
+            }
+        }
+    }
+}
+
+// -- Tabs ----------------------------------------------------------------------
+
+@Composable
+private fun RequestsTab(state: AgentDashboardUiState.Success, onOpenShare: (Long) -> Unit) {
+    val requests = state.incoming.filter { !it.share.status.isChosen }
+    TabPage(title = "Trip requests", subtitle = "Itineraries travellers sent you to review") {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            CounterCard("New", state.newCount, Modifier.weight(1f))
+            CounterCard("In review", state.inReviewCount, Modifier.weight(1f))
+            CounterCard("Responded", state.respondedCount, Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(28.dp))
+        if (requests.isEmpty()) {
+            EmptyTabState(
+                icon = Icons.Outlined.Inbox,
+                title = "No trip requests yet",
+                body = "When travellers send you an itinerary, it will appear here for review."
+            )
+        } else {
+            ShareSection("New", requests.filter { it.share.status == ShareStatus.SENT }, onOpenShare)
+            ShareSection("In review", requests.filter { it.share.status == ShareStatus.VIEWED }, onOpenShare)
+            ShareSection("Responded", requests.filter { it.share.status == ShareStatus.RESPONDED }, onOpenShare)
+            ShareSection("Closed & cancelled", requests.filter { it.share.status in CLOSED_STATUSES }, onOpenShare)
+        }
+    }
+}
+
+@Composable
+private fun BookingsTab(state: AgentDashboardUiState.Success, onOpenShare: (Long) -> Unit) {
+    val bookings = state.incoming.filter { it.share.status.isChosen }
+    TabPage(title = "Bookings", subtitle = "Trips where a traveller chose you") {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            CounterCard("To quote", state.toQuoteCount, Modifier.weight(1f))
+            CounterCard("To book", state.toBookCount, Modifier.weight(1f))
+            CounterCard("Booked", state.bookedCount, Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(28.dp))
+        if (bookings.isEmpty()) {
+            EmptyTabState(
+                icon = Icons.Outlined.EventAvailable,
+                title = "No bookings yet",
+                body = "When a traveller picks you for their trip, it moves here so you can send a quote and book."
+            )
+        } else {
+            ShareSection("Chosen \u2013 send a quote", bookings.filter { it.share.status == ShareStatus.CONFIRMED }, onOpenShare)
+            ShareSection("Ready to book", bookings.filter { it.share.status == ShareStatus.QUOTE_ACCEPTED }, onOpenShare)
+            ShareSection("Quote sent \u2013 waiting for traveller", bookings.filter { it.share.status == ShareStatus.QUOTE_SENT }, onOpenShare)
+            ShareSection("Booked", bookings.filter { it.share.status == ShareStatus.BOOKED }, onOpenShare)
+            ShareSection("Completed", bookings.filter { it.share.status == ShareStatus.COMPLETED }, onOpenShare)
+        }
+    }
+}
+
+@Composable
+private fun ProfileTab(
+    state: AgentDashboardUiState.Success,
+    onLogout: () -> Unit,
+    onSaveProfile: (agency: String, city: String, specialities: String) -> Unit
+) {
+    var editingProfile by remember { mutableStateOf(false) }
+
+    TabPage(title = "Profile", subtitle = "Your agency as travellers see it") {
+        // -- Agency card (tap to edit) ----------------------------------------
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .clickable { editingProfile = true }
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Amber.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Outlined.SupportAgent, contentDescription = null, tint = Amber)
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = state.profile?.agencyName?.ifBlank { null } ?: "Your agency",
+                    fontFamily = DmSansFontFamily,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                val details = listOfNotNull(
+                    state.profile?.city?.ifBlank { null },
+                    state.profile?.specialities?.takeIf { it.isNotEmpty() }?.joinToString(", ")
+                ).joinToString("  \u00B7  ")
+                Text(
+                    text = details.ifBlank { "Tap to add your city and specialities" },
+                    fontFamily = DmSansFontFamily,
+                    fontSize = 12.sp,
+                    color = OnBackgroundGray
+                )
+            }
+            Text("Edit", fontFamily = DmSansFontFamily, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Amber)
+        }
+        if (editingProfile) {
+            EditAgentProfileDialog(
+                initialAgency = state.profile?.agencyName.orEmpty(),
+                initialCity = state.profile?.city.orEmpty(),
+                initialSpecialities = state.profile?.specialities.orEmpty().joinToString(", "),
+                onSave = { agency, city, specialities ->
+                    onSaveProfile(agency, city, specialities)
+                    editingProfile = false
+                },
+                onDismiss = { editingProfile = false }
+            )
+        }
+
+        // -- Activity summary --------------------------------------------------
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            CounterCard("Requests", state.incoming.size, Modifier.weight(1f))
+            CounterCard("Chosen", state.incoming.count { it.share.status.isChosen }, Modifier.weight(1f))
+            CounterCard("Completed", state.incoming.count { it.share.status == ShareStatus.COMPLETED }, Modifier.weight(1f))
+        }
+
+        // -- Ratings from travellers ------------------------------------------
+        Spacer(Modifier.height(12.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .padding(16.dp)
+        ) {
+            Text(
+                "RATINGS",
+                fontFamily = DmSansFontFamily,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp,
+                color = OnBackgroundGray
+            )
+            Spacer(Modifier.height(8.dp))
+            val avg = state.averageRating
+            if (avg == null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.StarOutline, contentDescription = null, tint = OnBackgroundGray)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "No reviews yet. Travellers can rate you after a booked trip.",
+                        fontFamily = DmSansFontFamily, fontSize = 13.sp, color = OnBackgroundGray
+                    )
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = String.format(Locale.US, "%.1f", avg),
+                        fontFamily = PlayfairFontFamily,
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Amber
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Stars(kotlin.math.round(avg).toInt())
+                        Text(
+                            "${state.reviews.size} review${if (state.reviews.size == 1) "" else "s"} from travellers",
+                            fontFamily = DmSansFontFamily, fontSize = 12.sp, color = OnBackgroundGray
+                        )
+                    }
+                }
+                state.reviews.filter { it.comment.isNotBlank() }.forEach { review ->
+                    HorizontalDivider(
+                        Modifier.padding(vertical = 10.dp),
+                        thickness = 0.5.dp,
+                        color = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                    Text(
+                        "\u201C${review.comment}\u201D",
+                        fontFamily = DmSansFontFamily, fontSize = 13.sp,
+                        fontStyle = FontStyle.Italic,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        "${review.tripDestination} \u00B7 ${review.stars}\u2605 \u00B7 ${timeAgo(review.createdAt)}",
+                        fontFamily = DmSansFontFamily, fontSize = 11.sp, color = OnBackgroundGray
+                    )
+                }
+            }
+        }
+
+        // -- Log out -------------------------------------------------------------
+        Spacer(Modifier.height(24.dp))
+        OutlinedButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = null, tint = OnBackgroundGray)
+            Spacer(Modifier.width(8.dp))
+            Text("Log out", fontFamily = DmSansFontFamily, color = MaterialTheme.colorScheme.onBackground)
+        }
+    }
+}
+
+// -- Shared building blocks ----------------------------------------------------------
+
+/** Scrollable page with the amber "AGENT" eyebrow and a big title, used by every tab. */
+@Composable
+private fun TabPage(
+    title: String,
+    subtitle: String? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 16.dp)
     ) {
-        // ── Header ──────────────────────────────────────────────────────────
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "AGENT DASHBOARD",
-                    fontFamily = DmSansFontFamily,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.5.sp,
-                    color = Amber
-                )
-                Text(
-                    text = "Trip requests",
-                    fontFamily = PlayfairFontFamily,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-            }
-            IconButton(onClick = onLogout) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Outlined.Logout,
-                    contentDescription = "Log out",
-                    tint = OnBackgroundGray
-                )
-            }
+        Text(
+            text = "AGENT DASHBOARD",
+            fontFamily = DmSansFontFamily,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.5.sp,
+            color = Amber
+        )
+        Text(
+            text = title,
+            fontFamily = PlayfairFontFamily,
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        if (subtitle != null) {
+            Text(subtitle, fontFamily = DmSansFontFamily, fontSize = 13.sp, color = OnBackgroundGray)
         }
+        Spacer(Modifier.height(20.dp))
+        content()
+    }
+}
 
-        Spacer(modifier = Modifier.height(20.dp))
+@Composable
+private fun EmptyTabState(icon: ImageVector, title: String, body: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(icon, contentDescription = null, tint = OnBackgroundGray, modifier = Modifier.size(40.dp))
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = title,
+            fontFamily = DmSansFontFamily,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Text(
+            text = body,
+            fontFamily = DmSansFontFamily,
+            fontSize = 13.sp,
+            color = OnBackgroundGray,
+            textAlign = TextAlign.Center
+        )
+    }
+}
 
-        when (val state = uiState) {
-            AgentDashboardUiState.Loading -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 48.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = Amber)
-                }
-            }
-
-            is AgentDashboardUiState.Success -> {
-                // ── Agency card (tap to edit) ───────────────────────────────
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(MaterialTheme.colorScheme.surface)
-                        .clickable { editingProfile = true }
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Amber.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.SupportAgent,
-                            contentDescription = null,
-                            tint = Amber
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = state.profile?.agencyName?.ifBlank { null } ?: "Your agency",
-                            fontFamily = DmSansFontFamily,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        val details = listOfNotNull(
-                            state.profile?.city?.ifBlank { null },
-                            state.profile?.specialities?.takeIf { it.isNotEmpty() }?.joinToString(" · ")
-                        ).joinToString("  •  ")
-                        if (details.isNotBlank()) {
-                            Text(
-                                text = details,
-                                fontFamily = DmSansFontFamily,
-                                fontSize = 12.sp,
-                                color = OnBackgroundGray
-                            )
-                        }
-                    }
-                }
-
-                if (editingProfile) {
-                    EditAgentProfileDialog(
-                        initialAgency = state.profile?.agencyName.orEmpty(),
-                        initialCity = state.profile?.city.orEmpty(),
-                        initialSpecialities = state.profile?.specialities.orEmpty().joinToString(", "),
-                        onSave = { agency, city, specialities ->
-                            viewModel.saveProfile(agency, city, specialities)
-                            editingProfile = false
-                        },
-                        onDismiss = { editingProfile = false }
+/** Bottom bar in the same style as the traveller app, with a count badge per tab. */
+@Composable
+private fun AgentBottomBar(
+    selected: AgentTab,
+    badges: Map<AgentTab, Int>,
+    onSelect: (AgentTab) -> Unit
+) {
+    Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+        ) {
+            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.surfaceVariant)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                AgentTab.entries.forEach { item ->
+                    AgentBarItem(
+                        item = item,
+                        selected = item == selected,
+                        badge = badges[item] ?: 0,
+                        onClick = { onSelect(item) },
+                        modifier = Modifier.weight(1f)
                     )
                 }
+            }
+        }
+    }
+}
 
-                // ── My packages (ready-made trips) ──────────────────────────
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(
+@Composable
+private fun AgentBarItem(
+    item: AgentTab,
+    selected: Boolean,
+    badge: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val interaction = remember { MutableInteractionSource() }
+    Column(
+        modifier = modifier
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box {
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .then(if (selected) Modifier.background(Amber.copy(alpha = 0.15f)) else Modifier),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (selected) item.filledIcon else item.outlineIcon,
+                    contentDescription = item.label,
+                    tint = if (selected) Amber else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+            if (badge > 0) {
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(MaterialTheme.colorScheme.surface)
-                        .clickable(onClick = onOpenPackages)
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .align(Alignment.TopEnd)
+                        .offset(x = 4.dp, y = (-2).dp)
+                        .widthIn(min = 18.dp)
+                        .height(18.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFE53935))
+                        .padding(horizontal = 4.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("My packages", fontFamily = DmSansFontFamily, fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                        Text("Ready-made trips travellers can book in one tap", fontFamily = DmSansFontFamily,
-                            fontSize = 12.sp, color = OnBackgroundGray)
-                    }
-                    Text("Open", fontFamily = DmSansFontFamily, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Amber)
-                }
-
-                // ── Ratings from travellers ─────────────────────────────────
-                state.averageRating?.let { avg ->
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(MaterialTheme.colorScheme.surface)
-                            .padding(16.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = String.format(java.util.Locale.US, "%.1f", avg),
-                                fontFamily = PlayfairFontFamily,
-                                fontSize = 26.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Amber
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column {
-                                Stars(kotlin.math.round(avg).toInt())
-                                Text(
-                                    "${state.reviews.size} review${if (state.reviews.size == 1) "" else "s"} from travellers",
-                                    fontFamily = DmSansFontFamily, fontSize = 12.sp, color = OnBackgroundGray
-                                )
-                            }
-                        }
-                        state.reviews.take(3).filter { it.comment.isNotBlank() }.forEach { review ->
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                "\u201C${review.comment}\u201D \u2014 ${review.tripDestination}, ${review.stars}\u2605",
-                                fontFamily = DmSansFontFamily, fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // ── Counters ────────────────────────────────────────────────
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    CounterCard("New", state.newCount, Modifier.weight(1f))
-                    CounterCard("In review", state.inReviewCount, Modifier.weight(1f))
-                    CounterCard("Responded", state.respondedCount, Modifier.weight(1f))
-                }
-
-                Spacer(modifier = Modifier.height(28.dp))
-
-                if (state.incoming.isEmpty()) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Inbox,
-                            contentDescription = null,
-                            tint = OnBackgroundGray,
-                            modifier = Modifier.size(40.dp)
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text(
-                            text = "No trips yet",
-                            fontFamily = DmSansFontFamily,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                        Text(
-                            text = "When travellers send you an itinerary, it will appear here for review.",
-                            fontFamily = DmSansFontFamily,
-                            fontSize = 13.sp,
-                            color = OnBackgroundGray,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                } else {
-                    ShareSection("Chosen \u2013 send a quote", state.incoming.filter { it.share.status == ShareStatus.CONFIRMED }, onOpenShare)
-                    ShareSection("Ready to book", state.incoming.filter { it.share.status == ShareStatus.QUOTE_ACCEPTED }, onOpenShare)
-                    ShareSection("Quote sent \u2013 waiting for traveller", state.incoming.filter { it.share.status == ShareStatus.QUOTE_SENT }, onOpenShare)
-                    ShareSection("New", state.incoming.filter { it.share.status == ShareStatus.SENT }, onOpenShare)
-                    ShareSection("In review", state.incoming.filter { it.share.status == ShareStatus.VIEWED }, onOpenShare)
-                    ShareSection("Responded", state.incoming.filter { it.share.status == ShareStatus.RESPONDED }, onOpenShare)
-                    ShareSection("Booked", state.incoming.filter { it.share.status == ShareStatus.BOOKED }, onOpenShare)
-                    ShareSection("Completed", state.incoming.filter { it.share.status == ShareStatus.COMPLETED }, onOpenShare)
-                    ShareSection("Closed & cancelled", state.incoming.filter { it.share.status == ShareStatus.CLOSED || it.share.status == ShareStatus.CANCELLED }, onOpenShare)
+                    Text(
+                        text = if (badge > 9) "9+" else badge.toString(),
+                        fontFamily = DmSansFontFamily,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                 }
             }
         }
+        Spacer(Modifier.height(3.dp))
+        Text(
+            text = item.label,
+            fontSize = 11.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = if (selected) Amber else MaterialTheme.colorScheme.onSurfaceVariant,
+            fontFamily = DmSansFontFamily,
+            textAlign = TextAlign.Center,
+            maxLines = 1
+        )
     }
 }
 

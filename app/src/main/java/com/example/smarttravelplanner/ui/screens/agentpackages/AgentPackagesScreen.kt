@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -59,10 +62,13 @@ import com.example.smarttravelplanner.ui.theme.OnBackgroundGray
 import com.example.smarttravelplanner.ui.theme.PlayfairFontFamily
 import java.util.Locale
 
-/** Agent's "My packages": drafts and published ready-made trips. */
+/**
+ * Agent's "My packages": drafts and published ready-made trips.
+ * With [onBack] = null it is shown as a tab inside the agent dashboard (no back arrow).
+ */
 @Composable
 fun AgentPackagesScreen(
-    onBack: () -> Unit,
+    onBack: (() -> Unit)?,
     onEdit: (packageId: Long) -> Unit,
     viewModel: AgentPackagesViewModel = hiltViewModel()
 ) {
@@ -80,6 +86,8 @@ fun AgentPackagesScreen(
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        // As a tab, the dashboard's bottom bar already handles the navigation-bar inset.
+        contentWindowInsets = if (onBack == null) WindowInsets.statusBars else ScaffoldDefaults.contentWindowInsets,
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { onEdit(0L) },
@@ -91,12 +99,24 @@ fun AgentPackagesScreen(
         }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onBackground)
+            if (onBack != null) {
+                Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onBackground)
+                    }
+                    Text("My packages", fontFamily = DmSansFontFamily, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onBackground)
                 }
-                Text("My packages", fontFamily = DmSansFontFamily, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onBackground)
+            } else {
+                // Same header style as the other agent tabs
+                Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 12.dp)) {
+                    Text("AGENT DASHBOARD", fontFamily = DmSansFontFamily, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.5.sp, color = Amber)
+                    Text("My packages", fontFamily = PlayfairFontFamily, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground)
+                    Text("Ready-made trips travellers can book in one tap", fontFamily = DmSansFontFamily,
+                        fontSize = 13.sp, color = OnBackgroundGray)
+                }
             }
 
             val list = packages
