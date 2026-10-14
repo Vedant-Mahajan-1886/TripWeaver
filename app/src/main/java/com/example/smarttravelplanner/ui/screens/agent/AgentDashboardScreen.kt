@@ -116,6 +116,20 @@ fun AgentDashboardScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val notice by viewModel.notice.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf(AgentTab.REQUESTS) }
+
+    // Search / filter / sort per tab. Kept here so they survive switching tabs.
+    var requestQuery by rememberSaveable { mutableStateOf("") }
+    var requestChip by rememberSaveable { mutableStateOf(0) }
+    var requestSort by rememberSaveable { mutableStateOf(ShareSort.NEWEST) }
+    var bookingQuery by rememberSaveable { mutableStateOf("") }
+    var bookingChip by rememberSaveable { mutableStateOf(0) }
+    var bookingSort by rememberSaveable { mutableStateOf(ShareSort.NEWEST) }
+    val requestControls = ListControls(
+        requestQuery, { requestQuery = it }, requestChip, { requestChip = it }, requestSort, { requestSort = it }
+    )
+    val bookingControls = ListControls(
+        bookingQuery, { bookingQuery = it }, bookingChip, { bookingChip = it }, bookingSort, { bookingSort = it }
+    )
     val context = LocalContext.current
 
     LaunchedEffect(notice) {
@@ -159,8 +173,8 @@ fun AgentDashboardScreen(
                     ) { CircularProgressIndicator(color = Amber) }
 
                     is AgentDashboardUiState.Success -> when (tab) {
-                        AgentTab.REQUESTS -> RequestsTab(state, onOpenShare)
-                        AgentTab.BOOKINGS -> BookingsTab(state, onOpenShare)
+                        AgentTab.REQUESTS -> RequestsTab(state, requestControls, onOpenShare)
+                        AgentTab.BOOKINGS -> BookingsTab(state, bookingControls, onOpenShare)
                         AgentTab.PROFILE -> ProfileTab(state, onLogout, viewModel::saveProfile)
                         AgentTab.PACKAGES -> Unit
                     }
@@ -172,16 +186,37 @@ fun AgentDashboardScreen(
 
 // -- Tabs ----------------------------------------------------------------------
 
+/** Current search text, chip and sort of one list, plus how to change them. */
+private data class ListControls(
+    val query: String,
+    val onQueryChange: (String) -> Unit,
+    val chip: Int,
+    val onChipSelect: (Int) -> Unit,
+    val sort: ShareSort,
+    val onSortChange: (ShareSort) -> Unit
+) {
+    fun clear() {
+        onQueryChange("")
+        onChipSelect(0)
+    }
+}
+
 @Composable
-private fun RequestsTab(state: AgentDashboardUiState.Success, onOpenShare: (Long) -> Unit) {
+private fun RequestsTab(
+    state: AgentDashboardUiState.Success,
+    controls: ListControls,
+    onOpenShare: (Long) -> Unit
+) {
     val requests = state.incoming.filter { !it.share.status.isChosen }
+    val shown = requests.filterAndSort(controls.query, REQUEST_CHIPS[controls.chip].statuses, controls.sort)
     TabPage(title = "Trip requests", subtitle = "Itineraries travellers sent you to review") {
+        // Tapping a counter filters the list to that status (tap again to show all).
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            CounterCard("New", state.newCount, Modifier.weight(1f))
-            CounterCard("In review", state.inReviewCount, Modifier.weight(1f))
-            CounterCard("Responded", state.respondedCount, Modifier.weight(1f))
+            CounterCard("New", state.newCount, Modifier.weight(1f), controls.chip == 1) { controls.toggleChip(1) }
+            CounterCard("In review", state.inReviewCount, Modifier.weight(1f), controls.chip == 2) { controls.toggleChip(2) }
+            CounterCard("Responded", state.respondedCount, Modifier.weight(1f), controls.chip == 3) { controls.toggleChip(3) }
         }
-        Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(20.dp))
         if (requests.isEmpty()) {
             EmptyTabState(
                 icon = Icons.Outlined.Inbox,
@@ -189,24 +224,35 @@ private fun RequestsTab(state: AgentDashboardUiState.Success, onOpenShare: (Long
                 body = "When travellers send you an itinerary, it will appear here for review."
             )
         } else {
-            ShareSection("New", requests.filter { it.share.status == ShareStatus.SENT }, onOpenShare)
-            ShareSection("In review", requests.filter { it.share.status == ShareStatus.VIEWED }, onOpenShare)
-            ShareSection("Responded", requests.filter { it.share.status == ShareStatus.RESPONDED }, onOpenShare)
-            ShareSection("Closed & cancelled", requests.filter { it.share.status in CLOSED_STATUSES }, onOpenShare)
+            FilterBarFor(controls, REQUEST_CHIPS)
+            Spacer(Modifier.height(16.dp))
+            if (shown.isEmpty()) {
+                NoMatches(onClear = controls::clear)
+            } else {
+                ShareSection("New", shown.filter { it.share.status == ShareStatus.SENT }, onOpenShare)
+                ShareSection("In review", shown.filter { it.share.status == ShareStatus.VIEWED }, onOpenShare)
+                ShareSection("Responded", shown.filter { it.share.status == ShareStatus.RESPONDED }, onOpenShare)
+                ShareSection("Closed & cancelled", shown.filter { it.share.status in CLOSED_STATUSES }, onOpenShare)
+            }
         }
     }
 }
 
 @Composable
-private fun BookingsTab(state: AgentDashboardUiState.Success, onOpenShare: (Long) -> Unit) {
+private fun BookingsTab(
+    state: AgentDashboardUiState.Success,
+    controls: ListControls,
+    onOpenShare: (Long) -> Unit
+) {
     val bookings = state.incoming.filter { it.share.status.isChosen }
+    val shown = bookings.filterAndSort(controls.query, BOOKING_CHIPS[controls.chip].statuses, controls.sort)
     TabPage(title = "Bookings", subtitle = "Trips where a traveller chose you") {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            CounterCard("To quote", state.toQuoteCount, Modifier.weight(1f))
-            CounterCard("To book", state.toBookCount, Modifier.weight(1f))
-            CounterCard("Booked", state.bookedCount, Modifier.weight(1f))
+            CounterCard("To quote", state.toQuoteCount, Modifier.weight(1f), controls.chip == 1) { controls.toggleChip(1) }
+            CounterCard("To book", state.toBookCount, Modifier.weight(1f), controls.chip == 3) { controls.toggleChip(3) }
+            CounterCard("Booked", state.bookedCount, Modifier.weight(1f), controls.chip == 4) { controls.toggleChip(4) }
         }
-        Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(20.dp))
         if (bookings.isEmpty()) {
             EmptyTabState(
                 icon = Icons.Outlined.EventAvailable,
@@ -214,11 +260,48 @@ private fun BookingsTab(state: AgentDashboardUiState.Success, onOpenShare: (Long
                 body = "When a traveller picks you for their trip, it moves here so you can send a quote and book."
             )
         } else {
-            ShareSection("Chosen \u2013 send a quote", bookings.filter { it.share.status == ShareStatus.CONFIRMED }, onOpenShare)
-            ShareSection("Ready to book", bookings.filter { it.share.status == ShareStatus.QUOTE_ACCEPTED }, onOpenShare)
-            ShareSection("Quote sent \u2013 waiting for traveller", bookings.filter { it.share.status == ShareStatus.QUOTE_SENT }, onOpenShare)
-            ShareSection("Booked", bookings.filter { it.share.status == ShareStatus.BOOKED }, onOpenShare)
-            ShareSection("Completed", bookings.filter { it.share.status == ShareStatus.COMPLETED }, onOpenShare)
+            FilterBarFor(controls, BOOKING_CHIPS)
+            Spacer(Modifier.height(16.dp))
+            if (shown.isEmpty()) {
+                NoMatches(onClear = controls::clear)
+            } else {
+                ShareSection("Chosen \u2013 send a quote", shown.filter { it.share.status == ShareStatus.CONFIRMED }, onOpenShare)
+                ShareSection("Ready to book", shown.filter { it.share.status == ShareStatus.QUOTE_ACCEPTED }, onOpenShare)
+                ShareSection("Quote sent \u2013 waiting for traveller", shown.filter { it.share.status == ShareStatus.QUOTE_SENT }, onOpenShare)
+                ShareSection("Booked", shown.filter { it.share.status == ShareStatus.BOOKED }, onOpenShare)
+                ShareSection("Completed", shown.filter { it.share.status == ShareStatus.COMPLETED }, onOpenShare)
+            }
+        }
+    }
+}
+
+private fun ListControls.toggleChip(index: Int) = onChipSelect(if (chip == index) 0 else index)
+
+@Composable
+private fun FilterBarFor(controls: ListControls, chips: List<StatusChipOption>) {
+    ShareFilterBar(
+        query = controls.query,
+        onQueryChange = controls.onQueryChange,
+        chips = chips,
+        selectedChip = controls.chip,
+        onChipSelect = controls.onChipSelect,
+        sort = controls.sort,
+        onSortChange = controls.onSortChange
+    )
+}
+
+@Composable
+private fun NoMatches(onClear: () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            "No trips match your search",
+            fontFamily = DmSansFontFamily,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        TextButton(onClick = onClear) {
+            Text("Clear filters", fontFamily = DmSansFontFamily, fontWeight = FontWeight.Bold, color = Amber)
         }
     }
 }
@@ -727,11 +810,18 @@ internal fun timeAgo(epochMillis: Long): String {
 }
 
 @Composable
-private fun CounterCard(label: String, count: Int, modifier: Modifier = Modifier) {
+private fun CounterCard(
+    label: String,
+    count: Int,
+    modifier: Modifier = Modifier,
+    selected: Boolean = false,
+    onClick: (() -> Unit)? = null
+) {
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surface)
+            .background(if (selected) Amber.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surface)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(vertical = 14.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
