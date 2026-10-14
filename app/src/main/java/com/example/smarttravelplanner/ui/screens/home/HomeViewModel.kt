@@ -3,6 +3,7 @@ package com.example.smarttravelplanner.ui.screens.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.smarttravelplanner.domain.usecase.DeleteTripUseCase
+import com.example.smarttravelplanner.domain.usecase.GetSoloModeStateUseCase
 import com.example.smarttravelplanner.domain.usecase.GetTripsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -17,25 +18,21 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import com.example.smarttravelplanner.domain.util.SoloDetector
 import com.example.smarttravelplanner.domain.util.SoloModeState
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
 import javax.inject.Inject
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     getTripsUseCase: GetTripsUseCase,
+    getSoloModeStateUseCase: GetSoloModeStateUseCase,
     private val deleteTripUseCase: DeleteTripUseCase,
     private val soloModeRepository: SoloModeRepository,
     private val groupRepository: GroupRepository
 ) : ViewModel() {
 
     /** Solo-mode switch + "you usually travel solo" nudge, from the saved choice and the trips. */
-    val soloState: StateFlow<SoloModeState> = combine(
-        getTripsUseCase(),
-        soloModeRepository.observeSoloMode()
-    ) { trips, savedChoice -> SoloDetector.state(savedChoice, trips) }
+    val soloState: StateFlow<SoloModeState> = getSoloModeStateUseCase()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
