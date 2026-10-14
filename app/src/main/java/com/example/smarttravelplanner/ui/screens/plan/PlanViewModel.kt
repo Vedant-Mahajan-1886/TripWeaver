@@ -5,10 +5,13 @@ import androidx.lifecycle.viewModelScope
 import com.example.smarttravelplanner.data.repository.UserPreferencesRepository
 import com.example.smarttravelplanner.domain.model.UserPreferences
 import com.example.smarttravelplanner.domain.usecase.GenerateTripUseCase
+import com.example.smarttravelplanner.domain.usecase.GetSoloModeStateUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -17,11 +20,17 @@ import javax.inject.Inject
 @HiltViewModel
 class PlanViewModel @Inject constructor(
     private val generateTripUseCase: GenerateTripUseCase,
-    private val userPreferencesRepository: UserPreferencesRepository
+    private val userPreferencesRepository: UserPreferencesRepository,
+    getSoloModeStateUseCase: GetSoloModeStateUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<PlanUiState>(PlanUiState.Idle)
     val uiState = _uiState.asStateFlow()
+
+    /** Solo mode on: the Plan form shows a hint and the AI plans a solo-friendly trip (1 adult). */
+    val soloModeEnabled: StateFlow<Boolean> = getSoloModeStateUseCase()
+        .map { it.enabled }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     /** User's AI and trip settings loaded from DataStore */
     val userPreferences = userPreferencesRepository.userPreferences
