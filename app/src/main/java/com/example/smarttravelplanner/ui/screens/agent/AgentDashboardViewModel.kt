@@ -16,7 +16,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import com.example.smarttravelplanner.domain.util.AgentAlert
 import com.example.smarttravelplanner.domain.util.AgentInsights
+import com.example.smarttravelplanner.domain.util.computeAgentAlerts
 import com.example.smarttravelplanner.domain.util.computeAgentInsights
 import java.time.LocalDate
 import javax.inject.Inject
@@ -29,7 +31,9 @@ sealed interface AgentDashboardUiState {
         /** Travellers' ratings of this agent, newest first. */
         val reviews: List<AgentReview> = emptyList(),
         /** Earnings, pipeline and win rate for the Profile tab. */
-        val insights: AgentInsights? = null
+        val insights: AgentInsights? = null,
+        /** Things that need the agent's attention, urgent first. */
+        val alerts: List<AgentAlert> = emptyList()
     ) : AgentDashboardUiState {
         val averageRating: Double? get() = reviews.takeIf { it.isNotEmpty() }?.map { it.stars }?.average()
         val newCount: Int get() = incoming.count { it.share.status == ShareStatus.SENT }
@@ -82,11 +86,13 @@ class AgentDashboardViewModel @Inject constructor(
         bookingRepository.observeMyReviews(),
         bookingRepository.observeMyBookings()
     ) { profile, incoming, reviews, bookings ->
+        val today = LocalDate.now()
         AgentDashboardUiState.Success(
             profile = profile,
             incoming = incoming,
             reviews = reviews,
-            insights = computeAgentInsights(incoming, bookings, LocalDate.now())
+            insights = computeAgentInsights(incoming, bookings, today),
+            alerts = computeAgentAlerts(incoming, bookings, today, System.currentTimeMillis())
         )
     }.stateIn(
         scope = viewModelScope,

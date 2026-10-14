@@ -36,7 +36,10 @@ import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.EventAvailable
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Luggage
+import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.PriorityHigh
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material.icons.outlined.SupportAgent
 import androidx.compose.material3.AlertDialog
@@ -77,7 +80,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.smarttravelplanner.domain.model.agent.IncomingShare
 import com.example.smarttravelplanner.domain.model.agent.ShareStatus
+import com.example.smarttravelplanner.domain.util.AgentAlert
 import com.example.smarttravelplanner.domain.util.AgentInsights
+import com.example.smarttravelplanner.domain.util.AlertLevel
 import com.example.smarttravelplanner.domain.util.TripTiming
 import com.example.smarttravelplanner.domain.util.isSoon
 import com.example.smarttravelplanner.domain.util.label
@@ -216,6 +221,10 @@ private fun RequestsTab(
     val requests = state.incoming.filter { !it.share.status.isChosen }
     val shown = requests.filterAndSort(controls.query, REQUEST_CHIPS[controls.chip].statuses, controls.sort)
     TabPage(title = "Trip requests", subtitle = "Itineraries travellers sent you to review") {
+        if (state.alerts.isNotEmpty()) {
+            AlertsCard(state.alerts, onOpenShare)
+            Spacer(Modifier.height(16.dp))
+        }
         // Tapping a counter filters the list to that status (tap again to show all).
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             CounterCard("New", state.newCount, Modifier.weight(1f), controls.chip == 1) { controls.toggleChip(1) }
@@ -468,6 +477,97 @@ private fun ProfileTab(
             Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = null, tint = OnBackgroundGray)
             Spacer(Modifier.width(8.dp))
             Text("Log out", fontFamily = DmSansFontFamily, color = MaterialTheme.colorScheme.onBackground)
+        }
+    }
+}
+
+// -- Alerts ----------------------------------------------------------------------------
+
+private const val MAX_ALERTS_SHOWN = 4
+private val UrgentRed = Color(0xFFE53935)
+
+@Composable
+private fun AlertsCard(alerts: List<AgentAlert>, onOpenShare: (Long) -> Unit) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val shown = if (expanded) alerts else alerts.take(MAX_ALERTS_SHOWN)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(vertical = 12.dp)
+    ) {
+        Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.NotificationsActive, contentDescription = null, tint = Amber, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(
+                "NEEDS YOUR ATTENTION \u00B7 ${alerts.size}",
+                fontFamily = DmSansFontFamily,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp,
+                color = OnBackgroundGray
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        shown.forEach { alert -> AlertRow(alert, onClick = { onOpenShare(alert.shareId) }) }
+        if (alerts.size > MAX_ALERTS_SHOWN) {
+            TextButton(onClick = { expanded = !expanded }, modifier = Modifier.padding(horizontal = 4.dp)) {
+                Text(
+                    if (expanded) "Show less" else "Show ${alerts.size - MAX_ALERTS_SHOWN} more",
+                    fontFamily = DmSansFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    color = Amber
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AlertRow(alert: AgentAlert, onClick: () -> Unit) {
+    val urgent = alert.level == AlertLevel.URGENT
+    val tint = if (urgent) UrgentRed else Amber
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(tint.copy(alpha = 0.15f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = if (urgent) Icons.Outlined.PriorityHigh else Icons.Outlined.Schedule,
+                contentDescription = if (urgent) "Urgent" else "Reminder",
+                tint = tint,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                alert.title,
+                fontFamily = DmSansFontFamily,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                alert.detail,
+                fontFamily = DmSansFontFamily,
+                fontSize = 12.sp,
+                color = OnBackgroundGray,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
