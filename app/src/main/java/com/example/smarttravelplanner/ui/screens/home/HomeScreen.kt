@@ -96,6 +96,7 @@ fun HomeScreen(
     onMenuClick: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val soloState by viewModel.soloState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val density = LocalDensity.current
 
@@ -210,6 +211,14 @@ fun HomeScreen(
                                 .background(Color(0x2BFFFFFF))
                         )
                     }
+
+                    // -- Solo mode -------------------------------------------
+                    Spacer(modifier = Modifier.height(10.dp))
+                    SoloModeCard(
+                        state = soloState,
+                        onSoloModeChange = viewModel::setSoloMode,
+                        modifier = Modifier.padding(horizontal = 20.dp)
+                    )
 
                     // ── Explore India Section ────────────────────────────────
                     Spacer(modifier = Modifier.height(14.dp))
