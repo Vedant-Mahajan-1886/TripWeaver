@@ -39,6 +39,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -79,6 +80,7 @@ fun AgentTripScreen(
     viewModel: AgentTripViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val quickReplies by viewModel.quickReplies.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     // Messages after booking actions (quote sent, booked, …)
@@ -153,7 +155,9 @@ fun AgentTripScreen(
                 ) { Text("Retry", color = Color(0xFF1A1A1A)) }
             }
 
-            is AgentTripUiState.Success -> TripContent(
+            is AgentTripUiState.Success -> CompositionLocalProvider(
+                LocalQuickReplies provides QuickReplyState(quickReplies, viewModel::saveQuickReply)
+            ) { TripContent(
                 state = state,
                 onVerdict = viewModel::setVerdict,
                 onActivityComment = viewModel::setActivityComment,
@@ -167,7 +171,7 @@ fun AgentTripScreen(
                     onReconfirm = viewModel::reconfirm,
                     onCancel = viewModel::cancelBooking
                 )
-            )
+            ) }
         }
     }
 }
@@ -452,6 +456,7 @@ private fun ActivityRow(
             value = draft.comment,
             onValueChange = onComment,
             label = "Note for the traveller (optional)",
+            withQuickReplies = true,
             placeholder = if (draft.verdict == ActivityVerdict.NOT_AVAILABLE) "e.g. Closed on Mondays" else "Why this change?",
             modifier = Modifier.padding(start = 18.dp)
         )
@@ -492,8 +497,10 @@ private fun ReviewTextField(
     placeholder: String,
     modifier: Modifier = Modifier,
     keyboardType: KeyboardType = KeyboardType.Text,
-    singleLine: Boolean = false
+    singleLine: Boolean = false,
+    withQuickReplies: Boolean = false
 ) {
+  Column(modifier.fillMaxWidth()) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
@@ -507,8 +514,10 @@ private fun ReviewTextField(
             focusedLabelColor = Amber,
             cursorColor = Amber
         ),
-        modifier = modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth()
     )
+    if (withQuickReplies) QuickReplyChips(currentText = value, onInsert = onValueChange)
+  }
 }
 
 @Composable
@@ -548,6 +557,7 @@ private fun ReviewSection(
             value = draft.overallComment,
             onValueChange = onOverallComment,
             label = "Overall comment",
+            withQuickReplies = true,
             placeholder = "e.g. Hotels are busy that week, book early"
         )
         Spacer(modifier = Modifier.height(10.dp))

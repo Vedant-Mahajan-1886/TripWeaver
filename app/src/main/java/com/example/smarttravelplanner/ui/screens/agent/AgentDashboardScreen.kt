@@ -405,6 +405,17 @@ private fun ProfileTab(
             InsightsCard(it)
         }
 
+        // -- Quick-reply templates ---------------------------------------------
+        val quickRepliesViewModel: QuickRepliesViewModel = hiltViewModel()
+        val quickReplies by quickRepliesViewModel.replies.collectAsStateWithLifecycle()
+        Spacer(Modifier.height(12.dp))
+        QuickRepliesCard(
+            replies = quickReplies,
+            onAdd = quickRepliesViewModel::add,
+            onRemove = quickRepliesViewModel::remove,
+            onReset = quickRepliesViewModel::reset
+        )
+
         // -- Ratings from travellers ------------------------------------------
         Spacer(Modifier.height(12.dp))
         Column(

@@ -6,6 +6,8 @@ import com.example.smarttravelplanner.data.local.dao.PackageDao
 import com.example.smarttravelplanner.data.local.db.TravelDatabase
 import com.example.smarttravelplanner.data.repository.AgentRepository
 import com.example.smarttravelplanner.data.repository.BookingRepository
+import com.example.smarttravelplanner.data.repository.DataStoreQuickReplyRepository
+import com.example.smarttravelplanner.data.repository.QuickReplyRepository
 import com.example.smarttravelplanner.data.repository.LocalBookingRepository
 import com.example.smarttravelplanner.data.repository.LocalPackageRepository
 import com.example.smarttravelplanner.data.repository.PackageRepository
@@ -39,6 +41,9 @@ abstract class AgentModule {
 
     @Binds @Singleton
     abstract fun bindPackageRepository(impl: LocalPackageRepository): PackageRepository
+
+    @Binds @Singleton
+    abstract fun bindQuickReplyRepository(impl: DataStoreQuickReplyRepository): QuickReplyRepository
 }
 
 @Module
