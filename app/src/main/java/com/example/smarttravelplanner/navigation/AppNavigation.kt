@@ -35,6 +35,8 @@ import com.example.smarttravelplanner.domain.model.UserRole
 import com.example.smarttravelplanner.ui.components.BottomNavigationBar
 import com.example.smarttravelplanner.ui.screens.agent.AgentDashboardScreen
 import com.example.smarttravelplanner.ui.screens.agent.AgentTripScreen
+import com.example.smarttravelplanner.ui.screens.agentgroups.AgentGroupDetailScreen
+import com.example.smarttravelplanner.ui.screens.agentgroups.GroupEditorScreen
 import com.example.smarttravelplanner.ui.screens.agentpackages.AgentPackagesScreen
 import com.example.smarttravelplanner.ui.screens.agentpackages.PackageEditorScreen
 import com.example.smarttravelplanner.ui.screens.packages.PackageDetailScreen
@@ -102,6 +104,10 @@ private const val PACKAGE_DETAIL_ROUTE = "package/{packageId}"
 /** Agent's own ready-made packages, and the editor (packageId 0 = new). */
 private const val AGENT_PACKAGES_ROUTE = "agent_packages"
 private const val AGENT_PACKAGE_EDIT_ROUTE = "agent_package_edit/{packageId}"
+
+/** Agent's group trips: one group with its members, and the editor (groupId 0 = new). */
+private const val AGENT_GROUP_ROUTE = "agent_group/{groupId}"
+private const val AGENT_GROUP_EDIT_ROUTE = "agent_group_edit/{groupId}"
 
 /** A trip sent to the agent, opened from the dashboard. */
 private const val AGENT_TRIP_ROUTE = "agent_trip/{shareId}"
@@ -287,7 +293,9 @@ fun AppNavigation(
                         }
                     },
                     onOpenShare = { shareId -> navController.navigate("agent_trip/$shareId") },
-                    onEditPackage = { packageId -> navController.navigate("agent_package_edit/$packageId") }
+                    onEditPackage = { packageId -> navController.navigate("agent_package_edit/$packageId") },
+                    onOpenGroup = { groupId -> navController.navigate("agent_group/$groupId") },
+                    onEditGroup = { groupId -> navController.navigate("agent_group_edit/$groupId") }
                 )
             }
 
@@ -334,6 +342,23 @@ fun AppNavigation(
                 arguments = listOf(navArgument("packageId") { type = NavType.LongType })
             ) {
                 PackageEditorScreen(onBack = { navController.popBackStack() })
+            }
+
+            // ── Agent group trips ─────────────────────────────────────────────
+            composable(
+                route = AGENT_GROUP_ROUTE,
+                arguments = listOf(navArgument("groupId") { type = NavType.LongType })
+            ) {
+                AgentGroupDetailScreen(
+                    onBack = { navController.popBackStack() },
+                    onEdit = { groupId -> navController.navigate("agent_group_edit/$groupId") }
+                )
+            }
+            composable(
+                route = AGENT_GROUP_EDIT_ROUTE,
+                arguments = listOf(navArgument("groupId") { type = NavType.LongType })
+            ) {
+                GroupEditorScreen(onBack = { navController.popBackStack() })
             }
 
             // ── Main tabs ─────────────────────────────────────────────────────
