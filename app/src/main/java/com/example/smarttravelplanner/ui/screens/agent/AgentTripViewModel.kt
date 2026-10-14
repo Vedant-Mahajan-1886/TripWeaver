@@ -30,6 +30,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.example.smarttravelplanner.data.repository.QuickReplyRepository
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
 sealed interface AgentTripUiState {
@@ -65,8 +68,20 @@ class AgentTripViewModel @Inject constructor(
     private val tripRepository: TripRepository,
     private val itineraryRepository: ItineraryRepository,
     private val tripEditRepository: TripEditRepository,
-    private val bookingRepository: BookingRepository
+    private val bookingRepository: BookingRepository,
+    private val quickReplyRepository: QuickReplyRepository
 ) : ViewModel() {
+
+    /** The agent's saved one-tap messages for review comments. */
+    val quickReplies: StateFlow<List<String>> = quickReplyRepository.observeQuickReplies()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun saveQuickReply(text: String) {
+        viewModelScope.launch {
+            quickReplyRepository.addQuickReply(text)
+            _notice.value = "Saved as a quick reply"
+        }
+    }
 
     private val _notice = MutableStateFlow<String?>(null)
     /** One-off message after a booking action. */
