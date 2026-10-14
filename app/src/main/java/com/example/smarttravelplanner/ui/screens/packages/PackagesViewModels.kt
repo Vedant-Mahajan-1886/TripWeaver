@@ -4,6 +4,13 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.smarttravelplanner.data.repository.BookingRepository
+import com.example.smarttravelplanner.data.repository.GroupRepository
+import com.example.smarttravelplanner.domain.model.agent.GroupTripListing
+import com.example.smarttravelplanner.domain.usecase.GetSoloModeStateUseCase
+import com.example.smarttravelplanner.domain.util.GroupBrowse
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import com.example.smarttravelplanner.data.repository.PackageRepository
 import com.example.smarttravelplanner.data.repository.AgentRepository
 import com.example.smarttravelplanner.domain.model.agent.AgentPackage
@@ -27,7 +34,9 @@ import javax.inject.Inject
 @HiltViewModel
 class PackagesViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val packageRepository: PackageRepository
+    private val packageRepository: PackageRepository,
+    groupRepository: GroupRepository,
+    getSoloModeStateUseCase: GetSoloModeStateUseCase
 ) : ViewModel() {
 
     private val _query = MutableStateFlow(savedStateHandle.get<String>("query").orEmpty())
@@ -38,10 +47,33 @@ class PackagesViewModel @Inject constructor(
         .flatMapLatest { packageRepository.observePublishedPackages(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    /**
+     * Group trips to show above the packages. Empty unless Solo mode is on; full groups are
+     * left out (unless I joined) and the search box filters them too.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val soloGroups: StateFlow<List<GroupTripListing>> = getSoloModeStateUseCase()
+        .map { it.enabled }
+        .distinctUntilChanged()
+        .flatMapLatest { enabled ->
+            if (!enabled) flowOf(emptyList())
+            else combine(groupRepository.observeOpenGroups(), _query) { all, q ->
+                GroupBrowse.filter(all, query = q, hideFull = true).take(MAX_SOLO_GROUPS)
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Solo mode on or off, so the screen can word the group-trips entry. */
+    val soloMode: StateFlow<Boolean> = getSoloModeStateUseCase()
+        .map { it.enabled }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
     fun setQuery(q: String) {
         _query.value = q.take(40)
     }
 }
+
+private const val MAX_SOLO_GROUPS = 4
 
 /** Used inside Explore's destination sheet: all published packages (filtered in the UI). */
 @HiltViewModel

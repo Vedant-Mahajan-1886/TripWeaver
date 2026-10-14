@@ -320,7 +320,9 @@ fun AppNavigation(
             ) {
                 PackagesScreen(
                     onBack = { navController.popBackStack() },
-                    onOpenPackage = { id -> navController.navigate("package/$id") }
+                    onOpenPackage = { id -> navController.navigate("package/$id") },
+                    onOpenGroups = { navController.navigate(GROUPS_ROUTE) },
+                    onOpenGroup = { groupId -> navController.navigate("group_trip/$groupId") }
                 )
             }
             composable(
