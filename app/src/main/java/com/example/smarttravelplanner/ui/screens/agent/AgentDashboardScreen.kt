@@ -78,6 +78,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.smarttravelplanner.domain.model.agent.IncomingShare
 import com.example.smarttravelplanner.domain.model.agent.ShareStatus
 import com.example.smarttravelplanner.domain.util.AgentInsights
+import com.example.smarttravelplanner.domain.util.TripTiming
+import com.example.smarttravelplanner.domain.util.isSoon
+import com.example.smarttravelplanner.domain.util.label
+import com.example.smarttravelplanner.domain.util.tripTiming
+import com.example.smarttravelplanner.domain.util.upcomingBookedTrips
 import com.example.smarttravelplanner.ui.screens.agentpackages.AgentPackagesScreen
 import com.example.smarttravelplanner.ui.screens.agentshare.Stars
 import com.example.smarttravelplanner.ui.screens.agentshare.StatusChip
@@ -254,6 +259,13 @@ private fun BookingsTab(
             CounterCard("Booked", state.bookedCount, Modifier.weight(1f), controls.chip == 4) { controls.toggleChip(4) }
         }
         Spacer(Modifier.height(20.dp))
+        // -- Upcoming trips timeline (booked trips on now or still to come) --
+        val today = remember { LocalDate.now() }
+        val upcoming = remember(state.incoming, today) { upcomingBookedTrips(state.incoming, today) }
+        if (upcoming.isNotEmpty()) {
+            UpcomingTimeline(upcoming, today, onOpenShare)
+            Spacer(Modifier.height(20.dp))
+        }
         if (bookings.isEmpty()) {
             EmptyTabState(
                 icon = Icons.Outlined.EventAvailable,
@@ -457,6 +469,137 @@ private fun ProfileTab(
             Spacer(Modifier.width(8.dp))
             Text("Log out", fontFamily = DmSansFontFamily, color = MaterialTheme.colorScheme.onBackground)
         }
+    }
+}
+
+// -- Upcoming trips --------------------------------------------------------------------
+
+@Composable
+private fun UpcomingTimeline(items: List<IncomingShare>, today: LocalDate, onOpenShare: (Long) -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(vertical = 12.dp)
+    ) {
+        Text(
+            "UPCOMING TRIPS",
+            fontFamily = DmSansFontFamily,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.2.sp,
+            color = OnBackgroundGray,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+        Spacer(Modifier.height(6.dp))
+        items.forEachIndexed { index, item ->
+            TimelineRow(
+                item = item,
+                timing = tripTiming(item.tripStartDate, item.tripEndDate, today),
+                isFirst = index == 0,
+                isLast = index == items.lastIndex,
+                onClick = { onOpenShare(item.share.id) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun TimelineRow(
+    item: IncomingShare,
+    timing: TripTiming,
+    isFirst: Boolean,
+    isLast: Boolean,
+    onClick: () -> Unit
+) {
+    val soon = timing.isSoon()
+    val start = runCatching { LocalDate.parse(item.tripStartDate) }.getOrNull()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Timeline rail: line above, dot, line below
+        Column(Modifier.width(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                Modifier
+                    .width(2.dp)
+                    .height(22.dp)
+                    .background(if (isFirst) Color.Transparent else MaterialTheme.colorScheme.surfaceVariant)
+            )
+            Box(
+                Modifier
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(if (soon) Amber else MaterialTheme.colorScheme.surfaceVariant)
+            )
+            Box(
+                Modifier
+                    .width(2.dp)
+                    .height(22.dp)
+                    .background(if (isLast) Color.Transparent else MaterialTheme.colorScheme.surfaceVariant)
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        // Date badge
+        Column(
+            modifier = Modifier
+                .width(44.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Amber.copy(alpha = if (soon) 0.18f else 0.08f))
+                .padding(vertical = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                start?.dayOfMonth?.toString() ?: "?",
+                fontFamily = PlayfairFontFamily,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = Amber
+            )
+            Text(
+                start?.month?.getDisplayName(java.time.format.TextStyle.SHORT, Locale.ENGLISH)?.uppercase().orEmpty(),
+                fontFamily = DmSansFontFamily,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = OnBackgroundGray
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                item.tripDestination,
+                fontFamily = DmSansFontFamily,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                "${item.travellerName} \u00B7 ${formatTripDates(item.tripStartDate, item.tripEndDate)}",
+                fontFamily = DmSansFontFamily,
+                fontSize = 12.sp,
+                color = OnBackgroundGray,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(
+            timing.label(),
+            fontFamily = DmSansFontFamily,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (soon) Color(0xFF1A1A1A) else OnBackgroundGray,
+            modifier = Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (soon) Amber else MaterialTheme.colorScheme.surfaceVariant)
+                .padding(horizontal = 8.dp, vertical = 4.dp)
+        )
     }
 }
 
