@@ -1,5 +1,6 @@
 package com.example.smarttravelplanner.data.local.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -25,5 +26,11 @@ data class AgentReviewEntity(
     /** 1..5 */
     val stars: Int,
     val comment: String = "",
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    // -- Agent's public reply (v11) -------------------------------------------
+    /** The agent's answer to this review; empty = no reply. */
+    @ColumnInfo(defaultValue = "")
+    val agentReply: String = "",
+    /** When the agent last wrote or edited the reply; null = no reply. */
+    val agentRepliedAt: Long? = null
 )

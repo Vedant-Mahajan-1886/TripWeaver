@@ -76,6 +76,15 @@ class AgentDashboardViewModel @Inject constructor(
         }
     }
 
+    /** Agent's public reply to a traveller's rating ("" removes it). */
+    fun replyToReview(shareId: Long, reply: String) {
+        viewModelScope.launch {
+            bookingRepository.replyToReview(shareId, reply)
+                .onSuccess { _notice.value = if (reply.isBlank()) "Reply removed" else "Reply posted" }
+                .onFailure { _notice.value = it.message ?: "Couldn't save your reply." }
+        }
+    }
+
     fun noticeShown() {
         _notice.value = null
     }

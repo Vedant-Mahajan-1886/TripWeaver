@@ -70,6 +70,10 @@ interface BookingDao {
     @Query("SELECT * FROM agent_reviews WHERE shareId IN (SELECT id FROM trip_shares WHERE tripId = :tripId)")
     fun observeReviewsForTrip(tripId: Long): Flow<List<AgentReviewEntity>>
 
+    /** Sets (or clears, with "" and null) the agent's reply. Returns rows changed (0 = not this agent's review). */
+    @Query("UPDATE agent_reviews SET agentReply = :reply, agentRepliedAt = :repliedAt WHERE shareId = :shareId AND agentEmail = :agentEmail")
+    suspend fun setAgentReply(shareId: Long, agentEmail: String, reply: String, repliedAt: Long?): Int
+
     @Query("SELECT * FROM agent_reviews WHERE agentEmail = :agentEmail ORDER BY createdAt DESC")
     fun observeReviewsForAgent(agentEmail: String): Flow<List<AgentReviewEntity>>
 
