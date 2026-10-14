@@ -46,6 +46,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.smarttravelplanner.domain.model.ExploreDestination
 import com.example.smarttravelplanner.domain.model.ExploreSortOrder
 import com.example.smarttravelplanner.domain.util.GeoDistance
+import com.example.smarttravelplanner.domain.util.SoloFriendlyDestinations
 import com.example.smarttravelplanner.ui.theme.*
 import androidx.compose.material3.MaterialTheme
 
@@ -534,6 +535,7 @@ fun ExploreScreen(
                         destination = dest,
                         distanceLabel = uiState.distancesKm[dest.name]?.let(GeoDistance::formatKm),
                         isInSeason = dest.name in uiState.inSeasonNames,
+                        isGreatForSolo = uiState.soloMode && SoloFriendlyDestinations.isSoloFriendly(dest.name),
                         isSaved = dest.name in uiState.savedNames,
                         onToggleSaved = { viewModel.onToggleSaved(dest) },
                         onClick = { viewModel.onDestinationClick(dest) }
@@ -661,6 +663,7 @@ private fun ExploreDestinationCard(
     destination: ExploreDestination,
     distanceLabel: String?,
     isInSeason: Boolean,
+    isGreatForSolo: Boolean,
     isSaved: Boolean,
     onToggleSaved: () -> Unit,
     onClick: () -> Unit
@@ -728,6 +731,34 @@ private fun ExploreDestinationCard(
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = "In season",
+                        fontFamily = DmSansFontFamily,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
+                    )
+                }
+            }
+
+            // "Great for solo" badge (Solo mode on); sits under the "In season" badge when both show
+            if (isGreatForSolo) {
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(start = 10.dp, top = if (isInSeason) 44.dp else 10.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xB30B111B))
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Person,
+                        contentDescription = null,
+                        tint = Amber,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Great for solo",
                         fontFamily = DmSansFontFamily,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,

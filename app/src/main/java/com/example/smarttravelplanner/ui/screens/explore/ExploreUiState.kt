@@ -27,6 +27,8 @@ data class ExploreUiState(
     val savedOnly: Boolean = false,
     /** Names of destinations the user has hearted. */
     val savedNames: Set<String> = emptySet(),
+    /** Solo mode is on: "Great for solo" badges and solo-friendly places listed first. */
+    val soloMode: Boolean = false,
     /** Destinations after search + category filters (and sorting) have been applied. */
     val destinations: List<ExploreDestination> = emptyList(),
     /** Straight-line km from [selectedCity] to each destination, keyed by destination name. */
