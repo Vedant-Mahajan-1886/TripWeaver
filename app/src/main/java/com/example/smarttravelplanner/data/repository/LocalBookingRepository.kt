@@ -42,6 +42,16 @@ class LocalBookingRepository @Inject constructor(
     override fun observeBookingsForTrip(tripId: Long): Flow<Map<Long, Booking>> =
         bookingDao.observeBookingsForTrip(tripId).map { rows -> rows.associate { it.shareId to it.toDomain() } }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun observeMyBookings(): Flow<Map<Long, Booking>> =
+        authRepository.currentUserEmail
+            .map { it?.trim()?.lowercase().orEmpty() }
+            .distinctUntilChanged()
+            .flatMapLatest { email ->
+                if (email.isEmpty()) flowOf(emptyMap())
+                else bookingDao.observeBookingsForAgent(email).map { rows -> rows.associate { it.shareId to it.toDomain() } }
+            }
+
     // ── Agent ────────────────────────────────────────────────────────────────
 
     override suspend fun sendQuote(shareId: Long, quote: QuoteInput): Result<Unit> = runCatching {

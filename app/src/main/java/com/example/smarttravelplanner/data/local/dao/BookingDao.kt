@@ -38,6 +38,10 @@ interface BookingDao {
     @Query("SELECT * FROM bookings WHERE shareId IN (SELECT id FROM trip_shares WHERE tripId = :tripId)")
     fun observeBookingsForTrip(tripId: Long): Flow<List<BookingEntity>>
 
+    /** Every booking row of one agent (quotes, bookings, cancellations), for their insights. */
+    @Query("SELECT * FROM bookings WHERE shareId IN (SELECT id FROM trip_shares WHERE agentEmail = :agentEmail)")
+    fun observeBookingsForAgent(agentEmail: String): Flow<List<BookingEntity>>
+
     /** Booked shares with their trip's end date (to mark finished trips Completed). */
     @Query(
         """
