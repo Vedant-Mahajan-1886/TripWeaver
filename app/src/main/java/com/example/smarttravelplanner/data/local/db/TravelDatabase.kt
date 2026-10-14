@@ -40,8 +40,9 @@ import com.example.smarttravelplanner.data.local.entity.UserEntity
         // Agent packages (v10)
         AgentPackageEntity::class,
         PackageDayEntity::class
+        // v11: agent_reviews gets agentReply + agentRepliedAt (agent answers a rating)
     ],
-    version = 10,
+    version = 11,
     // Schema JSON is written to app/schemas (see ksp block in app/build.gradle.kts)
     exportSchema = true,
     autoMigrations = [
@@ -52,7 +53,9 @@ import com.example.smarttravelplanner.data.local.entity.UserEntity
         // v8 → v9 only adds the bookings and agent_reviews tables
         AutoMigration(from = 8, to = 9),
         // v9 → v10 adds agent_packages + package_days and a nullable trip_shares.packageId
-        AutoMigration(from = 9, to = 10)
+        AutoMigration(from = 9, to = 10),
+        // v10 -> v11 adds agent_reviews.agentReply (NOT NULL DEFAULT '') and agentRepliedAt (nullable)
+        AutoMigration(from = 10, to = 11)
     ]
 )
 @TypeConverters(Converters::class)

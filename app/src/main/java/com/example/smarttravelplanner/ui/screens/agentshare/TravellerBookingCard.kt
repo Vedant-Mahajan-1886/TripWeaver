@@ -186,6 +186,22 @@ internal fun TravellerBookingCard(
                     Text("\u201C${review.comment}\u201D", fontFamily = DmSansFontFamily, fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurface)
                 }
+                if (review.hasReply) {
+                    // The agent's public answer to this rating
+                    Column(
+                        modifier = Modifier
+                            .padding(top = 6.dp, start = 12.dp)
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .padding(10.dp)
+                    ) {
+                        Text("Reply from $agent", fontFamily = DmSansFontFamily, fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold, color = OnBackgroundGray)
+                        Text(review.reply, fontFamily = DmSansFontFamily, fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
                 TextButton(onClick = { editingRating = true }) { Text("Edit rating", fontSize = 12.sp) }
             }
         }

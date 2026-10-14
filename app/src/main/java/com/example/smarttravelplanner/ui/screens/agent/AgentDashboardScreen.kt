@@ -78,10 +78,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.smarttravelplanner.domain.model.agent.AgentReview
 import com.example.smarttravelplanner.domain.model.agent.IncomingShare
 import com.example.smarttravelplanner.domain.model.agent.ShareStatus
 import com.example.smarttravelplanner.domain.util.AgentAlert
 import com.example.smarttravelplanner.domain.util.AgentInsights
+import com.example.smarttravelplanner.domain.util.BookingRules
 import com.example.smarttravelplanner.domain.util.AlertLevel
 import com.example.smarttravelplanner.domain.util.TripTiming
 import com.example.smarttravelplanner.domain.util.isSoon
@@ -186,7 +188,7 @@ fun AgentDashboardScreen(
                     is AgentDashboardUiState.Success -> when (tab) {
                         AgentTab.REQUESTS -> RequestsTab(state, requestControls, onOpenShare)
                         AgentTab.BOOKINGS -> BookingsTab(state, bookingControls, onOpenShare)
-                        AgentTab.PROFILE -> ProfileTab(state, onLogout, viewModel::saveProfile)
+                        AgentTab.PROFILE -> ProfileTab(state, onLogout, viewModel::saveProfile, viewModel::replyToReview)
                         AgentTab.PACKAGES -> Unit
                     }
                 }
@@ -332,9 +334,11 @@ private fun NoMatches(onClear: () -> Unit) {
 private fun ProfileTab(
     state: AgentDashboardUiState.Success,
     onLogout: () -> Unit,
-    onSaveProfile: (agency: String, city: String, specialities: String) -> Unit
+    onSaveProfile: (agency: String, city: String, specialities: String) -> Unit,
+    onReply: (shareId: Long, reply: String) -> Unit
 ) {
     var editingProfile by remember { mutableStateOf(false) }
+    var replyingTo by remember { mutableStateOf<AgentReview?>(null) }
 
     TabPage(title = "Profile", subtitle = "Your agency as travellers see it") {
         // -- Agency card (tap to edit) ----------------------------------------
@@ -462,24 +466,26 @@ private fun ProfileTab(
                         )
                     }
                 }
-                state.reviews.filter { it.comment.isNotBlank() }.forEach { review ->
+                state.reviews.forEach { review ->
                     HorizontalDivider(
                         Modifier.padding(vertical = 10.dp),
                         thickness = 0.5.dp,
                         color = MaterialTheme.colorScheme.surfaceVariant
                     )
-                    Text(
-                        "\u201C${review.comment}\u201D",
-                        fontFamily = DmSansFontFamily, fontSize = 13.sp,
-                        fontStyle = FontStyle.Italic,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        "${review.tripDestination} \u00B7 ${review.stars}\u2605 \u00B7 ${timeAgo(review.createdAt)}",
-                        fontFamily = DmSansFontFamily, fontSize = 11.sp, color = OnBackgroundGray
-                    )
+                    ReviewWithReply(review = review, onReply = { replyingTo = review })
                 }
             }
+        }
+
+        replyingTo?.let { review ->
+            ReplyDialog(
+                review = review,
+                onSave = { text ->
+                    onReply(review.shareId, text)
+                    replyingTo = null
+                },
+                onDismiss = { replyingTo = null }
+            )
         }
 
         // -- Log out -------------------------------------------------------------
@@ -490,6 +496,96 @@ private fun ProfileTab(
             Text("Log out", fontFamily = DmSansFontFamily, color = MaterialTheme.colorScheme.onBackground)
         }
     }
+}
+
+// -- Reviews and replies ---------------------------------------------------------------
+
+@Composable
+private fun ReviewWithReply(review: AgentReview, onReply: () -> Unit) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Stars(review.stars)
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "${review.tripDestination} \u00B7 ${timeAgo(review.createdAt)}",
+                fontFamily = DmSansFontFamily, fontSize = 11.sp, color = OnBackgroundGray
+            )
+        }
+        Text(
+            if (review.comment.isNotBlank()) "\u201C${review.comment}\u201D" else "No comment, stars only.",
+            fontFamily = DmSansFontFamily, fontSize = 13.sp,
+            fontStyle = FontStyle.Italic,
+            color = if (review.comment.isNotBlank()) MaterialTheme.colorScheme.onSurface else OnBackgroundGray,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+        if (review.hasReply) {
+            Column(
+                modifier = Modifier
+                    .padding(top = 8.dp, start = 12.dp)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Amber.copy(alpha = 0.10f))
+                    .padding(10.dp)
+            ) {
+                Text("Your reply", fontFamily = DmSansFontFamily, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Amber)
+                Text(review.reply, fontFamily = DmSansFontFamily, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+            }
+        }
+        TextButton(onClick = onReply, modifier = Modifier.padding(start = 4.dp)) {
+            Text(
+                if (review.hasReply) "Edit reply" else "Reply",
+                fontFamily = DmSansFontFamily, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Amber
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReplyDialog(review: AgentReview, onSave: (String) -> Unit, onDismiss: () -> Unit) {
+    var text by rememberSaveable { mutableStateOf(review.reply) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Reply to review", fontFamily = PlayfairFontFamily, fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                Text(
+                    "${review.stars}\u2605 \u00B7 ${review.tripDestination}" +
+                        if (review.comment.isNotBlank()) "\n\u201C${review.comment}\u201D" else "",
+                    fontFamily = DmSansFontFamily, fontSize = 13.sp, color = OnBackgroundGray
+                )
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it.take(BookingRules.MAX_REVIEW_REPLY) },
+                    label = { Text("Your public reply") },
+                    placeholder = { Text("e.g. Thank you! Glad you enjoyed Jaipur.") },
+                    minLines = 3,
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Amber, focusedLabelColor = Amber, cursorColor = Amber),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    "Travellers who look at your agency can see this. ${text.length}/${BookingRules.MAX_REVIEW_REPLY}",
+                    fontFamily = DmSansFontFamily, fontSize = 11.sp, color = OnBackgroundGray,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSave(text) },
+                enabled = text.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = Amber)
+            ) { Text("Post reply", color = Color(0xFF1A1A1A), fontWeight = FontWeight.Bold) }
+        },
+        dismissButton = {
+            Row {
+                if (review.hasReply) {
+                    TextButton(onClick = { onSave("") }) { Text("Delete", color = UrgentRed) }
+                }
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+            }
+        }
+    )
 }
 
 // -- Alerts ----------------------------------------------------------------------------

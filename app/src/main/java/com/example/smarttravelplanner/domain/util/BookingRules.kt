@@ -50,4 +50,9 @@ object BookingRules {
 
     fun validateRating(stars: Int): List<String> =
         if (stars in 1..5) emptyList() else listOf("Choose between 1 and 5 stars.")
+
+    const val MAX_REVIEW_REPLY = 500
+
+    /** Agent's reply to a review: trimmed, at most [MAX_REVIEW_REPLY] characters ("" = remove the reply). */
+    fun cleanReviewReply(text: String): String = text.trim().take(MAX_REVIEW_REPLY).trim()
 }

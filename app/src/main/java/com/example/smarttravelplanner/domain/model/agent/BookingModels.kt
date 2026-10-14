@@ -44,8 +44,13 @@ data class AgentReview(
     val tripDestination: String,
     val stars: Int,
     val comment: String,
-    val createdAt: Long
-)
+    val createdAt: Long,
+    /** The agent's public reply; empty = none. */
+    val reply: String = "",
+    val repliedAt: Long? = null
+) {
+    val hasReply: Boolean get() = reply.isNotBlank()
+}
 
 /** Average rating of an agent. */
 data class AgentRating(val average: Double, val count: Int) {

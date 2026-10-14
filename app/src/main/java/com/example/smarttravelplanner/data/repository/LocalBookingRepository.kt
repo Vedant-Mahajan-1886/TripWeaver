@@ -150,12 +150,26 @@ class LocalBookingRepository @Inject constructor(
                 tripDestination = trip?.destination.orEmpty(),
                 stars = stars,
                 comment = comment.trim().take(500),
-                createdAt = existing?.createdAt ?: System.currentTimeMillis()
+                createdAt = existing?.createdAt ?: System.currentTimeMillis(),
+                // Editing the rating keeps the agent's reply
+                agentReply = existing?.agentReply.orEmpty(),
+                agentRepliedAt = existing?.agentRepliedAt
             )
         )
     }
 
     // ── Either side ──────────────────────────────────────────────────────────
+
+    override suspend fun replyToReview(shareId: Long, reply: String): Result<Unit> = runCatching {
+        val text = BookingRules.cleanReviewReply(reply)
+        val changed = bookingDao.setAgentReply(
+            shareId = shareId,
+            agentEmail = currentEmail(),
+            reply = text,
+            repliedAt = if (text.isEmpty()) null else System.currentTimeMillis()
+        )
+        require(changed == 1) { "This review isn't one of yours." }
+    }
 
     override suspend fun cancel(shareId: Long, reason: String): Result<Unit> = runCatching {
         val share = requireShare(shareId)
@@ -265,6 +279,8 @@ class LocalBookingRepository @Inject constructor(
         tripDestination = tripDestination,
         stars = stars,
         comment = comment,
-        createdAt = createdAt
+        createdAt = createdAt,
+        reply = agentReply,
+        repliedAt = agentRepliedAt
     )
 }

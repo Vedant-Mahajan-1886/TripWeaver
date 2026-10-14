@@ -25,6 +25,8 @@ interface BookingRepository {
     suspend fun markBooked(shareId: Long, reference: String, notes: String): Result<Unit>
     /** Agent confirms the booking still works after the traveller changed the trip. */
     suspend fun reconfirm(shareId: Long): Result<Unit>
+    /** Agent answers a traveller's rating publicly. A blank [reply] removes it. */
+    suspend fun replyToReview(shareId: Long, reply: String): Result<Unit>
 
     // ── Traveller ────────────────────────────────────────────────────────────
     suspend fun acceptQuote(shareId: Long): Result<Unit>
