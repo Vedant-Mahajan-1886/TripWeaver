@@ -77,6 +77,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.smarttravelplanner.domain.model.agent.IncomingShare
 import com.example.smarttravelplanner.domain.model.agent.ShareStatus
+import com.example.smarttravelplanner.domain.util.AgentInsights
 import com.example.smarttravelplanner.ui.screens.agentpackages.AgentPackagesScreen
 import com.example.smarttravelplanner.ui.screens.agentshare.Stars
 import com.example.smarttravelplanner.ui.screens.agentshare.StatusChip
@@ -377,6 +378,12 @@ private fun ProfileTab(
             CounterCard("Completed", state.incoming.count { it.share.status == ShareStatus.COMPLETED }, Modifier.weight(1f))
         }
 
+        // -- Earnings & insights ----------------------------------------------
+        state.insights?.let {
+            Spacer(Modifier.height(12.dp))
+            InsightsCard(it)
+        }
+
         // -- Ratings from travellers ------------------------------------------
         Spacer(Modifier.height(12.dp))
         Column(
@@ -452,6 +459,137 @@ private fun ProfileTab(
         }
     }
 }
+
+// -- Insights ------------------------------------------------------------------------
+
+@Composable
+private fun InsightsCard(insights: AgentInsights) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(16.dp)
+    ) {
+        Text(
+            "INSIGHTS",
+            fontFamily = DmSansFontFamily,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.2.sp,
+            color = OnBackgroundGray
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            MetricTile(
+                label = "Earned",
+                value = rupeeAmount(insights.earned),
+                caption = "${insights.bookedTrips} booked trip${if (insights.bookedTrips == 1) "" else "s"}",
+                modifier = Modifier.weight(1f)
+            )
+            MetricTile(
+                label = "In pipeline",
+                value = rupeeAmount(insights.pipeline),
+                caption = "${insights.pipelineTrips} open quote${if (insights.pipelineTrips == 1) "" else "s"}",
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            MetricTile(
+                label = "Win rate",
+                value = insights.winRatePercent?.let { "$it%" } ?: "\u2013",
+                caption = "of trips decided",
+                modifier = Modifier.weight(1f)
+            )
+            MetricTile(
+                label = "Avg booking",
+                value = insights.averageBooking?.let(::rupeeAmount) ?: "\u2013",
+                caption = "per booked trip",
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Spacer(Modifier.height(18.dp))
+        Text(
+            "Earnings \u00B7 last ${AgentInsights.MONTHS} months",
+            fontFamily = DmSansFontFamily,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(Modifier.height(10.dp))
+        val maxAmount = insights.months.maxOf { it.amount }.coerceAtLeast(1.0)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(130.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.Bottom
+        ) {
+            insights.months.forEach { month ->
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = if (month.amount > 0) shortRupees(month.amount) else "",
+                        fontFamily = DmSansFontFamily,
+                        fontSize = 10.sp,
+                        color = OnBackgroundGray
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .width(24.dp)
+                            .height((90 * (month.amount / maxAmount)).dp.coerceAtLeast(4.dp))
+                            .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
+                            .background(if (month.amount > 0) Amber else MaterialTheme.colorScheme.surfaceVariant)
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = month.month.month.getDisplayName(java.time.format.TextStyle.SHORT, Locale.ENGLISH),
+                        fontFamily = DmSansFontFamily,
+                        fontSize = 11.sp,
+                        color = OnBackgroundGray
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetricTile(label: String, value: String, caption: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.background)
+            .padding(12.dp)
+    ) {
+        Text(label, fontFamily = DmSansFontFamily, fontSize = 12.sp, color = OnBackgroundGray)
+        Text(
+            value,
+            fontFamily = PlayfairFontFamily,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = Amber,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(caption, fontFamily = DmSansFontFamily, fontSize = 11.sp, color = OnBackgroundGray)
+    }
+}
+
+/** Full amount with thousands separators, e.g. "\u20B9125,000". */
+private fun rupeeAmount(amount: Double): String = "\u20B9" + String.format(Locale.US, "%,d", amount.toLong())
+
+/** Short label for chart bars: \u20B9950, \u20B912.5k, \u20B91.2L. */
+private fun shortRupees(amount: Double): String = when {
+    amount < 1_000 -> "\u20B9" + amount.toLong()
+    amount < 1_00_000 -> "\u20B9" + trimZero(amount / 1_000) + "k"
+    else -> "\u20B9" + trimZero(amount / 1_00_000) + "L"
+}
+
+private fun trimZero(value: Double): String =
+    String.format(Locale.US, "%.1f", value).removeSuffix(".0")
 
 // -- Shared building blocks ----------------------------------------------------------
 

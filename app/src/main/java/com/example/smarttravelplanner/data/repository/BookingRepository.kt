@@ -17,6 +17,9 @@ interface BookingRepository {
     /** Bookings of every share of one trip, keyed by share id. */
     fun observeBookingsForTrip(tripId: Long): Flow<Map<Long, Booking>>
 
+    /** Bookings of the logged-in agent, keyed by share id (for the earnings insights). */
+    fun observeMyBookings(): Flow<Map<Long, Booking>>
+
     // ── Agent ────────────────────────────────────────────────────────────────
     suspend fun sendQuote(shareId: Long, quote: QuoteInput): Result<Unit>
     suspend fun markBooked(shareId: Long, reference: String, notes: String): Result<Unit>
