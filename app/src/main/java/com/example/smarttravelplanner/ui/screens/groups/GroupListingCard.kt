@@ -36,7 +36,9 @@ import com.example.smarttravelplanner.ui.theme.PlayfairFontFamily
 internal fun GroupListingCard(
     listing: GroupTripListing,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Adds "Solo-friendly · " in front of the seats label (Packages, Solo mode on). */
+    soloLabel: Boolean = false
 ) {
     val group = listing.group
     Column(
@@ -72,7 +74,7 @@ internal fun GroupListingCard(
             Text(GroupFormat.price(group.pricePerPerson), fontFamily = DmSansFontFamily, fontSize = 14.sp,
                 fontWeight = FontWeight.Bold, color = Amber)
             if (listing.joinedByMe) SeatChip("You're in", Color(0xFF4ADE80))
-            else SeatChip(GroupRules.seatsLabel(group), if (group.isFull) OnBackgroundGray else if (group.seatsLeft <= 2) Amber else Color(0xFF4ADE80))
+            else SeatChip((if (soloLabel) "Solo-friendly \u00B7 " else "") + GroupRules.seatsLabel(group), if (group.isFull) OnBackgroundGray else if (group.seatsLeft <= 2) Amber else Color(0xFF4ADE80))
         }
     }
 }

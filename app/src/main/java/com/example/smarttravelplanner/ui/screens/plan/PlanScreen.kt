@@ -165,6 +165,7 @@ fun PlanScreen(
     onPrefillConsumed: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val soloModeEnabled by viewModel.soloModeEnabled.collectAsState()
 
     // Navigate to TripDetail when itinerary is ready
     LaunchedEffect(uiState) {
@@ -365,7 +366,8 @@ fun PlanScreen(
                     adults         = adults,
                     kids           = kids,
                     onAdultsChange = { adults = it },
-                    onKidsChange   = { kids = it }
+                    onKidsChange   = { kids = it },
+                    soloHint       = soloModeEnabled && adults == 1 && kids == 0
                 )
                 Spacer(modifier = Modifier.height(16.dp))
             }
@@ -1203,7 +1205,8 @@ private fun PassengersSection(
     adults: Int,
     kids: Int,
     onAdultsChange: (Int) -> Unit,
-    onKidsChange: (Int) -> Unit
+    onKidsChange: (Int) -> Unit,
+    soloHint: Boolean = false
 ) {
     val totalPassengers = adults + kids
     val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
@@ -1308,6 +1311,42 @@ private fun PassengersSection(
                                 fontFamily = DmSansFontFamily,
                                 fontSize = 11.5.sp,
                                 color = if (isDark) Color(0xFFD1FAE5) else Color(0xFF065F46)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Solo mode hint: one adult, no kids
+            AnimatedVisibility(
+                visible = soloHint,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                Column {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Amber.copy(alpha = 0.10f),
+                        border = BorderStroke(1.dp, Amber.copy(alpha = 0.30f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Person,
+                                contentDescription = null,
+                                tint = Amber,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Solo mode is on: AI will favour safe, social, easy-to-reach stops.",
+                                fontFamily = DmSansFontFamily,
+                                fontSize = 11.5.sp,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }

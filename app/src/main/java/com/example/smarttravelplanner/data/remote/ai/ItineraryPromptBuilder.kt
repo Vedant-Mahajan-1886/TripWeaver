@@ -78,6 +78,22 @@ object ItineraryPromptBuilder {
         }.trimEnd()
     }
 
+    /**
+     * Extra guidance when one adult travels alone (the same rule as Solo mode's "solo trip").
+     * Empty for any other group.
+     */
+    fun soloGuideline(adults: Int, kids: Int): String {
+        if (adults != 1 || kids != 0) return ""
+        return """
+
+            SOLO TRAVELLER CRITERIA:
+            - One adult is travelling alone. Favour safe, well-lit, easy-to-reach places, especially for evenings.
+            - Include a few social experiences where it is easy to meet other travellers (walking tours, hostel or cafe common areas, small-group activities).
+            - Suggest solo-friendly dining (counter seating, popular cafes, food trails) and central stays with good reviews.
+            - Prefer public transport or shared cabs, and avoid remote spots that are hard to reach alone after dark.
+        """.trimIndent()
+    }
+
     val itinerarySystemPrompt: String = """
         You are an elite travel concierge and destination specialist with deep local knowledge across global and Indian travel destinations.
         Your goal is to craft highly realistic, engaging, and practically actionable travel itineraries.
@@ -228,6 +244,8 @@ object ItineraryPromptBuilder {
             """.trimIndent()
         } else ""
 
+        val soloSection = soloGuideline(adults, kids)
+
         val totalPassengers = (adults + kids).coerceAtLeast(1)
         val dailyBudget = budget / days.coerceAtLeast(1)
         val perPersonDaily = dailyBudget / totalPassengers
@@ -319,6 +337,7 @@ object ItineraryPromptBuilder {
             $notesContext
             $weatherContext
             $familyGuideline
+            $soloSection
             $preferencesContext
             $webGroundingContext
             

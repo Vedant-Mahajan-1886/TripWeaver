@@ -8,8 +8,10 @@ import com.example.smarttravelplanner.domain.model.DepartureCity
 import com.example.smarttravelplanner.domain.model.ExploreDestination
 import com.example.smarttravelplanner.domain.model.ExploreSortOrder
 import com.example.smarttravelplanner.domain.util.DestinationFilter
+import com.example.smarttravelplanner.domain.usecase.GetSoloModeStateUseCase
 import com.example.smarttravelplanner.domain.util.DestinationSeason
 import com.example.smarttravelplanner.domain.util.GeoDistance
+import com.example.smarttravelplanner.domain.util.SoloFriendlyDestinations
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,7 +27,8 @@ import javax.inject.Inject
 @HiltViewModel
 class ExploreViewModel @Inject constructor(
     private val destinationRepository: DestinationRepository,
-    private val wishlistRepository: WishlistRepository
+    private val wishlistRepository: WishlistRepository,
+    private val getSoloModeStateUseCase: GetSoloModeStateUseCase
 ) : ViewModel() {
 
     /** Unfiltered catalog; [ExploreUiState.destinations] is derived from this. */
@@ -48,6 +51,16 @@ class ExploreViewModel @Inject constructor(
     init {
         loadDestinations()
         observeWishlist()
+        observeSoloMode()
+    }
+
+    /** Keeps [ExploreUiState.soloMode] in sync with the Solo mode switch. */
+    private fun observeSoloMode() {
+        viewModelScope.launch {
+            getSoloModeStateUseCase().collect { solo ->
+                updateFilters { it.copy(soloMode = solo.enabled) }
+            }
+        }
     }
 
     /** Keeps [ExploreUiState.savedNames] in sync with the stored wishlist. */
@@ -197,7 +210,8 @@ class ExploreViewModel @Inject constructor(
         val distances = origin?.let { GeoDistance.distancesFrom(it, allDestinations) }.orEmpty()
 
         val ordered = when (sortOrder) {
-            ExploreSortOrder.RECOMMENDED -> filtered
+            ExploreSortOrder.RECOMMENDED ->
+                if (soloMode) SoloFriendlyDestinations.soloFirst(filtered) else filtered
             ExploreSortOrder.NEAREST     -> GeoDistance.sortByDistance(filtered, distances)
         }
         return copy(destinations = ordered, distancesKm = distances, inSeasonNames = inSeason)

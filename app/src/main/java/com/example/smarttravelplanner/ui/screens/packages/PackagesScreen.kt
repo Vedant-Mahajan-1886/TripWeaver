@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.smarttravelplanner.domain.model.agent.PackageListing
+import com.example.smarttravelplanner.ui.screens.groups.GroupListingCard
 import com.example.smarttravelplanner.ui.screens.agentshare.RatingLabel
 import com.example.smarttravelplanner.ui.screens.agentshare.displayName
 import com.example.smarttravelplanner.ui.theme.Amber
@@ -52,10 +53,14 @@ import java.util.Locale
 fun PackagesScreen(
     onBack: () -> Unit,
     onOpenPackage: (packageId: Long) -> Unit,
+    onOpenGroups: () -> Unit,
+    onOpenGroup: (groupId: Long) -> Unit,
     viewModel: PackagesViewModel = hiltViewModel()
 ) {
     val query by viewModel.query.collectAsStateWithLifecycle()
     val packages by viewModel.packages.collectAsStateWithLifecycle()
+    val soloGroups by viewModel.soloGroups.collectAsStateWithLifecycle()
+    val soloMode by viewModel.soloMode.collectAsStateWithLifecycle()
 
     Column(
         Modifier
@@ -83,12 +88,18 @@ fun PackagesScreen(
         )
         Spacer(Modifier.height(8.dp))
 
+        // Everyone can reach group trips from here; with Solo mode on they are listed below instead.
+        if (!soloMode) {
+            GroupTripsEntry(onClick = onOpenGroups, modifier = Modifier.padding(horizontal = 16.dp))
+            Spacer(Modifier.height(8.dp))
+        }
+
         val list = packages
         when {
             list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Amber)
             }
-            list.isEmpty() -> Column(Modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            list.isEmpty() && soloGroups.isEmpty() -> Column(Modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     if (query.isBlank()) "No packages yet" else "No packages for \u201C$query\u201D",
                     fontFamily = DmSansFontFamily, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
@@ -102,11 +113,54 @@ fun PackagesScreen(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                if (soloGroups.isNotEmpty()) {
+                    item(key = "solo_groups_header") { SectionLabel("Group trips for solo travellers") }
+                    items(soloGroups, key = { "group_${it.group.id}" }) { listing ->
+                        GroupListingCard(
+                            listing = listing,
+                            onClick = { onOpenGroup(listing.group.id) },
+                            modifier = Modifier.fillMaxWidth(),
+                            soloLabel = true
+                        )
+                    }
+                    item(key = "solo_groups_all") {
+                        TextButton(onClick = onOpenGroups) { Text("See all group trips", color = Amber) }
+                    }
+                    if (list.isNotEmpty()) item(key = "packages_header") { SectionLabel("Ready-made packages") }
+                }
                 items(list, key = { it.pkg.id }) { listing ->
                     PackageListingCard(listing, onClick = { onOpenPackage(listing.pkg.id) })
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(text, fontFamily = DmSansFontFamily, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+        color = OnBackgroundGray, modifier = Modifier.padding(top = 4.dp))
+}
+
+/** Row at the top of Packages that opens the list of group trips. */
+@Composable
+private fun GroupTripsEntry(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Group trips", fontFamily = DmSansFontFamily, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface)
+            Text("Join a fixed-date trip with other travellers", fontFamily = DmSansFontFamily, fontSize = 12.sp,
+                color = OnBackgroundGray)
+        }
+        Text("Browse", fontFamily = DmSansFontFamily, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Amber)
     }
 }
 
