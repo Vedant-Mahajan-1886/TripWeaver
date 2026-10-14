@@ -38,6 +38,8 @@ import com.example.smarttravelplanner.ui.screens.agent.AgentTripScreen
 import com.example.smarttravelplanner.ui.screens.agentgroups.AgentGroupDetailScreen
 import com.example.smarttravelplanner.ui.screens.agentgroups.GroupEditorScreen
 import com.example.smarttravelplanner.ui.screens.agentpackages.AgentPackagesScreen
+import com.example.smarttravelplanner.ui.screens.groups.GroupDetailScreen
+import com.example.smarttravelplanner.ui.screens.groups.GroupsScreen
 import com.example.smarttravelplanner.ui.screens.agentpackages.PackageEditorScreen
 import com.example.smarttravelplanner.ui.screens.packages.PackageDetailScreen
 import com.example.smarttravelplanner.ui.screens.packages.PackagesScreen
@@ -105,6 +107,10 @@ private const val PACKAGE_DETAIL_ROUTE = "package/{packageId}"
 private const val AGENT_PACKAGES_ROUTE = "agent_packages"
 private const val AGENT_PACKAGE_EDIT_ROUTE = "agent_package_edit/{packageId}"
 
+/** Travellers: browse open group trips, and one group with Join / Leave. */
+private const val GROUPS_ROUTE = "group_trips"
+private const val GROUP_DETAIL_ROUTE = "group_trip/{groupId}"
+
 /** Agent's group trips: one group with its members, and the editor (groupId 0 = new). */
 private const val AGENT_GROUP_ROUTE = "agent_group/{groupId}"
 private const val AGENT_GROUP_EDIT_ROUTE = "agent_group_edit/{groupId}"
@@ -165,7 +171,8 @@ fun AppNavigation(
         "login", "profile", "my_profile", "manage_payments", "trip_detail/{tripId}",
         AGENT_DASHBOARD_ROUTE, AGENT_TRIP_ROUTE, EDIT_TRIP_ROUTE, EDIT_ACTIVITIES_ROUTE,
         AGENT_PACKAGES_ROUTE, AGENT_PACKAGE_EDIT_ROUTE, PACKAGES_ROUTE, PACKAGE_DETAIL_ROUTE,
-        ONBOARDING_PREFERENCES_ROUTE, EDIT_PREFERENCES_ROUTE
+        ONBOARDING_PREFERENCES_ROUTE, EDIT_PREFERENCES_ROUTE,
+        GROUPS_ROUTE, GROUP_DETAIL_ROUTE, AGENT_GROUP_ROUTE, AGENT_GROUP_EDIT_ROUTE
     )
     val isImeVisible = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
     val isNavRoute = hiddenNavRoutes.none { currentRoute.startsWith(it.substringBefore("{")) }
@@ -344,6 +351,20 @@ fun AppNavigation(
                 PackageEditorScreen(onBack = { navController.popBackStack() })
             }
 
+            // ── Group trips for travellers ────────────────────────────────────
+            composable(GROUPS_ROUTE) {
+                GroupsScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenGroup = { groupId -> navController.navigate("group_trip/$groupId") }
+                )
+            }
+            composable(
+                route = GROUP_DETAIL_ROUTE,
+                arguments = listOf(navArgument("groupId") { type = NavType.LongType })
+            ) {
+                GroupDetailScreen(onBack = { navController.popBackStack() })
+            }
+
             // ── Agent group trips ─────────────────────────────────────────────
             composable(
                 route = AGENT_GROUP_ROUTE,
@@ -461,6 +482,8 @@ fun AppNavigation(
                     onTripClick = { tripId ->
                         navController.navigate("trip_detail/$tripId")
                     },
+                    onGroupsClick = { navController.navigate(GROUPS_ROUTE) },
+                    onGroupClick = { groupId -> navController.navigate("group_trip/$groupId") },
                     onMenuClick = { navController.navigate("profile") }
                 )
             }

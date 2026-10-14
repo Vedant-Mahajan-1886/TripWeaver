@@ -3,14 +3,20 @@ package com.example.smarttravelplanner.data.repository
 import com.example.smarttravelplanner.data.local.dao.GroupDao
 import com.example.smarttravelplanner.data.local.dao.GroupTripWithCount
 import com.example.smarttravelplanner.data.local.dao.PackageDao
+import com.example.smarttravelplanner.data.local.dao.UserDao
+import com.example.smarttravelplanner.data.local.db.TravelDatabase
 import com.example.smarttravelplanner.data.local.entity.GroupMemberEntity
 import com.example.smarttravelplanner.data.local.entity.GroupTripEntity
 import com.example.smarttravelplanner.domain.model.UserRole
 import com.example.smarttravelplanner.domain.model.agent.GroupMember
 import com.example.smarttravelplanner.domain.model.agent.GroupTrip
+import com.example.smarttravelplanner.domain.model.agent.GroupTripListing
 import com.example.smarttravelplanner.domain.util.GroupRules
+import com.example.smarttravelplanner.domain.util.JoinCheck
+import androidx.room.withTransaction
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
@@ -21,8 +27,12 @@ import javax.inject.Inject
 
 /** Room-backed [GroupRepository] (agents and travellers on the same phone). */
 class LocalGroupRepository @Inject constructor(
+    private val database: TravelDatabase,
     private val groupDao: GroupDao,
     private val packageDao: PackageDao,
+    private val userDao: UserDao,
+    private val agentRepository: AgentRepository,
+    private val bookingRepository: BookingRepository,
     private val authRepository: AuthRepository,
     private val userRoleRepository: UserRoleRepository
 ) : GroupRepository {
@@ -97,7 +107,91 @@ class LocalGroupRepository @Inject constructor(
         groupDao.deleteGroup(groupId)
     }
 
+    // -- Traveller side ---------------------------------------------------------
+
+    override fun observeOpenGroups(): Flow<List<GroupTripListing>> =
+        combine(
+            groupDao.observeOpenGroups(LocalDate.now().toString()),
+            agentRepository.observeAgents(),
+            bookingRepository.observeRatings(),
+            observeMyJoinedIds()
+        ) { rows, agents, ratings, joinedIds ->
+            val byEmail = agents.associateBy { it.email }
+            rows.map { row ->
+                val group = row.toDomain()
+                GroupTripListing(
+                    group = group,
+                    agent = byEmail[group.agentEmail],
+                    rating = ratings[group.agentEmail],
+                    joinedByMe = group.id in joinedIds
+                )
+            }
+        }
+
+    override fun observeListing(groupId: Long): Flow<GroupTripListing?> =
+        combine(
+            groupDao.observeGroup(groupId),
+            agentRepository.observeAgents(),
+            bookingRepository.observeRatings(),
+            observeMyJoinedIds()
+        ) { row, agents, ratings, joinedIds ->
+            val group = row?.toDomain() ?: return@combine null
+            val joined = group.id in joinedIds
+            // Drafts are private to the agent; only people already in the group still see it.
+            if (!group.isPublished && !joined) return@combine null
+            GroupTripListing(
+                group = group,
+                agent = agents.firstOrNull { it.email == group.agentEmail },
+                rating = ratings[group.agentEmail],
+                joinedByMe = joined
+            )
+        }
+
+    override suspend fun joinGroup(groupId: Long): Result<Unit> = runCatching {
+        val (email, name) = requireTraveller()
+        // One transaction: count the seats and take one without anybody slipping in between.
+        database.withTransaction {
+            val row = requireNotNull(groupDao.getGroup(groupId)) { "This group no longer exists." }
+            val alreadyJoined = groupDao.observeJoinedGroupIds(email).first().contains(groupId)
+            val group = row.toDomain(groupDao.countMembers(groupId))
+            val check = GroupRules.canJoin(group, alreadyJoined, LocalDate.now())
+            require(check == JoinCheck.OK) { check.message }
+            groupDao.insertMember(GroupMemberEntity(groupId = groupId, travellerEmail = email, travellerName = name))
+        }
+        Unit
+    }
+
+    override suspend fun leaveGroup(groupId: Long): Result<Unit> = runCatching {
+        val (email, _) = requireTraveller()
+        database.withTransaction {
+            val row = requireNotNull(groupDao.getGroup(groupId)) { "This group no longer exists." }
+            val group = row.toDomain(groupDao.countMembers(groupId))
+            require(GroupRules.canLeave(group, LocalDate.now())) { "You can only leave until the day before the trip starts." }
+            val removed = groupDao.deleteMember(groupId, email)
+            require(removed > 0) { "You're not in this group." }
+        }
+    }
+
     // -- Helpers --------------------------------------------------------------
+
+    /** Ids of the groups the logged-in traveller joined. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun observeMyJoinedIds(): Flow<List<Long>> =
+        authRepository.currentUserEmail
+            .map { it.normalized() }
+            .distinctUntilChanged()
+            .flatMapLatest { email ->
+                if (email.isEmpty()) flowOf(emptyList()) else groupDao.observeJoinedGroupIds(email)
+            }
+
+    /** Email and display name of the logged-in traveller. */
+    private suspend fun requireTraveller(): Pair<String, String> {
+        val email = authRepository.currentUserEmail.first().normalized()
+        require(email.isNotEmpty()) { "Please log in first." }
+        require(userRoleRepository.currentUserRole.first() == UserRole.TRAVELLER) { "Only traveller accounts can join group trips." }
+        val name = userDao.getUserByEmail(email)?.fullName?.trim().orEmpty().ifBlank { email }
+        return email to name
+    }
 
     private suspend fun requireAgent(): String {
         val email = authRepository.currentUserEmail.first().normalized()

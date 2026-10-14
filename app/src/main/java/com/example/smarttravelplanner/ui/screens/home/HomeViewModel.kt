@@ -9,7 +9,14 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.example.smarttravelplanner.data.repository.GroupRepository
 import com.example.smarttravelplanner.data.repository.SoloModeRepository
+import com.example.smarttravelplanner.domain.model.agent.GroupTripListing
+import com.example.smarttravelplanner.domain.util.GroupBrowse
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import com.example.smarttravelplanner.domain.util.SoloDetector
 import com.example.smarttravelplanner.domain.util.SoloModeState
 import kotlinx.coroutines.flow.StateFlow
@@ -20,7 +27,8 @@ import javax.inject.Inject
 class HomeViewModel @Inject constructor(
     getTripsUseCase: GetTripsUseCase,
     private val deleteTripUseCase: DeleteTripUseCase,
-    private val soloModeRepository: SoloModeRepository
+    private val soloModeRepository: SoloModeRepository,
+    private val groupRepository: GroupRepository
 ) : ViewModel() {
 
     /** Solo-mode switch + "you usually travel solo" nudge, from the saved choice and the trips. */
@@ -32,6 +40,24 @@ class HomeViewModel @Inject constructor(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = SoloModeState(enabled = false, showNudge = false, detectedSolo = false)
+        )
+
+    /**
+     * Group trips to suggest on Home. Empty unless Solo mode is on. Full groups are left out
+     * (unless I joined), and groups I joined come first.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val soloGroups: StateFlow<List<GroupTripListing>> = soloState
+        .map { it.enabled }
+        .distinctUntilChanged()
+        .flatMapLatest { enabled ->
+            if (!enabled) flowOf(emptyList())
+            else groupRepository.observeOpenGroups().map { all -> GroupBrowse.filter(all, query = "", hideFull = true).take(6) }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList()
         )
 
     fun setSoloMode(enabled: Boolean) {

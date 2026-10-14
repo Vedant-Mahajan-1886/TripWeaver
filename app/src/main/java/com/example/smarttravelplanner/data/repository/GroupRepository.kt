@@ -2,11 +2,12 @@ package com.example.smarttravelplanner.data.repository
 
 import com.example.smarttravelplanner.domain.model.agent.GroupMember
 import com.example.smarttravelplanner.domain.model.agent.GroupTrip
+import com.example.smarttravelplanner.domain.model.agent.GroupTripListing
 import kotlinx.coroutines.flow.Flow
 
 /**
  * Group trips: fixed-date trips an agent runs for several travellers (mainly solo travellers).
- * This part covers the agent's side; the traveller's side (browse, join, leave) comes later.
+ * Agents manage their groups; travellers browse, join and leave them.
  */
 interface GroupRepository {
 
@@ -30,4 +31,21 @@ interface GroupRepository {
 
     /** Removes a group nobody has joined. A group with members must be cancelled instead. */
     suspend fun deleteGroup(groupId: Long): Result<Unit>
+
+    // -- Traveller side ---------------------------------------------------------
+
+    /** Published groups that haven't started yet, soonest first, with agent, rating and whether I joined. */
+    fun observeOpenGroups(): Flow<List<GroupTripListing>>
+
+    /**
+     * One group as a traveller sees it. Null if it doesn't exist, or it is still a draft
+     * and I'm not in it.
+     */
+    fun observeListing(groupId: Long): Flow<GroupTripListing?>
+
+    /** Takes a seat right away if one is left (see GroupRules.canJoin). */
+    suspend fun joinGroup(groupId: Long): Result<Unit>
+
+    /** Gives the seat back. Allowed until the day before the trip starts. */
+    suspend fun leaveGroup(groupId: Long): Result<Unit>
 }

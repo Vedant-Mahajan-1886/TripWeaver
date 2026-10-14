@@ -93,10 +93,13 @@ fun HomeScreen(
     onDestinationClick: (String) -> Unit = {},
     onMyTripsClick: () -> Unit = {},
     onTripClick: (Long) -> Unit = {},
+    onGroupsClick: () -> Unit = {},
+    onGroupClick: (Long) -> Unit = {},
     onMenuClick: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val soloState by viewModel.soloState.collectAsStateWithLifecycle()
+    val soloGroups by viewModel.soloGroups.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val density = LocalDensity.current
 
@@ -219,6 +222,16 @@ fun HomeScreen(
                         onSoloModeChange = viewModel::setSoloMode,
                         modifier = Modifier.padding(horizontal = 20.dp)
                     )
+
+                    // -- Group trips for solo travellers (Solo mode on) -------
+                    if (soloState.enabled) {
+                        Spacer(modifier = Modifier.height(14.dp))
+                        SoloGroupsSection(
+                            listings = soloGroups,
+                            onSeeAll = onGroupsClick,
+                            onOpenGroup = onGroupClick
+                        )
+                    }
 
                     // ── Explore India Section ────────────────────────────────
                     Spacer(modifier = Modifier.height(14.dp))
