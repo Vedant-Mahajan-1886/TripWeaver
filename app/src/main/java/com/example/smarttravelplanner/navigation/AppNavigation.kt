@@ -287,7 +287,7 @@ fun AppNavigation(
                         }
                     },
                     onOpenShare = { shareId -> navController.navigate("agent_trip/$shareId") },
-                    onOpenPackages = { navController.navigate("agent_packages") }
+                    onEditPackage = { packageId -> navController.navigate("agent_package_edit/$packageId") }
                 )
             }
 

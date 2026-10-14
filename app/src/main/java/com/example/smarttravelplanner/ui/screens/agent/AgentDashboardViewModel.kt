@@ -30,6 +30,15 @@ sealed interface AgentDashboardUiState {
         val newCount: Int get() = incoming.count { it.share.status == ShareStatus.SENT }
         val inReviewCount: Int get() = incoming.count { it.share.status == ShareStatus.VIEWED }
         val respondedCount: Int get() = incoming.count { it.share.status == ShareStatus.RESPONDED }
+
+        // -- Bookings tab --------------------------------------------------------
+        /** Chosen by the traveller; the agent still has to send a quote. */
+        val toQuoteCount: Int get() = incoming.count { it.share.status == ShareStatus.CONFIRMED }
+        /** Quote accepted; the agent still has to book. */
+        val toBookCount: Int get() = incoming.count { it.share.status == ShareStatus.QUOTE_ACCEPTED }
+        val bookedCount: Int get() = incoming.count { it.share.status == ShareStatus.BOOKED }
+        /** Bookings waiting on the agent: drives the badge on the Bookings tab. */
+        val bookingActionCount: Int get() = toQuoteCount + toBookCount
     }
 }
 
