@@ -1,5 +1,7 @@
 package com.example.smarttravelplanner.di
 
+import com.example.smarttravelplanner.data.remote.cloud.CloudAuth
+import com.example.smarttravelplanner.data.remote.cloud.FirebaseCloudAuth
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import dagger.Module
@@ -26,4 +28,9 @@ object FirebaseModule {
     @Provides
     @Singleton
     fun provideFirestore(): FirebaseFirestore = FirebaseFirestore.getInstance()
+
+    /** Login code talks to [CloudAuth]; the real one is Firebase (it checks CloudStatus itself). */
+    @Provides
+    @Singleton
+    fun provideCloudAuth(impl: FirebaseCloudAuth): CloudAuth = impl
 }
