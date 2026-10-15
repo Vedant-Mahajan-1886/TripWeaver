@@ -5,6 +5,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
+import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.UserProfileChangeRequest
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
@@ -32,6 +33,8 @@ interface CloudAuth {
     suspend fun createAccount(email: String, password: String, fullName: String): CloudAuthResult
     /** Firebase emails a link to choose a new password. Silent if no such account (privacy). */
     suspend fun sendPasswordResetEmail(email: String): CloudAuthResult
+    /** Signs in to Firebase with a Google ID token (creates the cloud account the first time). */
+    suspend fun signInWithGoogle(idToken: String): CloudAuthResult = CloudAuthResult.Disabled
     fun signOut()
 }
 
@@ -76,6 +79,12 @@ class FirebaseCloudAuth @Inject constructor(
     override suspend fun sendPasswordResetEmail(email: String): CloudAuthResult = call {
         auth.sendPasswordResetEmail(email).await()
         CloudAuthResult.Success(null)
+    }
+
+    override suspend fun signInWithGoogle(idToken: String): CloudAuthResult = call {
+        val credential = GoogleAuthProvider.getCredential(idToken, null)
+        val user = auth.signInWithCredential(credential).await().user
+        CloudAuthResult.Success(user?.displayName)
     }
 
     override fun signOut() {

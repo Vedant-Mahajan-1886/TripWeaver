@@ -253,7 +253,8 @@ class AuthViewModel @Inject constructor(
     fun loginWithGoogle(
         email: String = "google.traveler@gmail.com",
         fullName: String = "Google Traveler",
-        profilePictureUrl: String? = null
+        profilePictureUrl: String? = null,
+        idToken: String? = null
     ) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
@@ -269,6 +270,7 @@ class AuthViewModel @Inject constructor(
             }
             authRepository.loginWithGoogle(normalizedEmail, fullName, profilePictureUrl)
                 .onSuccess { authResult ->
+                    if (idToken != null) authRepository.connectGoogleToCloud(normalizedEmail, idToken)
                     _uiState.update {
                         it.copy(
                             isLoading = false,

@@ -298,6 +298,15 @@ class AuthRepositoryImpl @Inject constructor(
         return user
     }
 
+    override suspend fun connectGoogleToCloud(email: String, idToken: String) {
+        if (!cloudAuth.isEnabled) return
+        // Only Google accounts: a password account with the same email would lose its
+        // password in Firebase if Google signed in over it.
+        val local = userDao.getUserByEmail(email.trim().lowercase())
+        if (local != null && !local.isGoogleUser) return
+        cloudAuth.signInWithGoogle(idToken)
+    }
+
     override suspend fun sendPasswordResetOtp(email: String): Result<Unit> = runCatching {
         val trimmedEmail = email.trim().lowercase()
         if (trimmedEmail.isBlank() || !isValidEmail(trimmedEmail)) {

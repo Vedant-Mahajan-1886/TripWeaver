@@ -31,6 +31,12 @@ interface AuthRepository {
         profilePictureUrl: String? = null
     ): Result<AuthResult>
 
+    /**
+     * After a Google login: sign in to Firebase with the Google ID token so the account
+     * also exists in the cloud. Never fails the login (cloud is a bonus here).
+     */
+    suspend fun connectGoogleToCloud(email: String, idToken: String) {}
+
     /** Sends a 6-digit password reset OTP to the registered email */
     suspend fun sendPasswordResetOtp(email: String): Result<Unit>
 

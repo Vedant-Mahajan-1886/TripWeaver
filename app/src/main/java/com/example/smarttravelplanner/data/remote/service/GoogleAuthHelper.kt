@@ -19,7 +19,9 @@ object GoogleAuthHelper {
     data class GoogleUser(
         val email: String,
         val displayName: String,
-        val profilePictureUri: String? = null
+        val profilePictureUri: String? = null,
+        /** Google ID token: lets Firebase create/sign in the matching cloud account. */
+        val idToken: String? = null
     )
 
     /**
@@ -54,7 +56,8 @@ object GoogleAuthHelper {
             GoogleUser(
                 email = googleIdToken.id,
                 displayName = googleIdToken.displayName ?: googleIdToken.id.substringBefore("@"),
-                profilePictureUri = googleIdToken.profilePictureUri?.toString()
+                profilePictureUri = googleIdToken.profilePictureUri?.toString(),
+                idToken = googleIdToken.idToken
             )
         } else {
             throw IllegalStateException("Unexpected credential type: ${credential.type}")

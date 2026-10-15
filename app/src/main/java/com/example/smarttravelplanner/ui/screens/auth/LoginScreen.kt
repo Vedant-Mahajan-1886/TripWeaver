@@ -116,6 +116,8 @@ fun LoginScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var showGoogleSetupDialog by remember { mutableStateOf(false) }
+    // True from the tap until Google's account sheet answers (it can take a few seconds)
+    var googleInProgress by remember { mutableStateOf(false) }
 
     // Pre-populate email in forgot password if user already typed in login
     LaunchedEffect(uiState.viewMode) {
@@ -633,15 +635,20 @@ fun LoginScreen(
                                         viewModel.startForgotPassword(email)
                                     },
                                     onAgentAccountClick = { viewModel.startAgentSignIn() },
+                                    googleInProgress = googleInProgress,
                                     onGoogleSignIn = {
+                                        if (googleInProgress) return@StandardAuthForm
                                         if (GoogleAuthHelper.isConfigured) {
+                                            googleInProgress = true
                                             coroutineScope.launch {
                                                 GoogleAuthHelper.signInWithGoogle(context)
+                                                    .also { googleInProgress = false }
                                                     .onSuccess { googleUser ->
                                                         viewModel.loginWithGoogle(
                                                             email = googleUser.email,
                                                             fullName = googleUser.displayName,
-                                                            profilePictureUrl = googleUser.profilePictureUri
+                                                            profilePictureUrl = googleUser.profilePictureUri,
+                                                            idToken = googleUser.idToken
                                                         )
                                                     }
                                                     .onFailure { error ->
@@ -1269,7 +1276,9 @@ private fun StandardAuthForm(
     onSubmit: () -> Unit,
     onForgotPasswordClick: () -> Unit,
     onAgentAccountClick: () -> Unit,
-    onGoogleSignIn: () -> Unit
+    onGoogleSignIn: () -> Unit,
+    /** Google's account sheet is opening: show a spinner on the button */
+    googleInProgress: Boolean = false
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         // ── Smooth Segmented Switcher (Sign In vs Create Account) ─────────────
@@ -1513,7 +1522,7 @@ private fun StandardAuthForm(
         // ── Google Sign In Button with Official Multi-Color Logo ───────────────
         Button(
             onClick = onGoogleSignIn,
-            enabled = !isLoading,
+            enabled = !isLoading && !googleInProgress,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(52.dp),
@@ -1529,14 +1538,22 @@ private fun StandardAuthForm(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
-                Image(
-                    painter = painterResource(R.drawable.ic_google_logo),
-                    contentDescription = "Google",
-                    modifier = Modifier.size(20.dp)
-                )
+                if (googleInProgress) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = googleBtnTextColor
+                    )
+                } else {
+                    Image(
+                        painter = painterResource(R.drawable.ic_google_logo),
+                        contentDescription = "Google",
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
-                    text = "Continue with Google",
+                    text = if (googleInProgress) "Opening Google\u2026" else "Continue with Google",
                     fontFamily = ProductSansFontFamily,
                     fontWeight = FontWeight.Medium,
                     fontSize = 15.sp,
