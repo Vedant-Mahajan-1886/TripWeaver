@@ -329,6 +329,25 @@ fun LoginScreen(
                         }
                     }
 
+                    // Info banner (e.g. password reset link sent)
+                    uiState.infoMessage?.let { info ->
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 16.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(
+                                text = info,
+                                fontFamily = DmSansFontFamily,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                            )
+                        }
+                    }
+
                     // ── Animated Switcher: Forms, OTPs, and Forgot Password ───
                     AnimatedContent(
                         targetState = uiState.viewMode,

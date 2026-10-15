@@ -18,6 +18,8 @@ data class AuthUiState(
     val viewMode: AuthViewMode = AuthViewMode.StandardForm,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
+    /** Friendly notice (not an error), e.g. "We emailed you a reset link". */
+    val infoMessage: String? = null,
     val isSuccess: Boolean = false,
     /** Role of the account that just signed in; decides Home vs Agent Dashboard. */
     val sessionRole: UserRole = UserRole.TRAVELLER,

@@ -108,7 +108,7 @@ class AuthViewModel @Inject constructor(
      */
     fun login(email: String, password: String) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            _uiState.update { it.copy(isLoading = true, errorMessage = null, infoMessage = null) }
             val normalizedEmail = email.trim().lowercase()
             if (userRoleRepository.roleForEmail(normalizedEmail) == UserRole.AGENT) {
                 _uiState.update {
@@ -342,14 +342,27 @@ class AuthViewModel @Inject constructor(
             val normalizedEmail = email.trim().lowercase()
             authRepository.sendPasswordResetOtp(normalizedEmail)
                 .onSuccess {
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            viewMode = AuthViewMode.ForgotPasswordOtp(normalizedEmail),
-                            errorMessage = null
-                        )
+                    if (authRepository.passwordResetByEmailLink) {
+                        // Cloud accounts: Firebase emailed a link; back to sign-in with a notice
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                viewMode = AuthViewMode.StandardForm,
+                                errorMessage = null,
+                                infoMessage = "If an account exists for $normalizedEmail, we've emailed a link to " +
+                                    "reset your password. Open it, choose a new password, then sign in here."
+                            )
+                        }
+                    } else {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                viewMode = AuthViewMode.ForgotPasswordOtp(normalizedEmail),
+                                errorMessage = null
+                            )
+                        }
+                        startResendCooldown()
                     }
-                    startResendCooldown()
                 }
                 .onFailure { error ->
                     _uiState.update {
