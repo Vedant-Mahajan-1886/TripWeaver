@@ -7,6 +7,9 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.example.smarttravelplanner.data.local.dao.UserDao
 import com.example.smarttravelplanner.data.local.entity.UserEntity
+import com.example.smarttravelplanner.data.remote.cloud.CloudAuth
+import com.example.smarttravelplanner.data.remote.cloud.CloudAuthResult
+import com.example.smarttravelplanner.data.remote.cloud.NoCloudAuth
 import com.example.smarttravelplanner.data.remote.service.EmailVerificationService
 import com.example.smarttravelplanner.domain.model.AuthResult
 import com.example.smarttravelplanner.util.SecurityUtils
@@ -21,8 +24,12 @@ class AuthRepositoryImpl @Inject constructor(
     private val userDao: UserDao,
     private val emailVerificationService: EmailVerificationService,
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val dataStore: DataStore<Preferences>
+    private val dataStore: DataStore<Preferences>,
+    /** Firebase account kept next to the local one (cloud off = [NoCloudAuth]). */
+    private val cloudAuth: CloudAuth = NoCloudAuth
 ) : AuthRepository {
+
+    override val passwordResetByEmailLink: Boolean get() = cloudAuth.isEnabled
 
     private object Keys {
         val IS_LOGGED_IN = booleanPreferencesKey("auth_is_logged_in")
@@ -101,6 +108,18 @@ class AuthRepositoryImpl @Inject constructor(
         // Verify OTP code
         emailVerificationService.verifyOtp(trimmedEmail, otp).getOrThrow()
 
+        // Cloud: create the Firebase account too, so this account works on other phones
+        when (val cloud = cloudAuth.createAccount(trimmedEmail, password, trimmedName)) {
+            is CloudAuthResult.Success, CloudAuthResult.Disabled -> Unit
+            CloudAuthResult.AlreadyExists ->
+                throw IllegalArgumentException("An account with this email already exists. Please Sign In.")
+            CloudAuthResult.Offline ->
+                throw IllegalStateException("You need an internet connection to create an account.")
+            CloudAuthResult.InvalidCredentials ->
+                throw IllegalArgumentException("Please choose a stronger password (at least 6 characters).")
+            is CloudAuthResult.Failed -> throw IllegalStateException(cloud.message)
+        }
+
         // Salt and hash password
         val salt = SecurityUtils.generateSalt()
         val passwordHash = SecurityUtils.hashPassword(password, salt)
@@ -139,16 +158,15 @@ class AuthRepositoryImpl @Inject constructor(
             throw IllegalArgumentException("Please enter your password.")
         }
 
-        val user = userDao.getUserByEmail(trimmedEmail)
-            ?: throw IllegalArgumentException("No account found with this email. Please Create Account.")
-
-        if (user.isGoogleUser) {
+        val localUser = userDao.getUserByEmail(trimmedEmail)
+        if (localUser?.isGoogleUser == true) {
             throw IllegalArgumentException("This account is linked with Google. Please tap 'Continue with Google'.")
         }
 
-        val passwordValid = SecurityUtils.verifyPassword(password, user.salt, user.passwordHash)
-        if (!passwordValid) {
-            throw IllegalArgumentException("Incorrect password. Please try again.")
+        val user = if (cloudAuth.isEnabled) {
+            loginWithCloud(trimmedEmail, password, localUser)
+        } else {
+            loginLocally(password, localUser)
         }
 
         // Sync name & email with UserPreferences
@@ -216,6 +234,70 @@ class AuthRepositoryImpl @Inject constructor(
         AuthResult(email = googleEmail, isNewAccount = isNew)
     }
 
+    /** Local-only login (cloud off, or no internet): check the password hash stored in Room. */
+    private fun loginLocally(password: String, localUser: UserEntity?): UserEntity {
+        val user = localUser
+            ?: throw IllegalArgumentException("No account found with this email. Please Create Account.")
+        if (!SecurityUtils.verifyPassword(password, user.salt, user.passwordHash)) {
+            throw IllegalArgumentException("Incorrect password. Please try again.")
+        }
+        return user
+    }
+
+    /**
+     * Cloud login. Firebase is asked first so an account made on another phone works here.
+     *  - Firebase OK, no local copy yet  -> create the local account (second phone)
+     *  - Firebase says "invalid" but the local password is right -> first login since cloud
+     *    sync was added: copy the account to Firebase (also moves the demo agents over)
+     *  - No internet -> local login as before
+     */
+    private suspend fun loginWithCloud(email: String, password: String, localUser: UserEntity?): UserEntity =
+        when (val cloud = cloudAuth.signIn(email, password)) {
+            is CloudAuthResult.Success -> {
+                if (localUser == null) {
+                    createLocalCopy(email, cloud.displayName ?: email.substringBefore('@'), password)
+                } else {
+                    // Password may have been reset by email link: keep the local hash in step
+                    if (!SecurityUtils.verifyPassword(password, localUser.salt, localUser.passwordHash)) {
+                        val salt = SecurityUtils.generateSalt()
+                        userDao.updatePassword(email, SecurityUtils.hashPassword(password, salt), salt)
+                    }
+                    localUser
+                }
+            }
+
+            CloudAuthResult.InvalidCredentials -> {
+                val user = localUser
+                    ?: throw IllegalArgumentException("Incorrect email or password.")
+                if (!SecurityUtils.verifyPassword(password, user.salt, user.passwordHash)) {
+                    throw IllegalArgumentException("Incorrect password. Please try again.")
+                }
+                when (cloudAuth.createAccount(email, password, user.fullName)) {
+                    CloudAuthResult.AlreadyExists -> throw IllegalArgumentException(
+                        "Your password was changed on another phone. Sign in with the new password."
+                    )
+                    else -> user // copied to the cloud, or will be next time we're online
+                }
+            }
+
+            CloudAuthResult.Offline, CloudAuthResult.Disabled,
+            CloudAuthResult.AlreadyExists, is CloudAuthResult.Failed -> loginLocally(password, localUser)
+        }
+
+    /** Account that exists in Firebase but not yet on this phone. */
+    private suspend fun createLocalCopy(email: String, fullName: String, password: String): UserEntity {
+        val salt = SecurityUtils.generateSalt()
+        val user = UserEntity(
+            email = email,
+            fullName = fullName,
+            passwordHash = SecurityUtils.hashPassword(password, salt),
+            salt = salt,
+            isEmailVerified = true
+        )
+        userDao.insertUser(user)
+        return user
+    }
+
     override suspend fun sendPasswordResetOtp(email: String): Result<Unit> = runCatching {
         val trimmedEmail = email.trim().lowercase()
         if (trimmedEmail.isBlank() || !isValidEmail(trimmedEmail)) {
@@ -223,12 +305,22 @@ class AuthRepositoryImpl @Inject constructor(
         }
 
         val user = userDao.getUserByEmail(trimmedEmail)
-            ?: throw IllegalArgumentException("No account registered with this email address.")
-
-        if (user.isGoogleUser) {
+        if (user?.isGoogleUser == true) {
             throw IllegalArgumentException("This account is linked with Google. Please tap 'Continue with Google' to sign in.")
         }
 
+        // Cloud on: the password lives in Firebase, so Firebase emails a reset link
+        if (cloudAuth.isEnabled) {
+            when (val cloud = cloudAuth.sendPasswordResetEmail(trimmedEmail)) {
+                is CloudAuthResult.Success -> return@runCatching
+                CloudAuthResult.Offline ->
+                    throw IllegalStateException("You need an internet connection to reset your password.")
+                is CloudAuthResult.Failed -> throw IllegalStateException(cloud.message)
+                else -> return@runCatching
+            }
+        }
+
+        if (user == null) throw IllegalArgumentException("No account registered with this email address.")
         emailVerificationService.sendPasswordResetOtp(trimmedEmail).getOrThrow()
     }
 
@@ -275,6 +367,7 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     override suspend fun logout(): Result<Unit> = runCatching {
+        cloudAuth.signOut()
         val currentEmail = dataStore.data.first()[Keys.LOGGED_IN_EMAIL]
         if (!currentEmail.isNullOrBlank()) {
             userPreferencesRepository.clearAccountState(currentEmail)

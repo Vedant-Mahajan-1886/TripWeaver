@@ -37,6 +37,12 @@ interface AuthRepository {
     /** Verifies OTP, updates password with salted hash, and signs user in */
     suspend fun resetPassword(email: String, otp: String, newPassword: String): Result<AuthResult>
 
+    /**
+     * True when cloud sync is on: "Forgot password" emails a reset link (Firebase)
+     * instead of a 6-digit code.
+     */
+    val passwordResetByEmailLink: Boolean get() = false
+
     /** Clears session and logs out */
     suspend fun logout(): Result<Unit>
 }
