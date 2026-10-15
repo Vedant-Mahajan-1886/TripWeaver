@@ -35,4 +35,18 @@ interface TripDao {
 
     @Query("DELETE FROM trips WHERE id = :id")
     suspend fun deleteTripById(id: Long)
+
+    // -- Cloud sync ------------------------------------------------------------
+
+    @Query("SELECT * FROM trips WHERE cloudId = :cloudId LIMIT 1")
+    suspend fun getTripByCloudId(cloudId: String): TripEntity?
+
+    @Query("UPDATE trips SET cloudId = :cloudId WHERE id = :id")
+    suspend fun setCloudId(id: Long, cloudId: String)
+
+    @Query("UPDATE trips SET updatedAt = :updatedAt WHERE id = :id")
+    suspend fun setUpdatedAt(id: Long, updatedAt: Long)
+
+    @Query("SELECT * FROM trips WHERE ownerEmail = :ownerEmail")
+    suspend fun getTripsForOwnerOnce(ownerEmail: String): List<TripEntity>
 }

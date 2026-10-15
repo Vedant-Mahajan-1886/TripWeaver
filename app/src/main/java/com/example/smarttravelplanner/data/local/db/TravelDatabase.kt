@@ -48,7 +48,7 @@ import com.example.smarttravelplanner.data.local.entity.UserEntity
         GroupTripEntity::class,
         GroupMemberEntity::class
     ],
-    version = 12,
+    version = 13,
     // Schema JSON is written to app/schemas (see ksp block in app/build.gradle.kts)
     exportSchema = true,
     autoMigrations = [
@@ -63,7 +63,9 @@ import com.example.smarttravelplanner.data.local.entity.UserEntity
         // v10 -> v11 adds agent_reviews.agentReply (NOT NULL DEFAULT '') and agentRepliedAt (nullable)
         AutoMigration(from = 10, to = 11),
         // v11 -> v12 only adds the group_trips and group_members tables
-        AutoMigration(from = 11, to = 12)
+        AutoMigration(from = 11, to = 12),
+        // v12 -> v13 adds trips.cloudId (nullable, unique) and trips.updatedAt (DEFAULT 0) for cloud sync
+        AutoMigration(from = 12, to = 13)
     ]
 )
 @TypeConverters(Converters::class)
