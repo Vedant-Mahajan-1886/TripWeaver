@@ -7,6 +7,10 @@ import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.UserProfileChangeRequest
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -29,6 +33,10 @@ interface CloudAuth {
     val isEnabled: Boolean
     /** Email of the Firebase user on this phone (null if signed out or cloud off). */
     val signedInEmail: String?
+    /** Firebase user id (used as the owner of cloud documents). */
+    val signedInUid: String? get() = null
+    /** Emits the signed-in Firebase email whenever it changes (sign-in, sign-out). */
+    val signedInEmailFlow: Flow<String?> get() = flowOf(null)
     suspend fun signIn(email: String, password: String): CloudAuthResult
     suspend fun createAccount(email: String, password: String, fullName: String): CloudAuthResult
     /** Firebase emails a link to choose a new password. Silent if no such account (privacy). */
@@ -64,6 +72,16 @@ class FirebaseCloudAuth @Inject constructor(
 
     override val signedInEmail: String?
         get() = if (isEnabled) auth.currentUser?.email?.lowercase() else null
+
+    override val signedInUid: String?
+        get() = if (isEnabled) auth.currentUser?.uid else null
+
+    override val signedInEmailFlow: Flow<String?>
+        get() = if (!isEnabled) flowOf(null) else callbackFlow {
+            val listener = FirebaseAuth.AuthStateListener { trySend(it.currentUser?.email?.lowercase()) }
+            auth.addAuthStateListener(listener) // also sends the current state right away
+            awaitClose { auth.removeAuthStateListener(listener) }
+        }
 
     override suspend fun signIn(email: String, password: String): CloudAuthResult = call {
         val user = auth.signInWithEmailAndPassword(email, password).await().user
