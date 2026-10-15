@@ -8,6 +8,15 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+// -- Firebase (cloud sync) --------------------------------------------------------
+// app/google-services.json is git-ignored and shared privately. Without it the app
+// still builds and runs fully offline (cloud sync switched off), so teammates who
+// don't have the file are not blocked.
+val hasFirebaseConfig = file("google-services.json").exists()
+if (hasFirebaseConfig) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "com.example.smarttravelplanner"
     compileSdk {
@@ -22,6 +31,9 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // true only when app/google-services.json was present at build time
+        buildConfigField("boolean", "CLOUD_ENABLED", hasFirebaseConfig.toString())
 
         // Load secure secrets from local.properties (ignored by git)
         val properties = Properties()
@@ -95,6 +107,12 @@ ksp {
 }
 
 dependencies {
+    // Firebase: Auth (accounts) + Firestore (shared data between phones)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.firestore)
+    implementation(libs.kotlinx.coroutines.play.services)
+
     // Compose BOM
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)

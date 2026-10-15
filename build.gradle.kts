@@ -4,4 +4,6 @@ plugins {
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.hilt) apply false
     alias(libs.plugins.ksp) apply false
+    // Firebase config reader; applied in app/ only when google-services.json exists
+    alias(libs.plugins.google.services) apply false
 }
