@@ -2,6 +2,8 @@ package com.example.smarttravelplanner.di
 
 import com.example.smarttravelplanner.data.remote.cloud.CloudAuth
 import com.example.smarttravelplanner.data.remote.cloud.FirebaseCloudAuth
+import com.example.smarttravelplanner.data.remote.cloud.FirestoreTripSync
+import com.example.smarttravelplanner.data.remote.cloud.TripSync
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import dagger.Module
@@ -33,4 +35,9 @@ object FirebaseModule {
     @Provides
     @Singleton
     fun provideCloudAuth(impl: FirebaseCloudAuth): CloudAuth = impl
+
+    /** Trip sync; FirestoreTripSync does nothing unless a Firebase user is signed in. */
+    @Provides
+    @Singleton
+    fun provideTripSync(impl: FirestoreTripSync): TripSync = impl
 }

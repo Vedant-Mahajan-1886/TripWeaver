@@ -2,6 +2,8 @@ package com.example.smarttravelplanner.data.repository
 
 import com.example.smarttravelplanner.data.local.dao.TripDao
 import com.example.smarttravelplanner.data.local.entity.TripEntity
+import com.example.smarttravelplanner.data.remote.cloud.NoTripSync
+import com.example.smarttravelplanner.data.remote.cloud.TripSync
 import com.example.smarttravelplanner.domain.model.Trip
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -17,7 +19,9 @@ import javax.inject.Inject
 
 class TripRepositoryImpl @Inject constructor(
     private val tripDao: TripDao,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    /** Copies changes to Firestore (cloud off = [NoTripSync]). */
+    private val tripSync: TripSync = NoTripSync
 ) : TripRepository {
 
     /**
@@ -47,7 +51,11 @@ class TripRepositoryImpl @Inject constructor(
 
     override suspend fun saveTrip(trip: Trip): Long {
         val owner = trip.ownerEmail.ifBlank { currentEmail() }
-        return tripDao.insertTrip(trip.copy(ownerEmail = owner).toEntity())
+        val id = tripDao.insertTrip(
+            trip.copy(ownerEmail = owner).toEntity().copy(updatedAt = System.currentTimeMillis())
+        )
+        tripSync.pushTrip(id)
+        return id
     }
 
     override suspend fun updateTrip(trip: Trip) {
@@ -55,11 +63,19 @@ class TripRepositoryImpl @Inject constructor(
         val owner = trip.ownerEmail.ifBlank {
             tripDao.getTripById(trip.id)?.ownerEmail.orEmpty().ifBlank { currentEmail() }
         }
-        tripDao.updateTrip(trip.copy(ownerEmail = owner).toEntity())
+        // Keep the cloud id (the domain model doesn't carry it) and stamp the change time
+        val existing = tripDao.getTripById(trip.id)
+        tripDao.updateTrip(
+            trip.copy(ownerEmail = owner).toEntity()
+                .copy(cloudId = existing?.cloudId, updatedAt = System.currentTimeMillis())
+        )
+        tripSync.pushTrip(trip.id)
     }
 
-    override suspend fun deleteTrip(id: Long) =
+    override suspend fun deleteTrip(id: Long) {
+        tripSync.markDeleted(id) // needs the cloud id, so before the local delete
         tripDao.deleteTripById(id)
+    }
 
     private suspend fun currentEmail(): String =
         authRepository.currentUserEmail.first().normalizedEmail()

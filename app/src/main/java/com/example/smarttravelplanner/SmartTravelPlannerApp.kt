@@ -2,6 +2,7 @@ package com.example.smarttravelplanner
 
 import android.app.Application
 import com.example.smarttravelplanner.data.remote.cloud.CloudStatus
+import com.example.smarttravelplanner.data.remote.cloud.CloudSyncCoordinator
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
@@ -15,12 +16,19 @@ import javax.inject.Inject
 class SmartTravelPlannerApp : Application(), ImageLoaderFactory {
 
     @Inject lateinit var cloudStatus: CloudStatus
+    @Inject lateinit var cloudSyncCoordinator: CloudSyncCoordinator
+
+    /** Lives as long as the app; used for background cloud sync. */
+    private val appScope = kotlinx.coroutines.CoroutineScope(
+        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
+    )
 
     override fun onCreate() {
         super.onCreate()
         // One line in Logcat (tag "Cloud") to confirm Firebase is connected
         if (cloudStatus.isEnabled) {
             android.util.Log.i("Cloud", "Firebase connected: project ${cloudStatus.projectId}")
+            cloudSyncCoordinator.start(appScope)
         } else {
             android.util.Log.i("Cloud", "Cloud sync off (no app/google-services.json) - using local data only")
         }

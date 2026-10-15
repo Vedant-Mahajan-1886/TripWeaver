@@ -2,6 +2,8 @@ package com.example.smarttravelplanner.data.repository
 
 import com.example.smarttravelplanner.data.local.dao.ItineraryDao
 import com.example.smarttravelplanner.data.local.entity.ItineraryEntity
+import com.example.smarttravelplanner.data.remote.cloud.NoTripSync
+import com.example.smarttravelplanner.data.remote.cloud.TripSync
 import com.example.smarttravelplanner.domain.model.Activity
 import com.example.smarttravelplanner.domain.model.ActivityCategory
 import com.example.smarttravelplanner.domain.model.Itinerary
@@ -13,13 +15,16 @@ import javax.inject.Inject
 
 class ItineraryRepositoryImpl @Inject constructor(
     private val itineraryDao: ItineraryDao,
-    private val gson: Gson
+    private val gson: Gson,
+    /** The days travel inside the trip's cloud document, so a change re-uploads the trip. */
+    private val tripSync: TripSync = NoTripSync
 ) : ItineraryRepository {
 
     override suspend fun saveItineraries(itineraries: List<Itinerary>) {
         itineraries.forEach { itinerary ->
             itineraryDao.insertItinerary(itinerary.toEntity())
         }
+        itineraries.map { it.tripId }.distinct().forEach { tripSync.pushTrip(it) }
     }
 
     override fun getItinerariesForTripAsFlow(tripId: Long): Flow<List<Itinerary>> =
@@ -30,8 +35,10 @@ class ItineraryRepositoryImpl @Inject constructor(
     override suspend fun getItinerariesForTrip(tripId: Long): List<Itinerary> =
         itineraryDao.getItinerariesForTrip(tripId).map { it.toDomain() }
 
-    override suspend fun deleteItinerariesForTrip(tripId: Long) =
+    override suspend fun deleteItinerariesForTrip(tripId: Long) {
         itineraryDao.deleteItinerariesForTrip(tripId)
+        tripSync.pushTrip(tripId)
+    }
 
     // ── Mappers ───────────────────────────────────────────────────────────────
 
