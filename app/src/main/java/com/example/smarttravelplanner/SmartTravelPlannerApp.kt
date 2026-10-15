@@ -1,6 +1,7 @@
 package com.example.smarttravelplanner
 
 import android.app.Application
+import com.example.smarttravelplanner.data.remote.cloud.CloudStatus
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
@@ -8,12 +9,21 @@ import coil.memory.MemoryCache
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.Dispatchers
 import okhttp3.OkHttpClient
+import javax.inject.Inject
 
 @HiltAndroidApp
 class SmartTravelPlannerApp : Application(), ImageLoaderFactory {
 
+    @Inject lateinit var cloudStatus: CloudStatus
+
     override fun onCreate() {
         super.onCreate()
+        // One line in Logcat (tag "Cloud") to confirm Firebase is connected
+        if (cloudStatus.isEnabled) {
+            android.util.Log.i("Cloud", "Firebase connected: project ${cloudStatus.projectId}")
+        } else {
+            android.util.Log.i("Cloud", "Cloud sync off (no app/google-services.json) - using local data only")
+        }
         if (BuildConfig.MAPS_API_KEY.isNotBlank()) {
             try {
                 if (!com.google.android.libraries.places.api.Places.isInitialized()) {
