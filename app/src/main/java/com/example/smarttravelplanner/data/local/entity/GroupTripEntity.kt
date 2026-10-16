@@ -11,7 +11,12 @@ import androidx.room.PrimaryKey
  */
 @Entity(
     tableName = "group_trips",
-    indices = [Index(value = ["agentEmail"]), Index(value = ["startDate"])]
+    indices = [
+        Index(value = ["agentEmail"]),
+        Index(value = ["startDate"]),
+        // v14: one local row per cloud group
+        Index(value = ["cloudId"], unique = true)
+    ]
 )
 data class GroupTripEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -34,7 +39,9 @@ data class GroupTripEntity(
     /** Cancelled by the agent; members can see it but nobody can join */
     val isCancelled: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    /** Firestore document id in "groups" (v14); null until first uploaded. */
+    val cloudId: String? = null
 )
 
 /** A traveller who joined a group trip. One row per traveller per group. */

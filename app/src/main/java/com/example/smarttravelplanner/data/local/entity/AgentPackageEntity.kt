@@ -8,7 +8,12 @@ import androidx.room.PrimaryKey
 /** A ready-made trip an agent offers to travellers ("package"). Only its agent can change it. */
 @Entity(
     tableName = "agent_packages",
-    indices = [Index(value = ["agentEmail"]), Index(value = ["destination"])]
+    indices = [
+        Index(value = ["agentEmail"]),
+        Index(value = ["destination"]),
+        // v14: one local row per cloud package
+        Index(value = ["cloudId"], unique = true)
+    ]
 )
 data class AgentPackageEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -25,7 +30,9 @@ data class AgentPackageEntity(
     /** Only published packages are visible to travellers */
     val isPublished: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    /** Firestore document id in "packages" (v14); null until first uploaded. */
+    val cloudId: String? = null
 )
 
 /** One day of a package's itinerary. Deleted together with its package. */
