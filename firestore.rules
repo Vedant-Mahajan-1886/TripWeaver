@@ -10,16 +10,63 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isOwner() {
+      return signedIn() && resource.data.ownerUid == request.auth.uid;
+    }
+
+    function staysMine() {
+      return request.resource.data.ownerUid == request.auth.uid;
+    }
+
     // Traveller trips, each with its day-by-day itinerary inside the document.
     // Only the owner (ownerUid = their Firebase user id) can read or change them.
-    // (Next step: agents may also read trips that were sent to them.)
     match /trips/{tripId} {
-      allow read: if signedIn() && resource.data.ownerUid == request.auth.uid;
-      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
-      allow update: if signedIn()
-        && resource.data.ownerUid == request.auth.uid
-        && request.resource.data.ownerUid == request.auth.uid;
-      allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
+      allow read: if isOwner();
+      allow create: if signedIn() && staysMine();
+      allow update: if isOwner() && staysMine();
+      allow delete: if isOwner();
+    }
+
+    // Agency details shown on package and group cards. Anyone signed in can read;
+    // only the agent can write their own (document id = their email).
+    match /agents/{email} {
+      allow read: if signedIn();
+      allow write: if signedIn() && request.auth.token.email == email && staysMine();
+    }
+
+    // Agents' ready-made packages. Published ones are public to signed-in users;
+    // drafts and deleted ones only to the agent who owns them.
+    match /packages/{packageId} {
+      allow read: if signedIn() && (resource.data.published == true || resource.data.ownerUid == request.auth.uid);
+      allow create: if signedIn() && staysMine();
+      allow update: if isOwner() && staysMine();
+      allow delete: if isOwner();
+    }
+
+    // Group trips: same idea as packages.
+    match /groups/{groupId} {
+      allow read: if signedIn() && (resource.data.published == true || resource.data.ownerUid == request.auth.uid);
+      allow create: if signedIn() && staysMine();
+      allow update: if isOwner() && staysMine();
+      allow delete: if isOwner();
+
+      // One document per traveller who joined (document id = their email).
+      // A traveller can only add or remove themselves; the agent can remove anyone.
+      match /members/{email} {
+        allow read: if signedIn();
+        allow create, update: if signedIn()
+          && request.auth.token.email == email
+          && request.resource.data.travellerEmail == email;
+        allow delete: if signedIn() && (
+          request.auth.token.email == email ||
+          get(/databases/$(database)/documents/groups/$(groupId)).data.ownerUid == request.auth.uid
+        );
+      }
+    }
+
+    // Seat counts on every phone: the app listens to all "members" documents at once.
+    match /{path=**}/members/{email} {
+      allow read: if signedIn();
     }
   }
 }
