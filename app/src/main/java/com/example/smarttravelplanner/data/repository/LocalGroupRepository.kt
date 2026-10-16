@@ -7,6 +7,8 @@ import com.example.smarttravelplanner.data.local.dao.UserDao
 import com.example.smarttravelplanner.data.local.db.TravelDatabase
 import com.example.smarttravelplanner.data.local.entity.GroupMemberEntity
 import com.example.smarttravelplanner.data.local.entity.GroupTripEntity
+import com.example.smarttravelplanner.data.remote.cloud.CatalogSync
+import com.example.smarttravelplanner.data.remote.cloud.NoCatalogSync
 import com.example.smarttravelplanner.domain.model.UserRole
 import com.example.smarttravelplanner.domain.model.agent.GroupMember
 import com.example.smarttravelplanner.domain.model.agent.GroupTrip
@@ -34,7 +36,9 @@ class LocalGroupRepository @Inject constructor(
     private val agentRepository: AgentRepository,
     private val bookingRepository: BookingRepository,
     private val authRepository: AuthRepository,
-    private val userRoleRepository: UserRoleRepository
+    private val userRoleRepository: UserRoleRepository,
+    /** Copies groups and joins to Firestore so other phones see them. */
+    private val catalogSync: CatalogSync = NoCatalogSync
 ) : GroupRepository {
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -69,15 +73,17 @@ class LocalGroupRepository @Inject constructor(
         }
 
         val now = System.currentTimeMillis()
-        if (existing == null) {
+        val savedId = if (existing == null) {
             groupDao.insertGroup(group.toEntity(agentEmail = me, createdAt = now, updatedAt = now))
         } else {
             groupDao.updateGroup(
                 group.toEntity(agentEmail = me, createdAt = existing.createdAt, updatedAt = now)
-                    .copy(isCancelled = existing.isCancelled)
+                    .copy(isCancelled = existing.isCancelled, cloudId = existing.cloudId)
             )
             existing.id
         }
+        catalogSync.pushGroup(savedId)
+        savedId
     }
 
     override suspend fun setPublished(groupId: Long, published: Boolean): Result<Unit> = runCatching {
@@ -90,12 +96,14 @@ class LocalGroupRepository @Inject constructor(
             require(problems.isEmpty()) { problems.joinToString("\n") }
         }
         groupDao.updateGroup(row.copy(isPublished = published, updatedAt = System.currentTimeMillis()))
+        catalogSync.pushGroup(groupId)
     }
 
     override suspend fun cancelGroup(groupId: Long): Result<Unit> = runCatching {
         val me = requireAgent()
         val row = requireOwnGroup(groupId, me)
         groupDao.updateGroup(row.copy(isCancelled = true, updatedAt = System.currentTimeMillis()))
+        catalogSync.pushGroup(groupId)
     }
 
     override suspend fun deleteGroup(groupId: Long): Result<Unit> = runCatching {
@@ -104,6 +112,7 @@ class LocalGroupRepository @Inject constructor(
         require(groupDao.countMembers(groupId) == 0) {
             "Travellers have joined this group. Cancel it instead so they know."
         }
+        catalogSync.removeGroup(groupId) // needs the cloud id, so before the local delete
         groupDao.deleteGroup(groupId)
     }
 
@@ -112,7 +121,7 @@ class LocalGroupRepository @Inject constructor(
     override fun observeOpenGroups(): Flow<List<GroupTripListing>> =
         combine(
             groupDao.observeOpenGroups(LocalDate.now().toString()),
-            agentRepository.observeAgents(),
+            agentRepository.observeAgentDirectory(),
             bookingRepository.observeRatings(),
             observeMyJoinedIds()
         ) { rows, agents, ratings, joinedIds ->
@@ -131,7 +140,7 @@ class LocalGroupRepository @Inject constructor(
     override fun observeListing(groupId: Long): Flow<GroupTripListing?> =
         combine(
             groupDao.observeGroup(groupId),
-            agentRepository.observeAgents(),
+            agentRepository.observeAgentDirectory(),
             bookingRepository.observeRatings(),
             observeMyJoinedIds()
         ) { row, agents, ratings, joinedIds ->
@@ -158,7 +167,7 @@ class LocalGroupRepository @Inject constructor(
             require(check == JoinCheck.OK) { check.message }
             groupDao.insertMember(GroupMemberEntity(groupId = groupId, travellerEmail = email, travellerName = name))
         }
-        Unit
+        catalogSync.pushMember(groupId, email, name, System.currentTimeMillis())
     }
 
     override suspend fun leaveGroup(groupId: Long): Result<Unit> = runCatching {
@@ -170,6 +179,7 @@ class LocalGroupRepository @Inject constructor(
             val removed = groupDao.deleteMember(groupId, email)
             require(removed > 0) { "You're not in this group." }
         }
+        catalogSync.removeMember(groupId, email)
     }
 
     // -- Helpers --------------------------------------------------------------

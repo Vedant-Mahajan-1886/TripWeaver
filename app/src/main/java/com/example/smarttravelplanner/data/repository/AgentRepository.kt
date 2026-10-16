@@ -23,6 +23,12 @@ interface AgentRepository {
     /** All agent accounts, for the traveller's "Choose agent" screen. */
     fun observeAgents(): Flow<List<AgentProfile>>
 
+    /**
+     * Every agent known to this phone, including agents downloaded from the cloud whose
+     * account lives on another phone. Used to label packages and group trips.
+     */
+    fun observeAgentDirectory(): Flow<List<AgentProfile>> = observeAgents()
+
     /** The logged-in agent's own profile, or null if not set up yet. */
     fun observeMyAgentProfile(): Flow<AgentProfile?>
 
