@@ -91,4 +91,22 @@ interface GroupDao {
 
     @Query("SELECT groupId FROM group_members WHERE travellerEmail = :travellerEmail")
     fun observeJoinedGroupIds(travellerEmail: String): Flow<List<Long>>
+
+    // -- Cloud sync ------------------------------------------------------------
+
+    @Query("SELECT * FROM group_trips WHERE cloudId = :cloudId LIMIT 1")
+    suspend fun getGroupByCloudId(cloudId: String): GroupTripEntity?
+
+    @Query("UPDATE group_trips SET cloudId = :cloudId WHERE id = :groupId")
+    suspend fun setCloudId(groupId: Long, cloudId: String)
+
+    @Query("SELECT * FROM group_trips WHERE agentEmail = :agentEmail")
+    suspend fun getGroupsForAgentOnce(agentEmail: String): List<GroupTripEntity>
+
+    /** Member from another phone (replaces an existing row for the same traveller). */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertMember(member: GroupMemberEntity)
+
+    @Query("DELETE FROM group_members WHERE groupId = :groupId")
+    suspend fun deleteAllMembers(groupId: Long)
 }

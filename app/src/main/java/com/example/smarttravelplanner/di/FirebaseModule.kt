@@ -2,6 +2,8 @@ package com.example.smarttravelplanner.di
 
 import com.example.smarttravelplanner.data.remote.cloud.CloudAuth
 import com.example.smarttravelplanner.data.remote.cloud.FirebaseCloudAuth
+import com.example.smarttravelplanner.data.remote.cloud.CatalogSync
+import com.example.smarttravelplanner.data.remote.cloud.FirestoreCatalogSync
 import com.example.smarttravelplanner.data.remote.cloud.FirestoreTripSync
 import com.example.smarttravelplanner.data.remote.cloud.TripSync
 import com.google.firebase.auth.FirebaseAuth
@@ -40,4 +42,9 @@ object FirebaseModule {
     @Provides
     @Singleton
     fun provideTripSync(impl: FirestoreTripSync): TripSync = impl
+
+    /** Packages, group trips, joins and agency details. */
+    @Provides
+    @Singleton
+    fun provideCatalogSync(impl: FirestoreCatalogSync): CatalogSync = impl
 }

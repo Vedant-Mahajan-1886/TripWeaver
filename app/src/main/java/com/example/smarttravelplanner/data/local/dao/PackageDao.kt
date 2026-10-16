@@ -55,4 +55,15 @@ interface PackageDao {
 
     @Query("UPDATE agent_packages SET isPublished = :published, updatedAt = :now WHERE id = :packageId")
     suspend fun setPublished(packageId: Long, published: Boolean, now: Long)
+
+    // -- Cloud sync ------------------------------------------------------------
+
+    @Query("SELECT * FROM agent_packages WHERE cloudId = :cloudId LIMIT 1")
+    suspend fun getPackageByCloudId(cloudId: String): AgentPackageEntity?
+
+    @Query("UPDATE agent_packages SET cloudId = :cloudId WHERE id = :packageId")
+    suspend fun setCloudId(packageId: Long, cloudId: String)
+
+    @Query("SELECT * FROM agent_packages WHERE agentEmail = :agentEmail")
+    suspend fun getPackagesForAgentOnce(agentEmail: String): List<AgentPackageEntity>
 }

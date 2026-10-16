@@ -9,6 +9,8 @@ import com.example.smarttravelplanner.data.local.dao.TripFeedbackRow
 import com.example.smarttravelplanner.data.local.dao.TripShareWithTripRow
 import com.example.smarttravelplanner.data.local.db.Converters
 import com.example.smarttravelplanner.data.local.db.TravelDatabase
+import com.example.smarttravelplanner.data.remote.cloud.CatalogSync
+import com.example.smarttravelplanner.data.remote.cloud.NoCatalogSync
 import com.example.smarttravelplanner.data.local.entity.ActivityFeedbackEntity
 import com.example.smarttravelplanner.data.local.entity.AgentProfileEntity
 import com.example.smarttravelplanner.data.local.entity.TripShareEntity
@@ -44,7 +46,9 @@ class LocalAgentRepository @Inject constructor(
     private val tripDao: TripDao,
     private val authRepository: AuthRepository,
     private val userRoleRepository: UserRoleRepository,
-    private val tripEditDao: TripEditDao
+    private val tripEditDao: TripEditDao,
+    /** Publishes the agency details so travellers on other phones see them. */
+    private val catalogSync: CatalogSync = NoCatalogSync
 ) : AgentRepository {
 
     private val converters = Converters()
@@ -53,6 +57,9 @@ class LocalAgentRepository @Inject constructor(
 
     override fun observeAgents(): Flow<List<AgentProfile>> =
         agentDao.observeAgents().map { rows -> rows.map { it.toDomain() } }
+
+    override fun observeAgentDirectory(): Flow<List<AgentProfile>> =
+        agentDao.observeAgentDirectory().map { rows -> rows.map { it.toDomain() } }
 
     override fun observeMyAgentProfile(): Flow<AgentProfile?> =
         currentEmailFlow().flatMapLatest { email ->
@@ -85,6 +92,7 @@ class LocalAgentRepository @Inject constructor(
                 specialities = specialities.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
             )
         )
+        catalogSync.pushAgentProfile(email)
     }
 
     // ── Traveller side ───────────────────────────────────────────────────────

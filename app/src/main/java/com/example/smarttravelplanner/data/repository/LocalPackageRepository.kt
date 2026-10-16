@@ -8,6 +8,8 @@ import com.example.smarttravelplanner.data.local.db.TravelDatabase
 import com.example.smarttravelplanner.data.local.entity.AgentPackageEntity
 import com.example.smarttravelplanner.data.local.entity.PackageDayEntity
 import com.example.smarttravelplanner.data.local.entity.TripShareEntity
+import com.example.smarttravelplanner.data.remote.cloud.CatalogSync
+import com.example.smarttravelplanner.data.remote.cloud.NoCatalogSync
 import com.example.smarttravelplanner.domain.model.Activity
 import com.example.smarttravelplanner.domain.model.Trip
 import com.example.smarttravelplanner.domain.model.UserRole
@@ -42,7 +44,9 @@ class LocalPackageRepository @Inject constructor(
     private val itineraryRepository: ItineraryRepository,
     private val authRepository: AuthRepository,
     private val userRoleRepository: UserRoleRepository,
-    private val gson: Gson
+    private val gson: Gson,
+    /** Copies the agent's packages to Firestore so travellers on other phones see them. */
+    private val catalogSync: CatalogSync = NoCatalogSync
 ) : PackageRepository {
 
     private val activityListType = object : TypeToken<List<Activity>>() {}.type
@@ -66,7 +70,7 @@ class LocalPackageRepository @Inject constructor(
         require(problems.isEmpty()) { problems.joinToString("\n") }
 
         val now = System.currentTimeMillis()
-        database.withTransaction {
+        val savedId = database.withTransaction {
             val existing = if (pkg.id != 0L) packageDao.getPackageRow(pkg.id) else null
             val id = packageDao.upsertPackage(
                 AgentPackageEntity(
@@ -82,7 +86,8 @@ class LocalPackageRepository @Inject constructor(
                     bestSeason = pkg.bestSeason.trim(),
                     isPublished = pkg.isPublished,
                     createdAt = existing?.createdAt ?: now,
-                    updatedAt = now
+                    updatedAt = now,
+                    cloudId = existing?.cloudId
                 )
             ).let { if (pkg.id != 0L) pkg.id else it }
             packageDao.deleteDays(id)
@@ -98,6 +103,8 @@ class LocalPackageRepository @Inject constructor(
             )
             id
         }
+        catalogSync.pushPackage(savedId)
+        savedId
     }
 
     override suspend fun setPublished(packageId: Long, published: Boolean): Result<Unit> = runCatching {
@@ -109,12 +116,14 @@ class LocalPackageRepository @Inject constructor(
             require(problems.isEmpty()) { problems.joinToString("\n") }
         }
         packageDao.setPublished(packageId, published, System.currentTimeMillis())
+        catalogSync.pushPackage(packageId)
     }
 
     override suspend fun deletePackage(packageId: Long): Result<Unit> = runCatching {
         val me = requireAgent()
         requireOwnPackage(packageId, me)
         // Trips already made from it are the travellers' own copies, so they stay.
+        catalogSync.removePackage(packageId) // needs the cloud id, so before the local delete
         packageDao.deletePackage(packageId)
     }
 
@@ -128,7 +137,7 @@ class LocalPackageRepository @Inject constructor(
     override fun observePublishedPackages(query: String): Flow<List<PackageListing>> =
         combine(
             packageDao.observePublishedPackages(),
-            agentRepository.observeAgents(),
+            agentRepository.observeAgentDirectory(),
             bookingRepository.observeRatings()
         ) { packages, agents, ratings ->
             val byEmail = agents.associateBy { it.email }

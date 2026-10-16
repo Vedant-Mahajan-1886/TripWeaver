@@ -67,6 +67,23 @@ interface AgentDao {
     )
     fun observeAgents(): Flow<List<AgentListRow>>
 
+    /**
+     * Every agent profile on this phone, including agents whose account lives on another
+     * phone (profiles downloaded from the cloud). Used to label packages and group trips.
+     */
+    @Query(
+        """
+        SELECT p.email AS email, COALESCE(u.fullName, p.agencyName) AS fullName,
+               p.agencyName AS agencyName, p.city AS city, p.specialities AS specialitiesJson
+        FROM agent_profiles p
+        LEFT JOIN users u ON LOWER(u.email) = p.email
+        """
+    )
+    fun observeAgentDirectory(): Flow<List<AgentListRow>>
+
+    @Query("SELECT * FROM agent_profiles WHERE email = :email LIMIT 1")
+    suspend fun getAgentProfile(email: String): AgentProfileEntity?
+
     // ── Shares ───────────────────────────────────────────────────────────────
 
     /** Returns the new row id, or -1 if this trip is already shared with that agent. */
