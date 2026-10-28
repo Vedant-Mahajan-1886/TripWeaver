@@ -17,6 +17,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import com.example.smarttravelplanner.data.rag.RagSourceRegistry
+import com.example.smarttravelplanner.data.remote.ai.ItineraryPromptBuilder
 import javax.inject.Inject
 
 /**
@@ -29,6 +31,7 @@ import javax.inject.Inject
  *  6. Returns Result<Long> (the new tripId, used for navigation to TripDetail)
  */
 class GenerateTripUseCase @Inject constructor(
+    private val retrieveTravelContextUseCase: RetrieveTravelContextUseCase,
     private val aiRepository: AiRepository,
     private val tripRepository: TripRepository,
     private val itineraryRepository: ItineraryRepository,
@@ -73,6 +76,16 @@ class GenerateTripUseCase @Inject constructor(
             } else null
         }.getOrNull()
 
+        // Step 2b — TripWeaver RAG: retrieve curated passages for this destination.
+        // Returns an empty context for destinations the knowledge base does not cover,
+        // in which case the prompt below is exactly what it was before RAG existed.
+        val ragContext = retrieveTravelContextUseCase(
+            destination = destination,
+            interests   = interests,
+            notes       = notes
+        )
+        val retrievedContext = ItineraryPromptBuilder.buildRetrievedContextBlock(ragContext.passages)
+
         // Step 3 — Generate structured weather-aware, personalized itinerary from AI
         val dto = aiRepository.generateItinerary(
             destination     = destination,
@@ -86,7 +99,8 @@ class GenerateTripUseCase @Inject constructor(
             weatherForecast = weatherForecast,
             adults          = adults,
             kids            = kids,
-            userPreferences = resolvedTravelPrefs
+            userPreferences = resolvedTravelPrefs,
+            retrievedContext = retrievedContext
         ).getOrThrow()
 
         // Step 3 — Build Trip domain object and persist it
@@ -124,6 +138,9 @@ class GenerateTripUseCase @Inject constructor(
             )
         }
         itineraryRepository.saveItineraries(itineraries)
+
+        // Remember which passages informed this trip so the detail screen can cite them.
+        RagSourceRegistry.record(tripId, ragContext)
 
         tripId
     }
