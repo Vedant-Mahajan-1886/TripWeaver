@@ -19,6 +19,7 @@ import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import com.example.smarttravelplanner.data.rag.RagSourceRegistry
 import com.example.smarttravelplanner.data.remote.ai.ItineraryPromptBuilder
+import com.example.smarttravelplanner.domain.model.RagContext
 import javax.inject.Inject
 
 /**
@@ -31,7 +32,12 @@ import javax.inject.Inject
  *  6. Returns Result<Long> (the new tripId, used for navigation to TripDetail)
  */
 class GenerateTripUseCase @Inject constructor(
-    private val retrieveTravelContextUseCase: RetrieveTravelContextUseCase,
+    /**
+     * TripWeaver RAG retrieval. Optional on purpose: Hilt always supplies the real
+     * retriever in the app, while existing unit tests that construct this use case
+     * directly can leave it out and get exactly the pre-RAG behaviour.
+     */
+    private val retrieveTravelContextUseCase: RetrieveTravelContextUseCase? = null,
     private val aiRepository: AiRepository,
     private val tripRepository: TripRepository,
     private val itineraryRepository: ItineraryRepository,
@@ -79,10 +85,14 @@ class GenerateTripUseCase @Inject constructor(
         // Step 2b — TripWeaver RAG: retrieve curated passages for this destination.
         // Returns an empty context for destinations the knowledge base does not cover,
         // in which case the prompt below is exactly what it was before RAG existed.
-        val ragContext = retrieveTravelContextUseCase(
+        val ragContext = retrieveTravelContextUseCase?.invoke(
             destination = destination,
             interests   = interests,
             notes       = notes
+        ) ?: RagContext(
+            destinationId        = "",
+            requestedDestination = destination,
+            passages             = emptyList()
         )
         val retrievedContext = ItineraryPromptBuilder.buildRetrievedContextBlock(ragContext.passages)
 
