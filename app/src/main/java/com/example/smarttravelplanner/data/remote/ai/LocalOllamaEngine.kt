@@ -53,6 +53,9 @@ class LocalOllamaEngine @Inject constructor(
                 retrievedContext   = retrievedContext
             )
 
+            // XAI: prove the augmentation step. Filter Logcat by RAG_PROOF.
+            RagProofLogger.logPrompt("OLLAMA", userMessage, retrievedContext)
+
             val response = ollamaApi.chat(
                 OllamaChatRequest(
                     model    = model.ifBlank { "qwen3.5:4b" },

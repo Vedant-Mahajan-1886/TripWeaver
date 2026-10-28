@@ -71,6 +71,9 @@ class CloudGeminiEngine @Inject constructor(
                 retrievedContext   = retrievedContext
             )
 
+            // XAI: prove the augmentation step. Filter Logcat by RAG_PROOF.
+            RagProofLogger.logPrompt("GEMINI", userMessage, retrievedContext)
+
             val tools = if (isWebGroundingEnabled) {
                 listOf(GeminiTool(googleSearch = GeminiGoogleSearch()))
             } else null
