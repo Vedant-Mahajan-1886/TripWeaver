@@ -82,10 +82,17 @@ fun RagSourcesCard(
                     Spacer(Modifier.width(8.dp))
                     Column {
                         Text(
-                            text = "${chunk.destination} · ${chunk.topicLabel()}",
+                            text = "${chunk.destination} · ${chunk.topicLabel()} " +
+                                "(${retrieved.relevanceLabel()})",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = retrieved.bm25Label(),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.primary
                         )
                         Text(
                             text = "${chunk.sourceName} · as of ${chunk.asOf}",
@@ -107,8 +114,10 @@ fun RagSourcesCard(
 
             Spacer(Modifier.height(2.dp))
             Text(
-                text = "Retrieval: ${context.retrievalMode.lowercase()} ranking over a curated corpus. " +
-                    "Cost figures above are estimates compiled for this project, not live prices.",
+                text = "Ranked by BM25 (Okapi, k1=1.2, b=0.75) over the curated corpus, plus a " +
+                    "small per-topic prior so cost and timing are not crowded out when no keywords " +
+                    "match. Mode: ${context.retrievalMode.lowercase()}. Cost figures above are " +
+                    "estimates compiled for this project, not live prices.",
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

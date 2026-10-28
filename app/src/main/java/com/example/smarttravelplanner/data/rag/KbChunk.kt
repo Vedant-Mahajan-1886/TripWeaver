@@ -59,4 +59,20 @@ data class RetrievedChunk(
     val lexicalScore: Double,
     /** Final score actually used for ranking (lexical + topic prior). */
     val score: Double
-)
+) {
+    /** The topic prior that was added to the BM25 score to produce [score]. */
+    val topicPrior: Double get() = score - lexicalScore
+
+    /** Score shown beside a citation, e.g. "Relevance 4.82". */
+    fun relevanceLabel(): String = "Relevance %.2f".format(score)
+
+    /**
+     * Full arithmetic behind the ranking, e.g. "BM25 4.82 + topic prior 0.90".
+     *
+     * Worth showing rather than hiding: a passage can be retrieved with a BM25 of
+     * 0.00 when the traveller supplied no matching keywords, and is then selected
+     * purely by its topic prior. Displaying both makes that visible instead of
+     * looking like a broken score.
+     */
+    fun bm25Label(): String = "BM25 %.2f + topic prior %.2f".format(lexicalScore, topicPrior)
+}
